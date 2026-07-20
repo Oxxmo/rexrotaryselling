@@ -1,5 +1,5 @@
 /* Rex Seller — service worker (mode hors-ligne) */
-const CACHE = "rexseller-v1";
+const CACHE = "rexseller-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,7 +7,9 @@ const ASSETS = [
   "./js/data.js",
   "./js/app.js",
   "./manifest.webmanifest",
-  "./assets/icon.svg"
+  "./assets/icon.svg",
+  "./assets/logo-white.png",
+  "./assets/logo-red.png"
 ];
 
 self.addEventListener("install", (e) => {

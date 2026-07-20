@@ -29,23 +29,28 @@ h1,h2,h3{margin:0}
 button{font-family:inherit}
 .muted{color:var(--muted);font-size:.9rem}
 
+/* En-tête collant (logo + progression + sections) */
+.topbar{
+  position:sticky;top:0;z-index:40;background:var(--bg);
+  box-shadow:0 4px 14px rgba(0,0,0,.08);
+}
+
 /* Barre supérieure */
 .appbar{
-  position:sticky;top:0;z-index:40;
   display:flex;align-items:center;justify-content:space-between;
-  gap:12px;padding:10px 16px;
+  gap:12px;padding:9px 16px;
   background:linear-gradient(120deg,var(--rex),var(--rex-dark));
-  color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15);
+  color:#fff;
 }
-.appbar__brand{display:flex;align-items:center;gap:10px}
-.logo-dot{
-  display:grid;place-items:center;width:38px;height:38px;border-radius:50%;
-  background:#fff;color:var(--rex);font-weight:800;font-size:1.3rem;
-  box-shadow:inset 0 0 0 3px var(--rex);
+.appbar__brand{display:flex;align-items:center;gap:12px;min-width:0}
+.appbar__logo{height:26px;width:auto;display:block;flex:0 0 auto}
+.appbar__product{
+  display:flex;flex-direction:column;line-height:1;
+  font-weight:800;font-size:1.1rem;padding-left:12px;
+  border-left:2px solid rgba(255,255,255,.4);
 }
-.appbar__title{font-weight:800;font-size:1.15rem;line-height:1}
-.appbar__subtitle{font-size:.72rem;opacity:.85;letter-spacing:.04em;text-transform:uppercase}
-.appbar__actions{display:flex;align-items:center;gap:10px}
+.appbar__product small{font-weight:500;font-size:.62rem;opacity:.85;letter-spacing:.03em;text-transform:uppercase;margin-top:3px}
+.appbar__actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
 .save-status{font-size:.75rem;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px}
 .save-status.saving{background:rgba(255,255,255,.35)}
 
@@ -63,10 +68,10 @@ button{font-family:inherit}
 .btn--wide{width:100%}
 .appbar .btn--ghost{font-size:1.2rem;padding:6px 12px}
 
-/* Panneau menu */
+/* Panneau menu (déroulé sous la barre) */
 .menu-panel{
-  max-width:var(--maxw);margin:12px auto 0;padding:16px;background:var(--card);
-  border-radius:var(--radius);box-shadow:var(--shadow);
+  max-width:var(--maxw);margin:0 auto;padding:14px 16px;background:var(--card);
+  border-bottom:1px solid var(--line);
 }
 .menu-panel__row{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .menu-panel__row label{font-weight:600;font-size:.85rem}
@@ -75,30 +80,40 @@ button{font-family:inherit}
 
 /* Progression */
 .progress-wrap{
-  max-width:var(--maxw);margin:14px auto 0;padding:0 16px;
+  max-width:var(--maxw);margin:0 auto;padding:8px 16px 0;
   display:flex;align-items:center;gap:10px;
 }
-.progress-bar{flex:1;height:8px;background:#e3e5e9;border-radius:999px;overflow:hidden}
+.progress-bar{flex:1;height:7px;background:#e3e5e9;border-radius:999px;overflow:hidden}
 .progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--rex),#e94b64);transition:width .3s}
-.progress-label{font-size:.8rem;font-weight:700;color:var(--muted);min-width:38px;text-align:right}
+.progress-label{font-size:.78rem;font-weight:700;color:var(--muted);min-width:34px;text-align:right}
 
-/* Navigation sections */
+/* Navigation sections — toutes les sections tiennent sur une seule ligne */
 .section-nav{
-  max-width:var(--maxw);margin:12px auto 0;padding:0 12px;
-  display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  max-width:var(--maxw);margin:0 auto;padding:8px 10px 10px;
+  display:flex;gap:5px;
 }
-.section-nav::-webkit-scrollbar{display:none}
 .nav-chip{
-  flex:0 0 auto;border:1px solid var(--line);background:var(--card);
-  border-radius:999px;padding:8px 14px;font-size:.82rem;font-weight:600;cursor:pointer;
-  display:flex;align-items:center;gap:6px;white-space:nowrap;color:var(--ink);
+  flex:1 1 0;min-width:0;position:relative;
+  border:1px solid var(--line);background:var(--card);border-radius:10px;
+  padding:6px 3px 5px;cursor:pointer;color:var(--ink);
+  display:flex;flex-direction:column;align-items:center;gap:2px;
 }
-.nav-chip .dot{width:8px;height:8px;border-radius:50%;background:#d1d5db}
+.nav-chip__icon{font-size:1.05rem;line-height:1}
+.nav-chip__label{
+  font-size:.64rem;font-weight:600;line-height:1.05;text-align:center;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.nav-chip .dot{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#d6d8dd}
 .nav-chip.filled .dot{background:var(--ok)}
 .nav-chip.active{border-color:var(--rex);background:var(--rex-light);color:var(--rex-dark)}
+@media(min-width:560px){
+  .nav-chip__label{font-size:.74rem}
+  .nav-chip{padding:8px 4px 7px}
+}
 
 /* Livret */
-.booklet{max-width:var(--maxw);margin:16px auto 0;padding:0 16px}
+.booklet{max-width:var(--maxw);margin:14px auto 0;padding:0 16px;scroll-margin-top:120px}
+.section-card{scroll-margin-top:120px}
 .section-card{
   background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
   margin-bottom:14px;overflow:hidden;
@@ -209,6 +224,14 @@ table.grid td input:focus{outline:2px solid var(--rex-light)}
   background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;
   margin:12px 0;max-height:44vh;overflow-y:auto;font-size:13px;
 }
+.pdf-preview .logo{height:30px;width:auto;display:block;margin-bottom:8px}
+.pdf-preview h1{font-size:1.1rem;color:var(--rex-dark);margin:2px 0}
+.pdf-preview .sub{color:var(--muted);font-size:.8rem;margin-bottom:10px}
+.pdf-preview .meta{font-size:.8rem;border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:12px}
+.pdf-preview .meta b{display:inline-block;min-width:110px}
+.pdf-preview h2{color:var(--rex-dark);font-size:.95rem;margin:14px 0 6px;border-bottom:2px solid var(--rex);padding-bottom:3px}
+.pdf-preview table{border-collapse:collapse;width:100%;font-size:11px;margin:4px 0}
+.pdf-preview table td,.pdf-preview table th{border:1px solid #ccc;padding:3px 5px;text-align:left}
 .pdf-preview h4{color:var(--rex-dark);margin:14px 0 4px;font-size:.92rem;border-bottom:1px solid var(--line);padding-bottom:3px}
 .pdf-preview .qa{margin:6px 0}
 .pdf-preview .q{font-weight:600}
@@ -236,6 +259,7 @@ table.grid td input:focus{outline:2px solid var(--rex-light)}
   body{background:#fff;padding:0}
   .appbar,.menu-panel,.progress-wrap,.section-nav,.booklet,.bottombar,.modal,.toast{display:none !important}
   .print-area{display:block;padding:0 6mm}
+  .print-doc .logo{height:34px;width:auto;display:block;margin:0 0 8px}
   .print-doc h1{color:var(--rex);font-size:20px;margin:0 0 2px}
   .print-doc .sub{color:#555;font-size:12px;margin-bottom:14px}
   .print-doc .meta{font-size:12px;margin-bottom:16px;border:1px solid #ddd;border-radius:6px;padding:8px 10px}

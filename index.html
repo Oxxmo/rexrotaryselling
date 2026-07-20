@@ -13,45 +13,44 @@
 </head>
 <body>
 
-  <!-- Barre supérieure -->
-  <header class="appbar">
-    <div class="appbar__brand">
-      <span class="logo-dot">R</span>
-      <div>
-        <div class="appbar__title">Rex Seller</div>
-        <div class="appbar__subtitle">Aide à la découverte</div>
+  <!-- En-tête collant : reste visible au défilement -->
+  <header class="topbar">
+    <div class="appbar">
+      <div class="appbar__brand">
+        <img class="appbar__logo" src="assets/logo-white.png" alt="Rex-Rotary" />
+        <span class="appbar__product">Seller<small>Aide à la découverte</small></span>
+      </div>
+      <div class="appbar__actions">
+        <span id="saveStatus" class="save-status" title="Sauvegarde automatique">Enregistré</span>
+        <button id="btnMenu" class="btn btn--ghost" aria-label="Menu">☰</button>
       </div>
     </div>
-    <div class="appbar__actions">
-      <span id="saveStatus" class="save-status" title="Sauvegarde automatique">Enregistré</span>
-      <button id="btnMenu" class="btn btn--ghost" aria-label="Menu">☰</button>
+
+    <!-- Panneau de gestion des rendez-vous -->
+    <div id="menuPanel" class="menu-panel" hidden>
+      <div class="menu-panel__row">
+        <label for="rdvSelect">Rendez-vous en cours</label>
+        <select id="rdvSelect"></select>
+      </div>
+      <div class="menu-panel__buttons">
+        <button id="btnNew" class="btn btn--primary">＋ Nouveau RDV</button>
+        <button id="btnDuplicate" class="btn btn--ghost">Dupliquer</button>
+        <button id="btnExport" class="btn btn--ghost">Exporter (.json)</button>
+        <button id="btnImport" class="btn btn--ghost">Importer</button>
+        <button id="btnDelete" class="btn btn--danger">Supprimer</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" hidden />
     </div>
+
+    <!-- Progression -->
+    <div class="progress-wrap">
+      <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+      <span id="progressLabel" class="progress-label">0 %</span>
+    </div>
+
+    <!-- Navigation par sections (une seule ligne) -->
+    <nav id="sectionNav" class="section-nav" aria-label="Sections du livret"></nav>
   </header>
-
-  <!-- Panneau de gestion des rendez-vous -->
-  <div id="menuPanel" class="menu-panel" hidden>
-    <div class="menu-panel__row">
-      <label for="rdvSelect">Rendez-vous en cours</label>
-      <select id="rdvSelect"></select>
-    </div>
-    <div class="menu-panel__buttons">
-      <button id="btnNew" class="btn btn--primary">＋ Nouveau RDV</button>
-      <button id="btnDuplicate" class="btn btn--ghost">Dupliquer</button>
-      <button id="btnExport" class="btn btn--ghost">Exporter (.json)</button>
-      <button id="btnImport" class="btn btn--ghost">Importer</button>
-      <button id="btnDelete" class="btn btn--danger">Supprimer</button>
-    </div>
-    <input type="file" id="importFile" accept="application/json" hidden />
-  </div>
-
-  <!-- Progression -->
-  <div class="progress-wrap">
-    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
-    <span id="progressLabel" class="progress-label">0 %</span>
-  </div>
-
-  <!-- Navigation par sections -->
-  <nav id="sectionNav" class="section-nav" aria-label="Sections du livret"></nav>
 
   <!-- Contenu du livret -->
   <main id="booklet" class="booklet"></main>

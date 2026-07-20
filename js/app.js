@@ -50,17 +50,44 @@
   /* ----------------------- Rendu du livret ----------------------- */
   function renderNav() {
     const nav = $("#sectionNav");
-    nav.innerHTML = BOOKLET.map(sec => {
+    nav.innerHTML = BOOKLET.map((sec, i) => {
       const filled = sectionFilled(sec);
-      return `<button class="nav-chip ${filled ? "filled" : ""}" data-goto="${sec.id}">
-        <span class="dot"></span>${sec.icon} ${esc(sec.title)}</button>`;
+      return `<button class="nav-chip ${i === 0 ? "active" : ""} ${filled ? "filled" : ""}" data-goto="${sec.id}" title="${esc(sec.title)}">
+        <span class="dot"></span>
+        <span class="nav-chip__icon">${sec.icon}</span>
+        <span class="nav-chip__label">${esc(sec.short || sec.title)}</span>
+      </button>`;
     }).join("");
     $$(".nav-chip", nav).forEach(chip => chip.addEventListener("click", () => {
       const id = chip.dataset.goto;
       const card = $(`#sec-${id}`);
       openSection(card, true);
-      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveChip(id);
+      const top = card.getBoundingClientRect().top + window.scrollY - stickyHeight() - 6;
+      window.scrollTo({ top, behavior: "smooth" });
     }));
+  }
+
+  function stickyHeight() { const t = $(".topbar"); return t ? t.offsetHeight : 0; }
+  function setActiveChip(id) {
+    $$(".nav-chip").forEach(c => c.classList.toggle("active", c.dataset.goto === id));
+  }
+  // Surligne la section la plus proche du haut pendant le défilement.
+  function trackActiveOnScroll() {
+    let ticking = false;
+    window.addEventListener("scroll", () => {
+      if (ticking) return; ticking = true;
+      requestAnimationFrame(() => {
+        const y = stickyHeight() + 12;
+        let cur = BOOKLET[0].id;
+        for (const sec of BOOKLET) {
+          const card = $(`#sec-${sec.id}`);
+          if (card && card.getBoundingClientRect().top <= y) cur = sec.id;
+        }
+        setActiveChip(cur);
+        ticking = false;
+      });
+    }, { passive: true });
   }
 
   function sectionFilled(sec) {
@@ -318,8 +345,9 @@
         <div><b>Contact :</b> ${esc(r.data.contact || "—")} ${r.data.fonction ? "(" + esc(r.data.fonction) + ")" : ""}</div>
         <div><b>Commercial :</b> ${esc(r.data.commercial || "—")}</div>
       </div>`;
-    let html = `<h1>Synthèse de rendez-vous — Rex Seller</h1>
-      <div class="sub">Livret de découverte Rex-Rotary</div>${meta}`;
+    let html = `<img class="logo" src="assets/logo-red.png" alt="Rex-Rotary" />
+      <h1>Synthèse de rendez-vous</h1>
+      <div class="sub">Livret de découverte · Rex Seller</div>${meta}`;
 
     BOOKLET.forEach(sec => {
       const parts = [];
@@ -616,6 +644,7 @@
   renderBooklet();
   refreshRdvSelect();
   updateAllMeta();
+  trackActiveOnScroll();
   wire();
   setSaveStatus("saved");
 

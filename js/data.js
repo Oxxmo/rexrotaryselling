@@ -1,7 +1,7 @@
 /*
  * Rex Seller — Structure du livret de découverte Rex-Rotary
- * Version « Limoges » (livret à jour). Chaque question du livret est reprise
- * ici, section par section, dans l'ordre du document, sans en omettre une seule.
+ * Chaque question du livret est reprise ici, section par section,
+ * dans l'ordre du document, sans en omettre une seule.
  *
  * Types de champ supportés :
  *   text      -> saisie courte
@@ -18,6 +18,7 @@ const BOOKLET = [
   {
     id: "infos",
     title: "Votre entreprise",
+    short: "Entreprise",
     icon: "🏢",
     intro: "Coordonnées du rendez-vous et présentation de l'entreprise.",
     fields: [
@@ -38,6 +39,7 @@ const BOOKLET = [
   {
     id: "info_infra",
     title: "Infrastructure informatique",
+    short: "Informatique",
     icon: "💻",
     fields: [
       { id: "inf_note", label: "Note de votre parc informatique", type: "rating" },
@@ -54,6 +56,7 @@ const BOOKLET = [
   {
     id: "securite",
     title: "Sécurité & Sauvegarde",
+    short: "Sécurité",
     icon: "🔒",
     fields: [
       { id: "sec_protection", label: "Comment protégez-vous l'accès au réseau et/ou vos postes informatiques ?", type: "textarea" },
@@ -73,6 +76,7 @@ const BOOKLET = [
   {
     id: "demat",
     title: "Dématérialisation",
+    short: "Démat.",
     icon: "📄",
     fields: [
       { id: "dem_partage", label: "Comment partagez-vous vos documents ? (interne et externe)", type: "textarea" },
@@ -93,6 +97,7 @@ const BOOKLET = [
   {
     id: "impression",
     title: "Impression",
+    short: "Impression",
     icon: "🖨️",
     fields: [
       {
@@ -135,6 +140,7 @@ const BOOKLET = [
   {
     id: "communication",
     title: "Communication",
+    short: "Comm.",
     icon: "📣",
     fields: [
       { id: "com_int_comment", label: "Interne — Comment communiquez-vous ? (entre sites / services)", type: "textarea" },
@@ -151,6 +157,7 @@ const BOOKLET = [
   {
     id: "telephonie",
     title: "Téléphonie & Liens Internet",
+    short: "Téléphonie",
     icon: "📞",
     fields: [
       { id: "tel_note", label: "Note de satisfaction de votre prestataire actuel", type: "rating" },
@@ -163,6 +170,7 @@ const BOOKLET = [
   {
     id: "validation",
     title: "Validation du projet",
+    short: "Projet",
     icon: "✅",
     fields: [
       { id: "val_reformulation", label: "Reformulation des problématiques / besoin + définition de l'objectif budgétaire", type: "textarea" },
