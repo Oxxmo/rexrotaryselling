@@ -316,7 +316,7 @@
         <div><b>Société :</b> ${esc(soc)}</div>
         <div><b>Date du RDV :</b> ${esc(date)}</div>
         <div><b>Contact :</b> ${esc(r.data.contact || "—")} ${r.data.fonction ? "(" + esc(r.data.fonction) + ")" : ""}</div>
-        <div><b>Commercial :</b> ${esc(r.data.commercial_dedie || "—")}</div>
+        <div><b>Commercial :</b> ${esc(r.data.commercial || "—")}</div>
       </div>`;
     let html = `<h1>Synthèse de rendez-vous — Rex Seller</h1>
       <div class="sub">Livret de découverte Rex-Rotary</div>${meta}`;
@@ -386,34 +386,37 @@
     if (d.date_rdv) L.push(`Date : ${d.date_rdv}`);
     push("Contact", "contact");
     push("Fonction", "fonction");
-    push("Statut", "statut");
-    push("Secteur", "secteur");
-    push("Effectif", "nb_salaries");
-    if (isFilled(d.ent_decision)) L.push(`Circuit décisionnel : ${d.ent_decision}`);
+    push("Secteur / valeurs ajoutées", "secteur");
+    push("Localisation / sites", "localisation");
+    push("Effectif", "salaries");
+    if (isFilled(d.decisions)) L.push(`Prise de décision : ${flat(d.decisions, "decisions")}`);
     L.push("");
 
     L.push("— Environnement actuel —");
-    push("Gestionnaire IT", "inf_gestionnaire");
-    push("Fournisseur impression", "imp_fournisseur");
-    push("Opérateur télécom", "tel_operateur");
+    push("Gestionnaire IT / maintenance", "inf_gestionnaire");
     push("Note parc informatique", "inf_note");
     push("Note prestataire télécom", "tel_note");
+    push("Antivirus / Pack Office", "inf_av_office");
+    push("RGPD", "sec_rgpd");
     L.push("");
 
-    const pbs = ["val_pb1", "val_pb2", "val_pb3"].filter(id => isFilled(d[id])).map(id => d[id]);
-    if (pbs.length) { L.push("— Problématiques / priorités —"); pbs.forEach((p, i) => L.push(`${i + 1}. ${p}`)); L.push(""); }
+    if (isFilled(d.val_reformulation)) {
+      L.push("— Problématiques / besoin / objectif budgétaire —");
+      L.push(flat(d.val_reformulation, "val_reformulation"));
+      L.push("");
+    }
+    if (isFilled(d.val_quand)) L.push(`Équipement souhaité (QUAND) : ${d.val_quand}`);
+    if (isFilled(d.val_processus)) L.push(`Processus de décision : ${flat(d.val_processus, "val_processus")}`);
 
     const projF = BOOKLET.flatMap(s => s.fields).find(f => f.id === "val_projets");
     if (isFilled(d.val_projets)) {
       const t = tableToText(projF, d.val_projets);
-      if (t) { L.push("— Projets à présenter —"); L.push(t); L.push(""); }
+      if (t) { L.push(""); L.push("— Projets à présenter —"); L.push(t); }
     }
 
-    const critF = ["val_critere1", "val_critere2", "val_critere3"].filter(id => isFilled(d[id])).map(id => d[id]);
-    if (critF.length) { L.push("— Critères de choix —"); critF.forEach((c, i) => L.push(`${i + 1}. ${c}`)); L.push(""); }
-
-    const nextRdv = d.val_prochain_rdv || d.dem_prochain_rdv;
-    if (nextRdv) L.push(`Prochain RDV : ${nextRdv}`);
+    L.push("");
+    if (isFilled(d.dem_rdv_demo)) L.push(`RDV de démo : ${d.dem_rdv_demo}`);
+    if (isFilled(d.val_prochain_rdv)) L.push(`Prochain RDV : ${d.val_prochain_rdv}`);
 
     L.push("");
     L.push(r.affaire.active ? ">>> AFFAIRE À LEVER (voir fiche affaire détaillée)" : ">>> Pas d'affaire levée à ce stade.");
