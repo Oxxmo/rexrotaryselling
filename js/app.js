@@ -150,7 +150,7 @@
             <button type="button" data-v="Oui">Oui</button>
             <button type="button" data-v="Non">Non</button>
           </div>
-          ${f.withDate ? `<div class="yesno-extra"><input type="text" placeholder="${esc(f.dateLabel || "Date")}" data-extra="date"></div>` : ""}
+          ${f.withDate ? `<div class="yesno-extra"><label class="mini-label">${esc(f.dateLabel || "Date")}</label><input type="date" data-extra="date"></div>` : ""}
           ${f.withPrecision ? `<div class="yesno-extra"><input type="text" placeholder="Précision" data-extra="precision"></div>` : ""}`; break;
       case "checklist":
         control = `<div class="checklist" data-field="${f.id}">${f.options.map((o, i) =>
@@ -451,13 +451,70 @@
     return L.join("\n");
   }
 
+  /* --------- Recoupement : pré-remplir les 11 critères depuis le livret --------- */
+  function suggestCriteria() {
+    const d = current().data;
+    const g = id => {
+      const v = d[id];
+      if (v == null) return "";
+      if (typeof v === "object") return "";
+      return String(v).trim();
+    };
+    const yn = id => {
+      const v = d[id];
+      if (!v || typeof v !== "object") return "";
+      let s = v.v || "";
+      if (v.date) s += s ? ` (le ${v.date})` : `le ${v.date}`;
+      return s;
+    };
+    const s = {};
+    const set = (k, parts) => { const t = parts.filter(Boolean).join(" / "); if (t) s[k] = t; };
+
+    // Signataire ← circuit de décision
+    set("cr_signataire", [g("decisions")]);
+    // Influenceur clé ← interlocuteur rencontré (contact + fonction)
+    set("cr_influenceur", [[g("contact"), g("fonction")].filter(Boolean).join(" — ")]);
+    // Besoin / solution proposée ← reformulation + projets à présenter
+    const projF = BOOKLET.flatMap(x => x.fields).find(f => f.id === "val_projets");
+    const projTxt = isFilled(d.val_projets) ? tableToText(projF, d.val_projets).replace(/\n/g, " ; ") : "";
+    set("cr_besoin", [g("val_reformulation"), projTxt]);
+    // Motivation d'achat ← ce qui manque pour arriver à 10 (IT) + insatisfaction télécom
+    set("cr_motivation", [g("inf_ecart10"), g("tel_pourquoi")]);
+    // Quand ← QUAND voulez-vous être équipés
+    set("cr_quand", [g("val_quand")]);
+    // Type & date de relance ← prochain RDV / RDV de démo
+    set("cr_relance", [g("val_prochain_rdv") && ("Prochain RDV : " + g("val_prochain_rdv")), g("dem_rdv_demo") && ("Démo : " + g("dem_rdv_demo"))]);
+    // Étude réalisée ← audit prévu
+    const audit = yn("val_audit") || yn("sec_rdv_audit");
+    if (audit) set("cr_etude", ["Audit " + audit]);
+    // Accélérateur ← engagement moral
+    set("cr_accelerateur", [g("val_engagement")]);
+    return s;
+  }
+
+  // Renseigne les critères vides (ou tous si overwrite) à partir du livret.
+  function applyCriteriaSuggestions(overwrite) {
+    const a = current().affaire.data;
+    const sug = suggestCriteria();
+    let n = 0;
+    AFFAIRE_CRITERES.forEach(c => {
+      if (sug[c.id] && (overwrite || !isFilled(a[c.id]))) { a[c.id] = sug[c.id]; n++; }
+    });
+    if (n) touch();
+    return n;
+  }
+
   /* ----------------------- Formulaire Affaire ----------------------- */
   function renderAffaireForm() {
     const wrap = $("#affaireForm");
     const a = current().affaire.data;
     wrap.innerHTML = `
       <div class="affaire-block">
-        <h4>Les 11 critères de l'affaire</h4>
+        <div class="affaire-block__head">
+          <h4>Les 11 critères de l'affaire</h4>
+          <button type="button" id="btnPrefill" class="btn btn--ghost btn--sm">💡 Recouper depuis le livret</button>
+        </div>
+        <p class="prefill-hint">Certains critères sont pré-remplis à partir du livret de découverte — vérifiez et ajustez.</p>
         ${AFFAIRE_CRITERES.map(c => `
           <div class="field">
             <label class="field__label">${esc(c.label)}</label>
@@ -514,6 +571,12 @@
       cb.checked = !!a[k];
       cb.addEventListener("change", () => { a[k] = cb.checked; touch(); buildAffaireOutput(); });
     });
+    const btnPrefill = $("#btnPrefill", wrap);
+    if (btnPrefill) btnPrefill.addEventListener("click", () => {
+      const n = applyCriteriaSuggestions(false);
+      renderAffaireForm(); buildAffaireOutput();
+      toast(n ? `${n} critère(s) pré-rempli(s) depuis le livret` : "Aucun nouveau champ à pré-remplir");
+    });
     paintMatDesc();
   }
 
@@ -566,7 +629,11 @@
 
   function toggleAffaire() {
     const on = $("#affaireToggle").checked;
-    current().affaire.active = on; touch();
+    const aff = current().affaire;
+    aff.active = on;
+    // Pré-remplissage automatique des critères vides, une seule fois par RDV.
+    if (on && !aff.prefilled) { applyCriteriaSuggestions(false); aff.prefilled = true; }
+    touch();
     $("#affaireForm").hidden = !on;
     $("#affaireOutputWrap").hidden = !on;
     if (on) { renderAffaireForm(); buildAffaireOutput(); }

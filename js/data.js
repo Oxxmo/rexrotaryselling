@@ -90,7 +90,7 @@ const BOOKLET = [
       { id: "dem_chronophage", label: "Quelles sont les tâches chronophages que vous réalisez ? (recherche, diffusion, tri, archivage, etc.)", type: "textarea" },
       { id: "dem_archives_num", label: "Vos archives sont-elles numérisées ?", type: "textarea" },
       { id: "dem_reglementation", label: "La réglementation liée à votre métier vous impose de conserver certains documents : lesquels et pour quelle durée de conservation ?", type: "textarea" },
-      { id: "dem_rdv_demo", label: "RDV de démo", type: "text" }
+      { id: "dem_rdv_demo", label: "RDV de démo", type: "date" }
     ]
   },
 
@@ -182,7 +182,7 @@ const BOOKLET = [
         rows: ["Informatique", "Sécurité & Sauvegarde", "Dématérialisation", "Impression", "Communication", "Téléphonie"],
         cols: 4, columns: ["Ordre", "Solution(s) envisagée(s)", "Budget estimé", "Date planifiée"], rowHeader: "Gamme"
       },
-      { id: "val_prochain_rdv", label: "Date du prochain RDV ?", type: "text" },
+      { id: "val_prochain_rdv", label: "Date du prochain RDV ?", type: "date" },
       { id: "val_audit", label: "Audit ?", type: "yesno", withDate: true, dateLabel: "Date de l'audit" },
       {
         id: "val_checklist", label: "Avant de partir", type: "checklist",
