@@ -374,19 +374,10 @@
 
   function buildAffairePrint() {
     const a = current().affaire.data;
-    let h = `<h2>💼 Affaire</h2>`;
+    let h = `<h2>💼 Affaire — les 11 critères</h2>`;
     AFFAIRE_CRITERES.forEach(c => {
       h += `<div class="qa"><span class="q">${esc(c.label)} :</span> <span class="a">${esc(a[c.id] || "—")}</span></div>`;
     });
-    const mat = MATURITE.find(m => m.value == a.maturite);
-    h += `<div class="qa"><span class="q">Date prévisionnelle de vente :</span> ${esc(a.date_vente || "—")}</div>`;
-    h += `<div class="qa"><span class="q">CA potentiel :</span> ${esc(a.ca_potentiel || "—")} K€</div>`;
-    h += `<div class="qa"><span class="q">% Maturité :</span> ${mat ? esc(mat.label) : "—"}</div>`;
-    const types = TYPES_AFFAIRE.filter(t => a["type_" + t.id]).map(t => `${t.label} (${a["type_" + t.id]} K€)`);
-    h += `<div class="qa"><span class="q">Type d'affaire :</span> ${types.length ? esc(types.join(" · ")) : "—"}</div>`;
-    const suivi = SUIVI_AFFAIRE.filter(s => a["suivi_" + s.id]).map(s => s.label);
-    h += `<div class="qa"><span class="q">Suivi :</span> ${suivi.length ? esc(suivi.join(" · ")) : "—"}</div>`;
-    h += `<div class="qa"><span class="q">Résultat :</span> ${esc(a.resultat || "—")}</div>`;
     return h;
   }
 
@@ -514,94 +505,31 @@
           <h4>Les 11 critères de l'affaire</h4>
           <button type="button" id="btnPrefill" class="btn btn--ghost btn--sm">💡 Recouper depuis le livret</button>
         </div>
-        <p class="prefill-hint">Certains critères sont pré-remplis à partir du livret de découverte — vérifiez et ajustez.</p>
+        <p class="prefill-hint">Les critères sont pré-remplis automatiquement à partir du livret de découverte — vérifiez et ajustez.</p>
         ${AFFAIRE_CRITERES.map(c => `
           <div class="field">
             <label class="field__label">${esc(c.label)}</label>
             <textarea data-aff="${c.id}"></textarea>
           </div>`).join("")}
-      </div>
-
-      <div class="affaire-block">
-        <h4>Caractéristiques de l'affaire</h4>
-        <div class="field"><label class="field__label">Date prévisionnelle de vente</label>
-          <input type="date" data-aff="date_vente"></div>
-        <div class="field"><label class="field__label">CA potentiel (K€)</label>
-          <input type="number" inputmode="decimal" data-aff="ca_potentiel"></div>
-        <div class="field"><label class="field__label">% Maturité</label>
-          <select data-aff="maturite">
-            <option value="">— choisir —</option>
-            ${MATURITE.map(m => `<option value="${m.value}">${esc(m.label)}</option>`).join("")}
-          </select>
-          <div class="maturite-desc" id="matDesc"></div>
-        </div>
-        <div class="field"><label class="field__label">Résultat</label>
-          <select data-aff="resultat">
-            <option value="">— choisir —</option>
-            ${RESULTAT_AFFAIRE.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("")}
-          </select>
-        </div>
-      </div>
-
-      <div class="affaire-block">
-        <h4>Type d'affaire (CA en K€)</h4>
-        ${TYPES_AFFAIRE.map(t => `
-          <div class="type-affaire-row">
-            <label>${esc(t.label)}</label>
-            <input type="number" inputmode="decimal" placeholder="K€" data-aff="type_${t.id}">
-          </div>`).join("")}
-      </div>
-
-      <div class="affaire-block">
-        <h4>Suivi de l'affaire</h4>
-        <div class="checklist">
-          ${SUIVI_AFFAIRE.map(s => `
-            <label><input type="checkbox" data-aff-check="suivi_${s.id}"> <span>${esc(s.label)}</span></label>`).join("")}
-        </div>
       </div>`;
 
-    // Bind
     $$("[data-aff]", wrap).forEach(el => {
       const k = el.dataset.aff;
       if (a[k] != null) el.value = a[k];
-      el.addEventListener("input", () => { a[k] = el.value; touch(); if (k === "maturite") paintMatDesc(); buildAffaireOutput(); });
-    });
-    $$("[data-aff-check]", wrap).forEach(cb => {
-      const k = cb.dataset.affCheck;
-      cb.checked = !!a[k];
-      cb.addEventListener("change", () => { a[k] = cb.checked; touch(); buildAffaireOutput(); });
+      el.addEventListener("input", () => { a[k] = el.value; touch(); buildAffaireOutput(); });
     });
     const btnPrefill = $("#btnPrefill", wrap);
     if (btnPrefill) btnPrefill.addEventListener("click", () => {
       const n = applyCriteriaSuggestions(false);
       renderAffaireForm(); buildAffaireOutput();
-      toast(n ? `${n} critère(s) pré-rempli(s) depuis le livret` : "Aucun nouveau champ à pré-remplir");
+      toast(n ? `${n} critère(s) recoupé(s) depuis le livret` : "Rien de nouveau à recouper");
     });
-    paintMatDesc();
-  }
-
-  function paintMatDesc() {
-    const a = current().affaire.data;
-    const m = MATURITE.find(x => x.value == a.maturite);
-    $("#matDesc").textContent = m ? m.desc : "";
   }
 
   function buildAffaireOutput() {
     const a = current().affaire.data;
-    const L = [];
-    L.push("=== DÉTAIL (à coller dans le suivi CRM) ===");
+    const L = ["=== DÉTAIL AFFAIRE (à coller dans le suivi CRM) ==="];
     AFFAIRE_CRITERES.forEach(c => L.push(`${c.label} : ${a[c.id] || ""}`));
-    L.push("");
-    L.push("=== CHAMPS AFFAIRE ===");
-    if (a.date_vente) L.push(`Date prévisionnelle de vente : ${a.date_vente}`);
-    if (a.ca_potentiel) L.push(`CA potentiel : ${a.ca_potentiel} K€`);
-    const m = MATURITE.find(x => x.value == a.maturite);
-    if (m) L.push(`% Maturité : ${a.maturite} %  (${m.desc})`);
-    const types = TYPES_AFFAIRE.filter(t => a["type_" + t.id]).map(t => `  - ${t.label} : ${a["type_" + t.id]} K€`);
-    if (types.length) { L.push("Type d'affaire :"); types.forEach(t => L.push(t)); }
-    const suivi = SUIVI_AFFAIRE.filter(s => a["suivi_" + s.id]).map(s => "  ☑ " + s.label);
-    if (suivi.length) { L.push("Suivi de l'affaire :"); suivi.forEach(s => L.push(s)); }
-    if (a.resultat) L.push(`Résultat : ${a.resultat}`);
     $("#affaireText").value = L.join("\n");
   }
 
@@ -631,8 +559,9 @@
     const on = $("#affaireToggle").checked;
     const aff = current().affaire;
     aff.active = on;
-    // Pré-remplissage automatique des critères vides, une seule fois par RDV.
-    if (on && !aff.prefilled) { applyCriteriaSuggestions(false); aff.prefilled = true; }
+    // Pré-remplissage automatique des critères restés vides, à chaque activation
+    // (reflète toujours les dernières réponses du livret).
+    if (on) applyCriteriaSuggestions(false);
     touch();
     $("#affaireForm").hidden = !on;
     $("#affaireOutputWrap").hidden = !on;

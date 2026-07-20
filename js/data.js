@@ -213,33 +213,3 @@ const AFFAIRE_CRITERES = [
   { id: "cr_accelerateur", label: "Accélérateur défini" },
   { id: "cr_obstacle", label: "Obstacle" }
 ];
-
-const MATURITE = [
-  { value: 20, label: "20 % — Affaire en devenir", desc: "RDV découverte planifié · 1 besoin identifié & 1er scoring fait" },
-  { value: 50, label: "50 % — RDV signature non planifié", desc: "Il me manque des infos essentielles" },
-  { value: 70, label: "70 % — Affaire qualifiée", desc: "Scoring ajusté" },
-  { value: 79, label: "79 % — RDV signature planifié", desc: "Je suis confiant mais pas certain" },
-  { value: 80, label: "80 % — Forte probabilité", desc: "Je le sens bien, forte proba de signature" },
-  { value: 100, label: "100 % — Affaire gagnée", desc: "Bravo, c'est signé ! Reste à suivre la saisie ADV" }
-];
-
-const TYPES_AFFAIRE = [
-  { id: "ta_renouv", label: "Renouvellement de machine" },
-  { id: "ta_parc_copieur", label: "Nouveau parc copieur" },
-  { id: "ta_solution_info", label: "Solution informatique / GED" },
-  { id: "ta_parc_info", label: "Parc informatique" },
-  { id: "ta_site", label: "Site internet" },
-  { id: "ta_telephonie", label: "Téléphonie" },
-  { id: "ta_docuware", label: "Docuware" },
-  { id: "ta_pp", label: "PP" }
-];
-
-const SUIVI_AFFAIRE = [
-  { id: "su_ouverture", label: "Ouverture projet avec direction" },
-  { id: "su_besoin", label: "Besoin identifié" },
-  { id: "su_etude", label: "Étude chiffrée" },
-  { id: "su_accord", label: "Accord financier" },
-  { id: "su_propal", label: "Proposition remise au client" }
-];
-
-const RESULTAT_AFFAIRE = ["Affaire en cours", "Affaire gagnée", "Affaire perdue", "Affaire annulée"];

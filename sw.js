@@ -1,5 +1,5 @@
 /* Rex Seller — service worker (mode hors-ligne) */
-const CACHE = "rexseller-v2";
+const CACHE = "rexseller-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -24,17 +24,15 @@ self.addEventListener("activate", (e) => {
   );
 });
 
-// Cache d'abord, réseau en secours — l'app reste utilisable sans connexion.
+// Réseau d'abord, cache en secours — les mises à jour arrivent immédiatement
+// quand il y a du réseau ; l'app reste utilisable hors connexion.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    caches.match(e.request).then((cached) =>
-      cached ||
-      fetch(e.request).then((resp) => {
-        const copy = resp.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
-        return resp;
-      }).catch(() => cached)
-    )
+    fetch(e.request).then((resp) => {
+      const copy = resp.clone();
+      caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+      return resp;
+    }).catch(() => caches.match(e.request))
   );
 });
