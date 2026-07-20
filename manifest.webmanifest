@@ -1,0 +1,15 @@
+{
+  "name": "Rex Seller — Aide à la découverte",
+  "short_name": "Rex Seller",
+  "description": "Outil d'aide à la découverte en rendez-vous pour les commerciaux Rex-Rotary.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f5f7",
+  "theme_color": "#c1122f",
+  "lang": "fr",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
