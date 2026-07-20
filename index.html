@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#c1122f" />
+  <title>Rex Seller — Aide à la découverte</title>
+  <meta name="description" content="Rex Seller : outil d'aide à la découverte en rendez-vous pour les commerciaux Rex-Rotary." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/icon.svg" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- En-tête collant : reste visible au défilement -->
+  <header class="topbar">
+    <div class="appbar">
+      <div class="appbar__brand">
+        <img class="appbar__logo" src="assets/logo-white.png" alt="Rex-Rotary" />
+        <span class="appbar__product">Seller<small>Aide à la découverte</small></span>
+      </div>
+      <div class="appbar__actions">
+        <span id="saveStatus" class="save-status" title="Sauvegarde automatique">Enregistré</span>
+        <button id="btnMenu" class="btn btn--ghost" aria-label="Menu">☰</button>
+      </div>
+    </div>
+
+    <!-- Panneau de gestion des rendez-vous -->
+    <div id="menuPanel" class="menu-panel" hidden>
+      <div class="menu-panel__row">
+        <label for="rdvSelect">Rendez-vous en cours</label>
+        <select id="rdvSelect"></select>
+      </div>
+      <div class="menu-panel__buttons">
+        <button id="btnNew" class="btn btn--primary">＋ Nouveau RDV</button>
+        <button id="btnDuplicate" class="btn btn--ghost">Dupliquer</button>
+        <button id="btnExport" class="btn btn--ghost">Exporter (.json)</button>
+        <button id="btnImport" class="btn btn--ghost">Importer</button>
+        <button id="btnDelete" class="btn btn--danger">Supprimer</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" hidden />
+    </div>
+
+    <!-- Progression -->
+    <div class="progress-wrap">
+      <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+      <span id="progressLabel" class="progress-label">0 %</span>
+    </div>
+
+    <!-- Navigation par sections (une seule ligne) -->
+    <nav id="sectionNav" class="section-nav" aria-label="Sections du livret"></nav>
+  </header>
+
+  <!-- Contenu du livret -->
+  <main id="booklet" class="booklet"></main>
+
+  <!-- Barre d'action bas de page -->
+  <div class="bottombar">
+    <button id="btnSynthese" class="btn btn--primary btn--wide">🧾 Générer la synthèse du RDV</button>
+  </div>
+
+  <!-- Modale Synthèse -->
+  <div id="syntheseModal" class="modal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel">
+      <div class="modal__header">
+        <h2>Synthèse du rendez-vous</h2>
+        <button class="btn btn--ghost" data-close aria-label="Fermer">✕</button>
+      </div>
+
+      <div class="modal__tabs">
+        <button class="tab tab--active" data-tab="pdf">📄 Archive PDF</button>
+        <button class="tab" data-tab="crm">📋 Résumé CRM</button>
+        <button class="tab" data-tab="affaire">💼 Affaire (11 critères)</button>
+      </div>
+
+      <div class="modal__body">
+        <!-- Onglet PDF -->
+        <section class="tabpane tabpane--active" data-pane="pdf">
+          <p class="muted">Aperçu de la synthèse à archiver. Le bouton ouvre la fenêtre d'impression : choisissez « Enregistrer au format PDF ».</p>
+          <label class="switch"><input type="checkbox" id="includeEmpty" /> Inclure les champs non renseignés</label>
+          <div id="pdfPreview" class="pdf-preview"></div>
+          <button id="btnPrint" class="btn btn--primary btn--wide">🖨️ Enregistrer / Imprimer le PDF</button>
+        </section>
+
+        <!-- Onglet CRM -->
+        <section class="tabpane" data-pane="crm">
+          <p class="muted">Résumé prêt à coller dans le suivi CRM.</p>
+          <textarea id="crmText" class="output-text" rows="16" readonly></textarea>
+          <button class="btn btn--primary btn--wide" data-copy="crmText">📋 Copier le résumé</button>
+        </section>
+
+        <!-- Onglet Affaire -->
+        <section class="tabpane" data-pane="affaire">
+          <label class="switch switch--big">
+            <input type="checkbox" id="affaireToggle" />
+            <span>Une affaire est à lever sur ce rendez-vous</span>
+          </label>
+          <div id="affaireForm" hidden></div>
+          <div id="affaireOutputWrap" hidden>
+            <h3 class="output-title">Fiche affaire — à saisir dans le CRM</h3>
+            <textarea id="affaireText" class="output-text" rows="20" readonly></textarea>
+            <button class="btn btn--primary btn--wide" data-copy="affaireText">📋 Copier la fiche affaire</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zone d'impression (générée dynamiquement) -->
+  <div id="printArea" class="print-area"></div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
