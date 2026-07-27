@@ -722,9 +722,13 @@
     applyReadOnly();
     if (!wired) { trackActiveOnScroll(); wire(); wired = true; }
     setSaveStatus("saved");
+    if (window.RexAdmin && window.RexAdmin.onBoot) window.RexAdmin.onBoot();
   }
 
-  window.RexApp = { boot };
+  // Rafraîchit le filtre « propriétaire » et la liste après une action admin.
+  function refreshTeamUI() { refreshOwnerFilter(); refreshRdvSelect(); }
+
+  window.RexApp = { boot, refreshTeamUI };
 
   // Service worker (mode hors-ligne pour l'app ; les données restent en ligne)
   if ("serviceWorker" in navigator) {

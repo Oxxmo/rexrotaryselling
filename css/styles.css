@@ -83,6 +83,21 @@ button{font-family:inherit}
   margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line);
 }
 .user-badge{font-size:.85rem;font-weight:600;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.menu-panel__user-actions{display:flex;gap:8px;flex:0 0 auto}
+
+/* Console d'administration */
+.admin-form{margin-bottom:22px}
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.admin-grid label{display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:.85rem}
+.admin-grid input,.admin-grid select{
+  padding:10px;border:1px solid var(--line);border-radius:10px;font-size:1rem;font-weight:400;
+}
+.admin-grid input:disabled{background:#f7f8fa;color:var(--muted)}
+.admin-form__buttons{display:flex;gap:8px;flex-wrap:wrap}
+.admin-team{border-top:1px solid var(--line);padding-top:16px}
+.admin-table th,.admin-table td{white-space:nowrap;vertical-align:middle}
+.admin-actions{display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:560px){ .admin-grid{grid-template-columns:1fr} }
 
 /* Livret en lecture seule (RDV d'un collaborateur) */
 .booklet.readonly{opacity:.96}

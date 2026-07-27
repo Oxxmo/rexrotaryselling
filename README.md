@@ -28,20 +28,31 @@ situées sous lui** dans l'organigramme (RRO → CA → RO → commercial).
 - **Export / import** d'un RDV au format `.json`.
 - Types de champs fidèles au livret : notes 1–10, Oui/Non, tableaux, cases à cocher, etc.
 - Onglet **Affaire** : les 11 critères du CRM, pré-remplis depuis le livret.
+- **Console d'administration intégrée** (☰ → *Administration*, responsables uniquement) :
+  créer / modifier / supprimer les comptes de son équipe et réinitialiser les mots de
+  passe, sans toucher au SQL. Chaque responsable ne gère que son sous-arbre.
 
 ## Mise en place de la base (à faire une seule fois)
 
 1. **Créer le projet Supabase** (région Europe) — noter l'*URL du projet* et la
    *publishable key*, puis les renseigner dans `js/config.js`.
-2. **Créer les tables et la sécurité** : dans Supabase, ouvrir **SQL Editor → New query**,
-   coller le contenu de [`supabase/schema.sql`](supabase/schema.sql) et cliquer **Run**.
-3. **Créer les comptes** : **Authentication → Users → Add user** (email pro + mot de passe).
-   Un profil « commercial » est créé automatiquement à chaque ajout.
-4. **Déclarer l'organigramme** : quelques `UPDATE` en SQL fixent le rôle et le responsable
-   (`manager_id`) de chacun — voir les exemples en bas de `supabase/schema.sql`.
+2. **Créer les tables et la sécurité** : dans Supabase, **SQL Editor → New query**,
+   coller le contenu de [`supabase/schema.sql`](supabase/schema.sql) → **Run**.
+3. **Déployer la fonction d'administration** : suivre
+   [`supabase/functions/README.md`](supabase/functions/README.md) (Edge Function
+   `manage-users`). C'est elle qui permet de créer des comptes depuis l'application, en
+   toute sécurité (la clé secrète reste côté serveur).
+4. **Créer le tout premier compte (le RRO)** à la main :
+   **Authentication → Users → Add user** (email pro + mot de passe), puis en SQL :
+   ```sql
+   update public.profiles set role='rro', full_name='Nom du RRO'
+     where email='rro@entreprise.fr';
+   ```
+5. **Ensuite, tout se fait depuis l'application** : le RRO se connecte, ouvre
+   **☰ → Administration** et crée les CA, qui créent les RO, qui créent les commerciaux.
 
 > La *publishable key* est **publique par conception** : la sécurité repose sur la
-> Row-Level Security de la base, pas sur le secret de cette clé.
+> Row-Level Security de la base et l'Edge Function, pas sur le secret de cette clé.
 
 ## Utilisation en rendez-vous
 
@@ -75,9 +86,11 @@ css/styles.css           Styles (écran + impression PDF + connexion)
 js/config.js             URL + clé publique Supabase
 js/vendor/supabase.js    Bibliothèque Supabase (hébergée localement, pas de CDN)
 js/supa.js               Authentification + accès aux données (Row-Level Security)
+js/admin.js              Console d'administration des comptes (responsables)
 js/data.js               Structure du livret + critères de l'affaire
 js/app.js                Logique (saisie, sauvegarde en base, synthèses)
 supabase/schema.sql      Schéma de la base + règles de visibilité hiérarchique
+supabase/functions/      Edge Function « manage-users » (gestion des comptes)
 manifest.webmanifest     Manifeste PWA (installation)
 sw.js                    Service worker (cache de l'app ; données toujours en ligne)
 assets/icon.svg          Icône

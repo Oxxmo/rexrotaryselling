@@ -45,7 +45,10 @@
     <div id="menuPanel" class="menu-panel" hidden>
       <div class="menu-panel__user">
         <span id="userBadge" class="user-badge"></span>
-        <button id="btnLogout" class="btn btn--ghost btn--sm">Se déconnecter</button>
+        <div class="menu-panel__user-actions">
+          <button id="btnAdmin" class="btn btn--ghost btn--sm" hidden>⚙︎ Administration</button>
+          <button id="btnLogout" class="btn btn--ghost btn--sm">Se déconnecter</button>
+        </div>
       </div>
       <div class="menu-panel__row" id="ownerFilterRow" hidden>
         <label for="ownerFilter">Voir les rendez-vous de</label>
@@ -131,6 +134,45 @@
     </div>
   </div>
 
+  <!-- Modale Administration des comptes (responsables uniquement) -->
+  <div id="adminModal" class="modal" hidden>
+    <div class="modal__backdrop" data-admin-close></div>
+    <div class="modal__panel">
+      <div class="modal__header">
+        <h2>Administration des comptes</h2>
+        <button class="btn btn--ghost" data-admin-close aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal__body">
+        <section class="admin-form">
+          <h3 id="adminFormTitle" class="output-title">Ajouter une personne</h3>
+          <p class="muted">Le compte est créé immédiatement : communiquez l'email et le mot de passe provisoire à la personne, qui pourra se connecter aussitôt.</p>
+          <div id="adminError" class="auth-error" hidden></div>
+          <div class="admin-grid">
+            <label>Nom complet<input id="adm_name" type="text" autocomplete="off" /></label>
+            <label>Email<input id="adm_email" type="email" autocomplete="off" /></label>
+            <label>Mot de passe provisoire<input id="adm_pw" type="text" autocomplete="off" placeholder="8 caractères minimum" /></label>
+            <label>Rôle<select id="adm_role"></select></label>
+            <label>Responsable<select id="adm_manager"></select></label>
+            <label>Agence (optionnel)<input id="adm_agence" type="text" autocomplete="off" /></label>
+          </div>
+          <div class="admin-form__buttons">
+            <button id="adm_submit" class="btn btn--primary">Créer le compte</button>
+            <button id="adm_cancel" class="btn btn--ghost" hidden>Annuler la modification</button>
+          </div>
+        </section>
+        <section class="admin-team">
+          <h3 class="output-title">Votre équipe</h3>
+          <div class="tbl-scroll">
+            <table class="grid admin-table">
+              <thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Responsable</th><th>Actions</th></tr></thead>
+              <tbody id="adminTeamBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <!-- Zone d'impression (générée dynamiquement) -->
   <div id="printArea" class="print-area"></div>
 
@@ -142,6 +184,7 @@
   <script src="js/config.js"></script>
   <script src="js/data.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/admin.js"></script>
   <script src="js/supa.js"></script>
 </body>
 </html>

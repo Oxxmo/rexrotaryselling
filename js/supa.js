@@ -92,6 +92,40 @@
       if (error) throw error;
     },
 
+    /* ---------- Administration des comptes ---------- */
+    myRole() { return myProfile ? myProfile.role : null; },
+    roleOrder(role) { return ({ rro: 3, ca: 2, ro: 1, commercial: 0 })[role] ?? -1; },
+    profiles() { return Object.values(teamById); },
+
+    // Recharge la liste des personnes visibles (soi + sous-arbre).
+    async reloadTeam() {
+      const { data } = await sb.from("profiles")
+        .select("id,full_name,email,role,manager_id,agence").order("full_name");
+      teamById = {};
+      (data || []).forEach(p => { teamById[p.id] = p; });
+      if (myProfile && !teamById[myProfile.id]) teamById[myProfile.id] = myProfile;
+      return Object.values(teamById);
+    },
+
+    // Appelle l'Edge Function sécurisée « manage-users ».
+    async callAdmin(action, payload) {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error("Session expirée, reconnectez-vous.");
+      const res = await fetch(cfg.SUPABASE_URL + "/functions/v1/manage-users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + session.access_token,
+          "apikey": cfg.SUPABASE_KEY
+        },
+        body: JSON.stringify(Object.assign({ action }, payload))
+      });
+      let body = {};
+      try { body = await res.json(); } catch (e) { /* réponse vide */ }
+      if (!res.ok) throw new Error(body.error || ("Erreur " + res.status));
+      return body;
+    },
+
     async signOut() {
       try { await sb.auth.signOut(); } catch (e) { /* ignore */ }
       location.reload();
