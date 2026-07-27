@@ -174,7 +174,7 @@ const BOOKLET = [
     icon: "✅",
     fields: [
       { id: "val_reformulation", label: "Reformulation des problématiques / besoin + définition de l'objectif budgétaire", type: "textarea" },
-      { id: "val_quand", label: "QUAND voulez-vous être équipés ?", type: "text" },
+      { id: "val_quand", label: "QUAND voulez-vous être équipés ?", type: "date" },
       { id: "val_processus", label: "Quel est votre processus de décision ?", type: "textarea" },
       { id: "val_engagement", label: "Engagement moral", type: "textarea", hint: "« Donc si je vous fais…. au prix de…., alors on bosse ensemble ? » — Si pas validé : « Qu'est-ce qui ferait qu'on travaille ensemble aujourd'hui (hormis le tarif ?) »" },
       {
