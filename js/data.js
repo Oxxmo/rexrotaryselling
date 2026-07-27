@@ -90,7 +90,7 @@ const BOOKLET = [
       { id: "dem_chronophage", label: "Quelles sont les tâches chronophages que vous réalisez ? (recherche, diffusion, tri, archivage, etc.)", type: "textarea" },
       { id: "dem_archives_num", label: "Vos archives sont-elles numérisées ?", type: "textarea" },
       { id: "dem_reglementation", label: "La réglementation liée à votre métier vous impose de conserver certains documents : lesquels et pour quelle durée de conservation ?", type: "textarea" },
-      { id: "dem_rdv_demo", label: "RDV de démo", type: "text" }
+      { id: "dem_rdv_demo", label: "RDV de démo", type: "date" }
     ]
   },
 
@@ -174,7 +174,7 @@ const BOOKLET = [
     icon: "✅",
     fields: [
       { id: "val_reformulation", label: "Reformulation des problématiques / besoin + définition de l'objectif budgétaire", type: "textarea" },
-      { id: "val_quand", label: "QUAND voulez-vous être équipés ?", type: "text" },
+      { id: "val_quand", label: "QUAND voulez-vous être équipés ?", type: "date" },
       { id: "val_processus", label: "Quel est votre processus de décision ?", type: "textarea" },
       { id: "val_engagement", label: "Engagement moral", type: "textarea", hint: "« Donc si je vous fais…. au prix de…., alors on bosse ensemble ? » — Si pas validé : « Qu'est-ce qui ferait qu'on travaille ensemble aujourd'hui (hormis le tarif ?) »" },
       {
@@ -182,7 +182,7 @@ const BOOKLET = [
         rows: ["Informatique", "Sécurité & Sauvegarde", "Dématérialisation", "Impression", "Communication", "Téléphonie"],
         cols: 4, columns: ["Ordre", "Solution(s) envisagée(s)", "Budget estimé", "Date planifiée"], rowHeader: "Gamme"
       },
-      { id: "val_prochain_rdv", label: "Date du prochain RDV ?", type: "text" },
+      { id: "val_prochain_rdv", label: "Date du prochain RDV ?", type: "date" },
       { id: "val_audit", label: "Audit ?", type: "yesno", withDate: true, dateLabel: "Date de l'audit" },
       {
         id: "val_checklist", label: "Avant de partir", type: "checklist",
@@ -213,33 +213,3 @@ const AFFAIRE_CRITERES = [
   { id: "cr_accelerateur", label: "Accélérateur défini" },
   { id: "cr_obstacle", label: "Obstacle" }
 ];
-
-const MATURITE = [
-  { value: 20, label: "20 % — Affaire en devenir", desc: "RDV découverte planifié · 1 besoin identifié & 1er scoring fait" },
-  { value: 50, label: "50 % — RDV signature non planifié", desc: "Il me manque des infos essentielles" },
-  { value: 70, label: "70 % — Affaire qualifiée", desc: "Scoring ajusté" },
-  { value: 79, label: "79 % — RDV signature planifié", desc: "Je suis confiant mais pas certain" },
-  { value: 80, label: "80 % — Forte probabilité", desc: "Je le sens bien, forte proba de signature" },
-  { value: 100, label: "100 % — Affaire gagnée", desc: "Bravo, c'est signé ! Reste à suivre la saisie ADV" }
-];
-
-const TYPES_AFFAIRE = [
-  { id: "ta_renouv", label: "Renouvellement de machine" },
-  { id: "ta_parc_copieur", label: "Nouveau parc copieur" },
-  { id: "ta_solution_info", label: "Solution informatique / GED" },
-  { id: "ta_parc_info", label: "Parc informatique" },
-  { id: "ta_site", label: "Site internet" },
-  { id: "ta_telephonie", label: "Téléphonie" },
-  { id: "ta_docuware", label: "Docuware" },
-  { id: "ta_pp", label: "PP" }
-];
-
-const SUIVI_AFFAIRE = [
-  { id: "su_ouverture", label: "Ouverture projet avec direction" },
-  { id: "su_besoin", label: "Besoin identifié" },
-  { id: "su_etude", label: "Étude chiffrée" },
-  { id: "su_accord", label: "Accord financier" },
-  { id: "su_propal", label: "Proposition remise au client" }
-];
-
-const RESULTAT_AFFAIRE = ["Affaire en cours", "Affaire gagnée", "Affaire perdue", "Affaire annulée"];

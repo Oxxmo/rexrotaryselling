@@ -4,48 +4,57 @@
 (function () {
   "use strict";
 
-  const LS_KEY = "rexseller.rdvs.v1";
-  const LS_CUR = "rexseller.current.v1";
-
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-  const uid = () => "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+        const rnd = Math.random() * 16 | 0, v = c === "x" ? rnd : (rnd & 0x3 | 0x8); return v.toString(16);
+      });
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
-  /* ----------------------- État & stockage ----------------------- */
-  let store = loadStore();
-  let currentId = localStorage.getItem(LS_CUR);
-  if (!store.length) { const r = newRdv(); store.push(r); currentId = r.id; persist(); }
-  if (!store.find(r => r.id === currentId)) currentId = store[0].id;
+  /* ----------------------- État & stockage (Supabase) ----------------------- */
+  // Les données sont fournies par la couche d'authentification (supa.js) via boot().
+  let store = [];
+  let currentId = null;
+  let ownerFilter = "all";        // filtre « propriétaire » (utile aux responsables)
 
-  function loadStore() {
-    try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch (e) { return []; }
-  }
-  function persist() {
-    localStorage.setItem(LS_KEY, JSON.stringify(store));
-    localStorage.setItem(LS_CUR, currentId);
-  }
+  function myId() { const me = window.RexDB.me(); return me ? me.id : null; }
   function newRdv() {
-    return { id: uid(), createdAt: Date.now(), updatedAt: Date.now(), data: {}, affaire: { active: false, data: {} } };
+    return { id: uid(), author_id: myId(), createdAt: Date.now(), updatedAt: Date.now(), data: {}, affaire: { active: false, data: {} } };
   }
   function current() { return store.find(r => r.id === currentId); }
+  function ownedByMe(r) { return !!r && r.author_id === myId(); }
+  function isReadOnly() { return !ownedByMe(current()); }
+
+  // Enregistrement d'un RDV en base (création ou mise à jour).
+  async function saveRdv(r) {
+    if (!r) return;
+    try { await window.RexDB.upsertRdv(r); }
+    catch (e) { setSaveStatus("error"); toast("Échec de l'enregistrement : " + (e.message || e)); throw e; }
+  }
 
   let saveTimer = null;
   function touch() {
-    const r = current(); if (!r) return;
+    const r = current(); if (!r || isReadOnly()) return;
     r.updatedAt = Date.now();
     setSaveStatus("saving");
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { persist(); setSaveStatus("saved"); }, 350);
+    saveTimer = setTimeout(() => {
+      saveRdv(r).then(() => setSaveStatus("saved")).catch(() => {});
+    }, 400);
   }
   function setSaveStatus(state) {
     const el = $("#saveStatus");
+    if (!el) return;
+    if (isReadOnly()) { el.textContent = "Lecture seule"; el.classList.remove("saving"); el.classList.add("readonly"); return; }
+    el.classList.remove("readonly");
     if (state === "saving") { el.textContent = "Enregistrement…"; el.classList.add("saving"); }
+    else if (state === "error") { el.textContent = "Non enregistré ✕"; el.classList.remove("saving"); }
     else { el.textContent = "Enregistré ✓"; el.classList.remove("saving"); }
   }
 
-  const val = (id) => current().data[id];
-  const setVal = (id, v) => { current().data[id] = v; touch(); };
+  const val = (id) => { const r = current(); return r ? r.data[id] : undefined; };
+  const setVal = (id, v) => { if (isReadOnly()) return; const r = current(); if (!r) return; r.data[id] = v; touch(); };
 
   /* ----------------------- Rendu du livret ----------------------- */
   function renderNav() {
@@ -150,7 +159,7 @@
             <button type="button" data-v="Oui">Oui</button>
             <button type="button" data-v="Non">Non</button>
           </div>
-          ${f.withDate ? `<div class="yesno-extra"><input type="text" placeholder="${esc(f.dateLabel || "Date")}" data-extra="date"></div>` : ""}
+          ${f.withDate ? `<div class="yesno-extra"><label class="mini-label">${esc(f.dateLabel || "Date")}</label><input type="date" data-extra="date"></div>` : ""}
           ${f.withPrecision ? `<div class="yesno-extra"><input type="text" placeholder="Précision" data-extra="precision"></div>` : ""}`; break;
       case "checklist":
         control = `<div class="checklist" data-field="${f.id}">${f.options.map((o, i) =>
@@ -279,20 +288,53 @@
   }
 
   /* ----------------------- Gestion des RDV ----------------------- */
+  function visibleRdvs() {
+    let list = store.slice().sort((a, b) => b.updatedAt - a.updatedAt);
+    if (ownerFilter === "mine") list = list.filter(ownedByMe);
+    else if (ownerFilter !== "all") list = list.filter(r => r.author_id === ownerFilter);
+    return list;
+  }
   function refreshRdvSelect() {
     const sel = $("#rdvSelect");
-    sel.innerHTML = store
-      .slice().sort((a, b) => b.updatedAt - a.updatedAt)
-      .map(r => {
-        const soc = r.data.societe || "Sans nom";
-        const d = r.data.date_rdv ? " · " + r.data.date_rdv : "";
-        return `<option value="${r.id}" ${r.id === currentId ? "selected" : ""}>${esc(soc)}${esc(d)}</option>`;
-      }).join("");
+    sel.innerHTML = visibleRdvs().map(r => {
+      const soc = r.data.societe || "Sans nom";
+      const d = r.data.date_rdv ? " · " + r.data.date_rdv : "";
+      const who = ownedByMe(r) ? "" : " — " + window.RexDB.authorName(r.author_id);
+      return `<option value="${r.id}" ${r.id === currentId ? "selected" : ""}>${esc(soc)}${esc(d)}${esc(who)}</option>`;
+    }).join("");
+  }
+  // Filtre « propriétaire » : visible seulement pour les responsables (RRO/CA/RO).
+  function refreshOwnerFilter() {
+    const wrap = $("#ownerFilterRow");
+    const sel = $("#ownerFilter");
+    if (!wrap || !sel) return;
+    if (!window.RexDB.isManager()) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    const owners = [...new Set(store.map(r => r.author_id))]
+      .filter(id => id !== myId())
+      .map(id => ({ id, name: window.RexDB.authorName(id) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    sel.innerHTML =
+      `<option value="all">Toute l'équipe</option>` +
+      `<option value="mine">Mes rendez-vous</option>` +
+      owners.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join("");
+    sel.value = ownerFilter;
   }
   function switchTo(id) {
-    currentId = id; persist();
+    currentId = id;
     refreshRdvSelect(); renderBooklet(); updateAllMeta(); renderNavState();
+    applyReadOnly();
     window.scrollTo({ top: 0 });
+  }
+  // Verrouille la saisie quand le RDV affiché appartient à un collaborateur.
+  function applyReadOnly() {
+    const ro = isReadOnly();
+    const main = $("#booklet");
+    if (main) main.classList.toggle("readonly", ro);
+    $$("#booklet input, #booklet textarea, #booklet select").forEach(el => { el.disabled = ro; });
+    $$("#booklet button").forEach(el => { if (!el.closest(".section-head")) el.disabled = ro; });
+    const del = $("#btnDelete"); if (del) del.disabled = ro;
+    setSaveStatus("saved");
   }
 
   /* ----------------------- Synthèse : helpers ----------------------- */
@@ -374,19 +416,10 @@
 
   function buildAffairePrint() {
     const a = current().affaire.data;
-    let h = `<h2>💼 Affaire</h2>`;
+    let h = `<h2>💼 Affaire — les 11 critères</h2>`;
     AFFAIRE_CRITERES.forEach(c => {
       h += `<div class="qa"><span class="q">${esc(c.label)} :</span> <span class="a">${esc(a[c.id] || "—")}</span></div>`;
     });
-    const mat = MATURITE.find(m => m.value == a.maturite);
-    h += `<div class="qa"><span class="q">Date prévisionnelle de vente :</span> ${esc(a.date_vente || "—")}</div>`;
-    h += `<div class="qa"><span class="q">CA potentiel :</span> ${esc(a.ca_potentiel || "—")} K€</div>`;
-    h += `<div class="qa"><span class="q">% Maturité :</span> ${mat ? esc(mat.label) : "—"}</div>`;
-    const types = TYPES_AFFAIRE.filter(t => a["type_" + t.id]).map(t => `${t.label} (${a["type_" + t.id]} K€)`);
-    h += `<div class="qa"><span class="q">Type d'affaire :</span> ${types.length ? esc(types.join(" · ")) : "—"}</div>`;
-    const suivi = SUIVI_AFFAIRE.filter(s => a["suivi_" + s.id]).map(s => s.label);
-    h += `<div class="qa"><span class="q">Suivi :</span> ${suivi.length ? esc(suivi.join(" · ")) : "—"}</div>`;
-    h += `<div class="qa"><span class="q">Résultat :</span> ${esc(a.resultat || "—")}</div>`;
     return h;
   }
 
@@ -451,94 +484,96 @@
     return L.join("\n");
   }
 
+  /* --------- Recoupement : pré-remplir les 11 critères depuis le livret --------- */
+  function suggestCriteria() {
+    const d = current().data;
+    const g = id => {
+      const v = d[id];
+      if (v == null) return "";
+      if (typeof v === "object") return "";
+      return String(v).trim();
+    };
+    const yn = id => {
+      const v = d[id];
+      if (!v || typeof v !== "object") return "";
+      let s = v.v || "";
+      if (v.date) s += s ? ` (le ${v.date})` : `le ${v.date}`;
+      return s;
+    };
+    const s = {};
+    const set = (k, parts) => { const t = parts.filter(Boolean).join(" / "); if (t) s[k] = t; };
+
+    // Signataire ← circuit de décision
+    set("cr_signataire", [g("decisions")]);
+    // Influenceur clé ← interlocuteur rencontré (contact + fonction)
+    set("cr_influenceur", [[g("contact"), g("fonction")].filter(Boolean).join(" — ")]);
+    // Besoin / solution proposée ← reformulation + projets à présenter
+    const projF = BOOKLET.flatMap(x => x.fields).find(f => f.id === "val_projets");
+    const projTxt = isFilled(d.val_projets) ? tableToText(projF, d.val_projets).replace(/\n/g, " ; ") : "";
+    set("cr_besoin", [g("val_reformulation"), projTxt]);
+    // Motivation d'achat ← ce qui manque pour arriver à 10 (IT) + insatisfaction télécom
+    set("cr_motivation", [g("inf_ecart10"), g("tel_pourquoi")]);
+    // Quand ← QUAND voulez-vous être équipés
+    set("cr_quand", [g("val_quand")]);
+    // Type & date de relance ← prochain RDV / RDV de démo
+    set("cr_relance", [g("val_prochain_rdv") && ("Prochain RDV : " + g("val_prochain_rdv")), g("dem_rdv_demo") && ("Démo : " + g("dem_rdv_demo"))]);
+    // Étude réalisée ← audit prévu
+    const audit = yn("val_audit") || yn("sec_rdv_audit");
+    if (audit) set("cr_etude", ["Audit " + audit]);
+    // Accélérateur ← engagement moral
+    set("cr_accelerateur", [g("val_engagement")]);
+    return s;
+  }
+
+  // Renseigne les critères vides (ou tous si overwrite) à partir du livret.
+  function applyCriteriaSuggestions(overwrite) {
+    const a = current().affaire.data;
+    const sug = suggestCriteria();
+    let n = 0;
+    AFFAIRE_CRITERES.forEach(c => {
+      if (sug[c.id] && (overwrite || !isFilled(a[c.id]))) { a[c.id] = sug[c.id]; n++; }
+    });
+    if (n) touch();
+    return n;
+  }
+
   /* ----------------------- Formulaire Affaire ----------------------- */
   function renderAffaireForm() {
     const wrap = $("#affaireForm");
     const a = current().affaire.data;
     wrap.innerHTML = `
       <div class="affaire-block">
-        <h4>Les 11 critères de l'affaire</h4>
+        <div class="affaire-block__head">
+          <h4>Les 11 critères de l'affaire</h4>
+          <button type="button" id="btnPrefill" class="btn btn--ghost btn--sm">💡 Recouper depuis le livret</button>
+        </div>
+        <p class="prefill-hint">Les critères sont pré-remplis automatiquement à partir du livret de découverte — vérifiez et ajustez.</p>
         ${AFFAIRE_CRITERES.map(c => `
           <div class="field">
             <label class="field__label">${esc(c.label)}</label>
             <textarea data-aff="${c.id}"></textarea>
           </div>`).join("")}
-      </div>
-
-      <div class="affaire-block">
-        <h4>Caractéristiques de l'affaire</h4>
-        <div class="field"><label class="field__label">Date prévisionnelle de vente</label>
-          <input type="date" data-aff="date_vente"></div>
-        <div class="field"><label class="field__label">CA potentiel (K€)</label>
-          <input type="number" inputmode="decimal" data-aff="ca_potentiel"></div>
-        <div class="field"><label class="field__label">% Maturité</label>
-          <select data-aff="maturite">
-            <option value="">— choisir —</option>
-            ${MATURITE.map(m => `<option value="${m.value}">${esc(m.label)}</option>`).join("")}
-          </select>
-          <div class="maturite-desc" id="matDesc"></div>
-        </div>
-        <div class="field"><label class="field__label">Résultat</label>
-          <select data-aff="resultat">
-            <option value="">— choisir —</option>
-            ${RESULTAT_AFFAIRE.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("")}
-          </select>
-        </div>
-      </div>
-
-      <div class="affaire-block">
-        <h4>Type d'affaire (CA en K€)</h4>
-        ${TYPES_AFFAIRE.map(t => `
-          <div class="type-affaire-row">
-            <label>${esc(t.label)}</label>
-            <input type="number" inputmode="decimal" placeholder="K€" data-aff="type_${t.id}">
-          </div>`).join("")}
-      </div>
-
-      <div class="affaire-block">
-        <h4>Suivi de l'affaire</h4>
-        <div class="checklist">
-          ${SUIVI_AFFAIRE.map(s => `
-            <label><input type="checkbox" data-aff-check="suivi_${s.id}"> <span>${esc(s.label)}</span></label>`).join("")}
-        </div>
       </div>`;
 
-    // Bind
     $$("[data-aff]", wrap).forEach(el => {
       const k = el.dataset.aff;
       if (a[k] != null) el.value = a[k];
-      el.addEventListener("input", () => { a[k] = el.value; touch(); if (k === "maturite") paintMatDesc(); buildAffaireOutput(); });
+      el.addEventListener("input", () => { a[k] = el.value; touch(); buildAffaireOutput(); });
     });
-    $$("[data-aff-check]", wrap).forEach(cb => {
-      const k = cb.dataset.affCheck;
-      cb.checked = !!a[k];
-      cb.addEventListener("change", () => { a[k] = cb.checked; touch(); buildAffaireOutput(); });
+    const btnPrefill = $("#btnPrefill", wrap);
+    if (btnPrefill) btnPrefill.addEventListener("click", () => {
+      const n = applyCriteriaSuggestions(false);
+      renderAffaireForm(); buildAffaireOutput();
+      toast(n ? `${n} critère(s) recoupé(s) depuis le livret` : "Rien de nouveau à recouper");
     });
-    paintMatDesc();
-  }
-
-  function paintMatDesc() {
-    const a = current().affaire.data;
-    const m = MATURITE.find(x => x.value == a.maturite);
-    $("#matDesc").textContent = m ? m.desc : "";
+    // RDV d'un collaborateur : consultation seule
+    if (isReadOnly()) $$("#affaireForm textarea, #affaireForm button").forEach(el => { el.disabled = true; });
   }
 
   function buildAffaireOutput() {
     const a = current().affaire.data;
-    const L = [];
-    L.push("=== DÉTAIL (à coller dans le suivi CRM) ===");
+    const L = ["=== DÉTAIL AFFAIRE (à coller dans le suivi CRM) ==="];
     AFFAIRE_CRITERES.forEach(c => L.push(`${c.label} : ${a[c.id] || ""}`));
-    L.push("");
-    L.push("=== CHAMPS AFFAIRE ===");
-    if (a.date_vente) L.push(`Date prévisionnelle de vente : ${a.date_vente}`);
-    if (a.ca_potentiel) L.push(`CA potentiel : ${a.ca_potentiel} K€`);
-    const m = MATURITE.find(x => x.value == a.maturite);
-    if (m) L.push(`% Maturité : ${a.maturite} %  (${m.desc})`);
-    const types = TYPES_AFFAIRE.filter(t => a["type_" + t.id]).map(t => `  - ${t.label} : ${a["type_" + t.id]} K€`);
-    if (types.length) { L.push("Type d'affaire :"); types.forEach(t => L.push(t)); }
-    const suivi = SUIVI_AFFAIRE.filter(s => a["suivi_" + s.id]).map(s => "  ☑ " + s.label);
-    if (suivi.length) { L.push("Suivi de l'affaire :"); suivi.forEach(s => L.push(s)); }
-    if (a.resultat) L.push(`Résultat : ${a.resultat}`);
     $("#affaireText").value = L.join("\n");
   }
 
@@ -546,6 +581,7 @@
   function openSynthese() {
     refreshFromData();
     $("#affaireToggle").checked = current().affaire.active;
+    $("#affaireToggle").disabled = isReadOnly();
     toggleAffaire();
     $("#syntheseModal").hidden = false;
     document.body.style.overflow = "hidden";
@@ -566,7 +602,12 @@
 
   function toggleAffaire() {
     const on = $("#affaireToggle").checked;
-    current().affaire.active = on; touch();
+    const aff = current().affaire;
+    aff.active = on;
+    // Pré-remplissage automatique des critères restés vides, à chaque activation
+    // (reflète toujours les dernières réponses du livret).
+    if (on) applyCriteriaSuggestions(false);
+    touch();
     $("#affaireForm").hidden = !on;
     $("#affaireOutputWrap").hidden = !on;
     if (on) { renderAffaireForm(); buildAffaireOutput(); }
@@ -586,24 +627,39 @@
   /* ----------------------- Événements globaux ----------------------- */
   function wire() {
     $("#btnMenu").addEventListener("click", () => {
-      const p = $("#menuPanel"); p.hidden = !p.hidden; if (!p.hidden) refreshRdvSelect();
+      const p = $("#menuPanel"); p.hidden = !p.hidden;
+      if (!p.hidden) { refreshOwnerFilter(); refreshRdvSelect(); }
     });
     $("#rdvSelect").addEventListener("change", e => switchTo(e.target.value));
-    $("#btnNew").addEventListener("click", () => {
-      const r = newRdv(); store.push(r); switchTo(r.id); toast("Nouveau RDV créé");
+    const ofilt = $("#ownerFilter");
+    if (ofilt) ofilt.addEventListener("change", e => {
+      ownerFilter = e.target.value;
+      const list = visibleRdvs();
+      if (!list.find(r => r.id === currentId) && list[0]) switchTo(list[0].id);
+      else refreshRdvSelect();
     });
-    $("#btnDuplicate").addEventListener("click", () => {
-      const src = current();
+    $("#btnNew").addEventListener("click", async () => {
+      const r = newRdv();
+      try { await saveRdv(r); } catch (e) { return; }
+      store.push(r); ownerFilter = "all"; refreshOwnerFilter();
+      switchTo(r.id); toast("Nouveau RDV créé");
+    });
+    $("#btnDuplicate").addEventListener("click", async () => {
+      const src = current(); if (!src) return;
       const copy = JSON.parse(JSON.stringify(src));
-      copy.id = uid(); copy.createdAt = copy.updatedAt = Date.now();
+      copy.id = uid(); copy.author_id = myId(); copy.createdAt = copy.updatedAt = Date.now();
       copy.data.societe = (copy.data.societe || "") + " (copie)";
+      try { await saveRdv(copy); } catch (e) { return; }
       store.push(copy); switchTo(copy.id); toast("RDV dupliqué");
     });
-    $("#btnDelete").addEventListener("click", () => {
-      if (store.length === 1) { toast("Impossible de supprimer le dernier RDV"); return; }
+    $("#btnDelete").addEventListener("click", async () => {
+      const r = current();
+      if (!ownedByMe(r)) { toast("Vous ne pouvez supprimer que vos propres RDV"); return; }
+      if (store.filter(ownedByMe).length <= 1) { toast("Impossible de supprimer votre dernier RDV"); return; }
       if (!confirm("Supprimer définitivement ce rendez-vous ?")) return;
-      store = store.filter(r => r.id !== currentId);
-      currentId = store[0].id; persist();
+      try { await window.RexDB.deleteRdv(r.id); } catch (e) { toast("Échec de la suppression"); return; }
+      store = store.filter(x => x.id !== r.id);
+      currentId = (visibleRdvs()[0] || store[0]).id;
       switchTo(currentId); toast("RDV supprimé");
     });
     $("#btnExport").addEventListener("click", () => {
@@ -618,13 +674,16 @@
     $("#importFile").addEventListener("change", e => {
       const file = e.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
           const obj = JSON.parse(reader.result);
-          obj.id = uid(); obj.updatedAt = Date.now();
+          obj.id = uid(); obj.author_id = myId();
+          obj.createdAt = obj.createdAt || Date.now(); obj.updatedAt = Date.now();
+          if (!obj.data) obj.data = {};
           if (!obj.affaire) obj.affaire = { active: false, data: {} };
+          await saveRdv(obj);
           store.push(obj); switchTo(obj.id); toast("RDV importé");
-        } catch (err) { toast("Fichier invalide"); }
+        } catch (err) { toast("Fichier invalide ou non enregistré"); }
       };
       reader.readAsText(file);
       e.target.value = "";
@@ -640,15 +699,38 @@
   }
 
   /* ----------------------- Démarrage ----------------------- */
-  renderNav();
-  renderBooklet();
-  refreshRdvSelect();
-  updateAllMeta();
-  trackActiveOnScroll();
-  wire();
-  setSaveStatus("saved");
+  // Appelé par supa.js une fois l'utilisateur connecté et les données chargées.
+  let wired = false;
+  async function boot({ profile, rdvs }) {
+    store = Array.isArray(rdvs) ? rdvs : [];
+    // Garantir au moins un RDV modifiable appartenant à l'utilisateur.
+    if (!store.some(ownedByMe)) {
+      const r = newRdv();
+      try { await saveRdv(r); } catch (e) { /* réseau indisponible : on garde en mémoire */ }
+      store.unshift(r);
+    }
+    const mine = store.filter(ownedByMe).sort((a, b) => b.updatedAt - a.updatedAt);
+    currentId = (mine[0] || store[0]).id;
+    ownerFilter = "all";
 
-  // Service worker (mode hors-ligne)
+    document.body.classList.remove("booting");
+    renderNav();
+    renderBooklet();
+    refreshOwnerFilter();
+    refreshRdvSelect();
+    updateAllMeta();
+    applyReadOnly();
+    if (!wired) { trackActiveOnScroll(); wire(); wired = true; }
+    setSaveStatus("saved");
+    if (window.RexAdmin && window.RexAdmin.onBoot) window.RexAdmin.onBoot();
+  }
+
+  // Rafraîchit le filtre « propriétaire » et la liste après une action admin.
+  function refreshTeamUI() { refreshOwnerFilter(); refreshRdvSelect(); }
+
+  window.RexApp = { boot, refreshTeamUI };
+
+  // Service worker (mode hors-ligne pour l'app ; les données restent en ligne)
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
   }
