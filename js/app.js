@@ -4,48 +4,57 @@
 (function () {
   "use strict";
 
-  const LS_KEY = "rexseller.rdvs.v1";
-  const LS_CUR = "rexseller.current.v1";
-
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-  const uid = () => "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+        const rnd = Math.random() * 16 | 0, v = c === "x" ? rnd : (rnd & 0x3 | 0x8); return v.toString(16);
+      });
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
-  /* ----------------------- État & stockage ----------------------- */
-  let store = loadStore();
-  let currentId = localStorage.getItem(LS_CUR);
-  if (!store.length) { const r = newRdv(); store.push(r); currentId = r.id; persist(); }
-  if (!store.find(r => r.id === currentId)) currentId = store[0].id;
+  /* ----------------------- État & stockage (Supabase) ----------------------- */
+  // Les données sont fournies par la couche d'authentification (supa.js) via boot().
+  let store = [];
+  let currentId = null;
+  let ownerFilter = "all";        // filtre « propriétaire » (utile aux responsables)
 
-  function loadStore() {
-    try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch (e) { return []; }
-  }
-  function persist() {
-    localStorage.setItem(LS_KEY, JSON.stringify(store));
-    localStorage.setItem(LS_CUR, currentId);
-  }
+  function myId() { const me = window.RexDB.me(); return me ? me.id : null; }
   function newRdv() {
-    return { id: uid(), createdAt: Date.now(), updatedAt: Date.now(), data: {}, affaire: { active: false, data: {} } };
+    return { id: uid(), author_id: myId(), createdAt: Date.now(), updatedAt: Date.now(), data: {}, affaire: { active: false, data: {} } };
   }
   function current() { return store.find(r => r.id === currentId); }
+  function ownedByMe(r) { return !!r && r.author_id === myId(); }
+  function isReadOnly() { return !ownedByMe(current()); }
+
+  // Enregistrement d'un RDV en base (création ou mise à jour).
+  async function saveRdv(r) {
+    if (!r) return;
+    try { await window.RexDB.upsertRdv(r); }
+    catch (e) { setSaveStatus("error"); toast("Échec de l'enregistrement : " + (e.message || e)); throw e; }
+  }
 
   let saveTimer = null;
   function touch() {
-    const r = current(); if (!r) return;
+    const r = current(); if (!r || isReadOnly()) return;
     r.updatedAt = Date.now();
     setSaveStatus("saving");
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { persist(); setSaveStatus("saved"); }, 350);
+    saveTimer = setTimeout(() => {
+      saveRdv(r).then(() => setSaveStatus("saved")).catch(() => {});
+    }, 400);
   }
   function setSaveStatus(state) {
     const el = $("#saveStatus");
+    if (!el) return;
+    if (isReadOnly()) { el.textContent = "Lecture seule"; el.classList.remove("saving"); el.classList.add("readonly"); return; }
+    el.classList.remove("readonly");
     if (state === "saving") { el.textContent = "Enregistrement…"; el.classList.add("saving"); }
+    else if (state === "error") { el.textContent = "Non enregistré ✕"; el.classList.remove("saving"); }
     else { el.textContent = "Enregistré ✓"; el.classList.remove("saving"); }
   }
 
-  const val = (id) => current().data[id];
-  const setVal = (id, v) => { current().data[id] = v; touch(); };
+  const val = (id) => { const r = current(); return r ? r.data[id] : undefined; };
+  const setVal = (id, v) => { if (isReadOnly()) return; const r = current(); if (!r) return; r.data[id] = v; touch(); };
 
   /* ----------------------- Rendu du livret ----------------------- */
   function renderNav() {
@@ -279,20 +288,53 @@
   }
 
   /* ----------------------- Gestion des RDV ----------------------- */
+  function visibleRdvs() {
+    let list = store.slice().sort((a, b) => b.updatedAt - a.updatedAt);
+    if (ownerFilter === "mine") list = list.filter(ownedByMe);
+    else if (ownerFilter !== "all") list = list.filter(r => r.author_id === ownerFilter);
+    return list;
+  }
   function refreshRdvSelect() {
     const sel = $("#rdvSelect");
-    sel.innerHTML = store
-      .slice().sort((a, b) => b.updatedAt - a.updatedAt)
-      .map(r => {
-        const soc = r.data.societe || "Sans nom";
-        const d = r.data.date_rdv ? " · " + r.data.date_rdv : "";
-        return `<option value="${r.id}" ${r.id === currentId ? "selected" : ""}>${esc(soc)}${esc(d)}</option>`;
-      }).join("");
+    sel.innerHTML = visibleRdvs().map(r => {
+      const soc = r.data.societe || "Sans nom";
+      const d = r.data.date_rdv ? " · " + r.data.date_rdv : "";
+      const who = ownedByMe(r) ? "" : " — " + window.RexDB.authorName(r.author_id);
+      return `<option value="${r.id}" ${r.id === currentId ? "selected" : ""}>${esc(soc)}${esc(d)}${esc(who)}</option>`;
+    }).join("");
+  }
+  // Filtre « propriétaire » : visible seulement pour les responsables (RRO/CA/RO).
+  function refreshOwnerFilter() {
+    const wrap = $("#ownerFilterRow");
+    const sel = $("#ownerFilter");
+    if (!wrap || !sel) return;
+    if (!window.RexDB.isManager()) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    const owners = [...new Set(store.map(r => r.author_id))]
+      .filter(id => id !== myId())
+      .map(id => ({ id, name: window.RexDB.authorName(id) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    sel.innerHTML =
+      `<option value="all">Toute l'équipe</option>` +
+      `<option value="mine">Mes rendez-vous</option>` +
+      owners.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join("");
+    sel.value = ownerFilter;
   }
   function switchTo(id) {
-    currentId = id; persist();
+    currentId = id;
     refreshRdvSelect(); renderBooklet(); updateAllMeta(); renderNavState();
+    applyReadOnly();
     window.scrollTo({ top: 0 });
+  }
+  // Verrouille la saisie quand le RDV affiché appartient à un collaborateur.
+  function applyReadOnly() {
+    const ro = isReadOnly();
+    const main = $("#booklet");
+    if (main) main.classList.toggle("readonly", ro);
+    $$("#booklet input, #booklet textarea, #booklet select").forEach(el => { el.disabled = ro; });
+    $$("#booklet button").forEach(el => { if (!el.closest(".section-head")) el.disabled = ro; });
+    const del = $("#btnDelete"); if (del) del.disabled = ro;
+    setSaveStatus("saved");
   }
 
   /* ----------------------- Synthèse : helpers ----------------------- */
@@ -524,6 +566,8 @@
       renderAffaireForm(); buildAffaireOutput();
       toast(n ? `${n} critère(s) recoupé(s) depuis le livret` : "Rien de nouveau à recouper");
     });
+    // RDV d'un collaborateur : consultation seule
+    if (isReadOnly()) $$("#affaireForm textarea, #affaireForm button").forEach(el => { el.disabled = true; });
   }
 
   function buildAffaireOutput() {
@@ -537,6 +581,7 @@
   function openSynthese() {
     refreshFromData();
     $("#affaireToggle").checked = current().affaire.active;
+    $("#affaireToggle").disabled = isReadOnly();
     toggleAffaire();
     $("#syntheseModal").hidden = false;
     document.body.style.overflow = "hidden";
@@ -582,24 +627,39 @@
   /* ----------------------- Événements globaux ----------------------- */
   function wire() {
     $("#btnMenu").addEventListener("click", () => {
-      const p = $("#menuPanel"); p.hidden = !p.hidden; if (!p.hidden) refreshRdvSelect();
+      const p = $("#menuPanel"); p.hidden = !p.hidden;
+      if (!p.hidden) { refreshOwnerFilter(); refreshRdvSelect(); }
     });
     $("#rdvSelect").addEventListener("change", e => switchTo(e.target.value));
-    $("#btnNew").addEventListener("click", () => {
-      const r = newRdv(); store.push(r); switchTo(r.id); toast("Nouveau RDV créé");
+    const ofilt = $("#ownerFilter");
+    if (ofilt) ofilt.addEventListener("change", e => {
+      ownerFilter = e.target.value;
+      const list = visibleRdvs();
+      if (!list.find(r => r.id === currentId) && list[0]) switchTo(list[0].id);
+      else refreshRdvSelect();
     });
-    $("#btnDuplicate").addEventListener("click", () => {
-      const src = current();
+    $("#btnNew").addEventListener("click", async () => {
+      const r = newRdv();
+      try { await saveRdv(r); } catch (e) { return; }
+      store.push(r); ownerFilter = "all"; refreshOwnerFilter();
+      switchTo(r.id); toast("Nouveau RDV créé");
+    });
+    $("#btnDuplicate").addEventListener("click", async () => {
+      const src = current(); if (!src) return;
       const copy = JSON.parse(JSON.stringify(src));
-      copy.id = uid(); copy.createdAt = copy.updatedAt = Date.now();
+      copy.id = uid(); copy.author_id = myId(); copy.createdAt = copy.updatedAt = Date.now();
       copy.data.societe = (copy.data.societe || "") + " (copie)";
+      try { await saveRdv(copy); } catch (e) { return; }
       store.push(copy); switchTo(copy.id); toast("RDV dupliqué");
     });
-    $("#btnDelete").addEventListener("click", () => {
-      if (store.length === 1) { toast("Impossible de supprimer le dernier RDV"); return; }
+    $("#btnDelete").addEventListener("click", async () => {
+      const r = current();
+      if (!ownedByMe(r)) { toast("Vous ne pouvez supprimer que vos propres RDV"); return; }
+      if (store.filter(ownedByMe).length <= 1) { toast("Impossible de supprimer votre dernier RDV"); return; }
       if (!confirm("Supprimer définitivement ce rendez-vous ?")) return;
-      store = store.filter(r => r.id !== currentId);
-      currentId = store[0].id; persist();
+      try { await window.RexDB.deleteRdv(r.id); } catch (e) { toast("Échec de la suppression"); return; }
+      store = store.filter(x => x.id !== r.id);
+      currentId = (visibleRdvs()[0] || store[0]).id;
       switchTo(currentId); toast("RDV supprimé");
     });
     $("#btnExport").addEventListener("click", () => {
@@ -614,13 +674,16 @@
     $("#importFile").addEventListener("change", e => {
       const file = e.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
           const obj = JSON.parse(reader.result);
-          obj.id = uid(); obj.updatedAt = Date.now();
+          obj.id = uid(); obj.author_id = myId();
+          obj.createdAt = obj.createdAt || Date.now(); obj.updatedAt = Date.now();
+          if (!obj.data) obj.data = {};
           if (!obj.affaire) obj.affaire = { active: false, data: {} };
+          await saveRdv(obj);
           store.push(obj); switchTo(obj.id); toast("RDV importé");
-        } catch (err) { toast("Fichier invalide"); }
+        } catch (err) { toast("Fichier invalide ou non enregistré"); }
       };
       reader.readAsText(file);
       e.target.value = "";
@@ -636,15 +699,34 @@
   }
 
   /* ----------------------- Démarrage ----------------------- */
-  renderNav();
-  renderBooklet();
-  refreshRdvSelect();
-  updateAllMeta();
-  trackActiveOnScroll();
-  wire();
-  setSaveStatus("saved");
+  // Appelé par supa.js une fois l'utilisateur connecté et les données chargées.
+  let wired = false;
+  async function boot({ profile, rdvs }) {
+    store = Array.isArray(rdvs) ? rdvs : [];
+    // Garantir au moins un RDV modifiable appartenant à l'utilisateur.
+    if (!store.some(ownedByMe)) {
+      const r = newRdv();
+      try { await saveRdv(r); } catch (e) { /* réseau indisponible : on garde en mémoire */ }
+      store.unshift(r);
+    }
+    const mine = store.filter(ownedByMe).sort((a, b) => b.updatedAt - a.updatedAt);
+    currentId = (mine[0] || store[0]).id;
+    ownerFilter = "all";
 
-  // Service worker (mode hors-ligne)
+    document.body.classList.remove("booting");
+    renderNav();
+    renderBooklet();
+    refreshOwnerFilter();
+    refreshRdvSelect();
+    updateAllMeta();
+    applyReadOnly();
+    if (!wired) { trackActiveOnScroll(); wire(); wired = true; }
+    setSaveStatus("saved");
+  }
+
+  window.RexApp = { boot };
+
+  // Service worker (mode hors-ligne pour l'app ; les données restent en ligne)
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
   }

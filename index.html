@@ -11,7 +11,22 @@
   <link rel="apple-touch-icon" href="assets/icon.svg" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body>
+<body class="booting">
+
+  <!-- Écran de connexion (affiché tant que l'utilisateur n'est pas authentifié) -->
+  <div id="authGate" class="auth-gate" hidden>
+    <form id="authForm" class="auth-card" autocomplete="on">
+      <img class="auth-logo" src="assets/logo-red.png" alt="Rex-Rotary" />
+      <h1 class="auth-title">Rex Seller</h1>
+      <p class="auth-sub">Connectez-vous pour accéder à vos rendez-vous.</p>
+      <label class="auth-label" for="authEmail">Email</label>
+      <input id="authEmail" type="email" name="email" inputmode="email" autocomplete="username" required placeholder="prenom.nom@entreprise.fr" />
+      <label class="auth-label" for="authPassword">Mot de passe</label>
+      <input id="authPassword" type="password" name="password" autocomplete="current-password" required placeholder="••••••••" />
+      <p id="authError" class="auth-error" hidden></p>
+      <button id="authSubmit" type="submit" class="btn btn--primary btn--wide">Se connecter</button>
+    </form>
+  </div>
 
   <!-- En-tête collant : reste visible au défilement -->
   <header class="topbar">
@@ -28,6 +43,14 @@
 
     <!-- Panneau de gestion des rendez-vous -->
     <div id="menuPanel" class="menu-panel" hidden>
+      <div class="menu-panel__user">
+        <span id="userBadge" class="user-badge"></span>
+        <button id="btnLogout" class="btn btn--ghost btn--sm">Se déconnecter</button>
+      </div>
+      <div class="menu-panel__row" id="ownerFilterRow" hidden>
+        <label for="ownerFilter">Voir les rendez-vous de</label>
+        <select id="ownerFilter"></select>
+      </div>
       <div class="menu-panel__row">
         <label for="rdvSelect">Rendez-vous en cours</label>
         <select id="rdvSelect"></select>
@@ -113,7 +136,12 @@
 
   <div id="toast" class="toast" hidden></div>
 
+  <!-- Client Supabase (authentification + base de données), hébergé localement
+       pour rester indépendant de tout CDN externe -->
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/data.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/supa.js"></script>
 </body>
 </html>

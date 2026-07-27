@@ -53,6 +53,7 @@ button{font-family:inherit}
 .appbar__actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
 .save-status{font-size:.75rem;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px}
 .save-status.saving{background:rgba(255,255,255,.35)}
+.save-status.readonly{background:rgba(255,255,255,.28);font-style:italic}
 
 /* Boutons */
 .btn{
@@ -77,6 +78,44 @@ button{font-family:inherit}
 .menu-panel__row label{font-weight:600;font-size:.85rem}
 .menu-panel select{padding:10px;border:1px solid var(--line);border-radius:10px;font-size:1rem}
 .menu-panel__buttons{display:flex;flex-wrap:wrap;gap:8px}
+.menu-panel__user{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line);
+}
+.user-badge{font-size:.85rem;font-weight:600;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+/* Livret en lecture seule (RDV d'un collaborateur) */
+.booklet.readonly{opacity:.96}
+.booklet.readonly .section-body{background:repeating-linear-gradient(0deg,transparent,transparent);}
+.booklet.readonly input:disabled,
+.booklet.readonly textarea:disabled,
+.booklet.readonly select:disabled{background:#f7f8fa;color:#4b5563;-webkit-text-fill-color:#4b5563;opacity:1}
+
+/* Écran de connexion */
+.auth-gate{
+  position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:linear-gradient(140deg,var(--rex),var(--rex-dark));
+}
+body.locked{overflow:hidden}
+/* Masque l'application tant que l'authentification n'a pas démarré le contenu */
+body.booting .topbar,body.booting .booklet,body.booting .bottombar{display:none !important}
+.auth-card{
+  width:100%;max-width:380px;background:var(--card);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:28px 24px;display:flex;flex-direction:column;
+}
+.auth-logo{height:34px;width:auto;align-self:flex-start;margin-bottom:14px}
+.auth-title{font-size:1.5rem;font-weight:800;color:var(--ink);margin-bottom:2px}
+.auth-sub{color:var(--muted);font-size:.9rem;margin:0 0 18px}
+.auth-label{font-weight:600;font-size:.82rem;margin-bottom:5px}
+.auth-card input{
+  padding:12px;border:1px solid var(--line);border-radius:10px;font-size:1rem;margin-bottom:14px;
+}
+.auth-card input:focus{outline:none;border-color:var(--rex);box-shadow:0 0 0 3px var(--rex-light)}
+.auth-error{
+  background:#fee2e2;color:#b91c1c;border-radius:10px;padding:9px 12px;
+  font-size:.85rem;margin:0 0 12px;
+}
+.auth-card .btn--wide{margin-top:2px;padding:12px}
 
 /* Progression */
 .progress-wrap{
@@ -262,7 +301,7 @@ table.grid td input:focus{outline:2px solid var(--rex-light)}
 
 @media print{
   body{background:#fff;padding:0}
-  .appbar,.menu-panel,.progress-wrap,.section-nav,.booklet,.bottombar,.modal,.toast{display:none !important}
+  .appbar,.menu-panel,.progress-wrap,.section-nav,.booklet,.bottombar,.modal,.toast,.auth-gate{display:none !important}
   .print-area{display:block;padding:0 6mm}
   .print-doc .logo{height:34px;width:auto;display:block;margin:0 0 8px}
   .print-doc h1{color:var(--rex);font-size:20px;margin:0 0 2px}
