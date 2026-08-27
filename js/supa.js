@@ -146,39 +146,47 @@
 
   async function loadAndStart() {
     setErr("");
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) { showGate(); return; }
+    try {
+      // On réutilise la session déjà stockée localement (lecture immédiate,
+      // sans aller-retour réseau susceptible de bloquer le démarrage).
+      const { data: { session } } = await sb.auth.getSession();
+      const user = session && session.user;
+      if (!user) { showGate(); return; }
 
-    // Profil de l'utilisateur
-    const { data: prof, error: perr } = await sb
-      .from("profiles").select("*").eq("id", user.id).maybeSingle();
+      // Profil de l'utilisateur
+      const { data: prof, error: perr } = await sb
+        .from("profiles").select("*").eq("id", user.id).maybeSingle();
+      if (perr) throw perr;
+      if (!prof) {
+        setErr("Votre compte n'est pas encore rattaché à l'organigramme. Contactez votre administrateur.");
+        showGate();
+        return;
+      }
+      myProfile = prof;
 
-    if (perr) { setErr("Erreur de chargement du profil : " + perr.message); showGate(); return; }
-    if (!prof) {
-      setErr("Votre compte n'est pas encore rattaché à l'organigramme. Contactez votre administrateur.");
+      // Équipe visible (soi + sous-arbre grâce à la RLS)
+      const { data: team } = await sb
+        .from("profiles").select("id,full_name,email,role,manager_id,agence").order("full_name");
+      teamById = {};
+      (team || []).forEach(p => { teamById[p.id] = p; });
+      if (!teamById[myProfile.id]) teamById[myProfile.id] = myProfile;
+
+      // Rendez-vous visibles
+      const { data: rows, error: rerr } = await sb
+        .from("rendez_vous").select("*").order("updated_at", { ascending: false });
+      if (rerr) throw rerr;
+
+      hideGate();
+      const badge = $("#userBadge");
+      if (badge) badge.textContent = `${myProfile.full_name || myProfile.email} · ${ROLE_LABEL[myProfile.role]}`;
+
+      window.RexApp.boot({ profile: myProfile, rdvs: (rows || []).map(mapRow) });
+    } catch (e) {
+      // Ne jamais laisser une page blanche : on retombe sur l'écran de connexion.
+      console.error("Démarrage impossible :", e);
       showGate();
-      return;
+      setErr("Connexion au serveur impossible pour le moment. Vérifiez votre connexion, puis réessayez.");
     }
-    myProfile = prof;
-
-    // Équipe visible (soi + sous-arbre grâce à la RLS)
-    const { data: team } = await sb
-      .from("profiles").select("id,full_name,email,role,manager_id").order("full_name");
-    teamById = {};
-    (team || []).forEach(p => { teamById[p.id] = p; });
-    if (!teamById[myProfile.id]) teamById[myProfile.id] = myProfile;
-
-    // Rendez-vous visibles
-    const { data: rows, error: rerr } = await sb
-      .from("rendez_vous").select("*").order("updated_at", { ascending: false });
-    if (rerr) { setErr("Erreur de chargement des rendez-vous : " + rerr.message); showGate(); return; }
-
-    hideGate();
-    // Badge utilisateur
-    const badge = $("#userBadge");
-    if (badge) badge.textContent = `${myProfile.full_name || myProfile.email} · ${ROLE_LABEL[myProfile.role]}`;
-
-    window.RexApp.boot({ profile: myProfile, rdvs: (rows || []).map(mapRow) });
   }
 
   /* ----------------------- Événements ----------------------- */
@@ -205,8 +213,24 @@
 
   /* ----------------------- Amorçage ----------------------- */
   (async () => {
-    const { data: { session } } = await sb.auth.getSession();
-    if (session) await loadAndStart();
-    else showGate();
+    // Filet de sécurité : si le démarrage n'aboutit pas (serveur injoignable
+    // ou trop lent), on bascule sur l'écran de connexion au lieu de rester
+    // sur une page vide.
+    const watchdog = setTimeout(() => {
+      if (document.body.classList.contains("booting") && $("#authGate").hidden) {
+        showGate();
+        setErr("Le serveur met trop de temps à répondre. Vérifiez votre connexion, puis réessayez.");
+      }
+    }, 12000);
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) await loadAndStart();
+      else showGate();
+    } catch (e) {
+      console.error(e);
+      showGate();
+    } finally {
+      clearTimeout(watchdog);
+    }
   })();
 })();
