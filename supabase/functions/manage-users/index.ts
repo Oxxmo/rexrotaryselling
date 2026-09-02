@@ -120,8 +120,10 @@ Deno.serve(async (req: Request) => {
       }
 
       // Le trigger a créé le profil (rôle « commercial ») : on le complète.
+      // must_change_password = true : la personne devra définir son propre
+      // mot de passe à sa première connexion.
       const { error: pErr } = await admin.from("profiles")
-        .update({ full_name, role, manager_id, agence, email })
+        .update({ full_name, role, manager_id, agence, email, must_change_password: true })
         .eq("id", created.user.id);
       if (pErr) {
         // Annule la création du compte auth pour ne pas laisser d'orphelin.
@@ -172,6 +174,8 @@ Deno.serve(async (req: Request) => {
 
       const { error } = await admin.auth.admin.updateUserById(id, { password });
       if (error) return json({ error: error.message }, 400);
+      // La personne devra de nouveau définir un mot de passe personnel.
+      await admin.from("profiles").update({ must_change_password: true }).eq("id", id);
       return json({ ok: true });
     }
 

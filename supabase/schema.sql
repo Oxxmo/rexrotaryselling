@@ -30,6 +30,7 @@ create table if not exists public.profiles (
   manager_id  uuid references public.profiles(id) on delete set null,
   agence      text,
   presentation text,          -- présentation personnelle de Rex-Rotary (propre à l'utilisateur)
+  must_change_password boolean not null default false, -- doit personnaliser son mot de passe à la 1re connexion
   created_at  timestamptz not null default now()
 );
 
@@ -150,7 +151,7 @@ create policy profiles_select on public.profiles
 -- (le grant de colonne ci-dessous empêche de toucher role/manager_id).
 -- La gestion des comptes/hiérarchie reste réservée à l'administration.
 revoke update on public.profiles from authenticated;
-grant update (presentation) on public.profiles to authenticated;
+grant update (presentation, must_change_password) on public.profiles to authenticated;
 
 drop policy if exists profiles_update_self on public.profiles;
 create policy profiles_update_self on public.profiles

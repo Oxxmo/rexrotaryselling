@@ -54,10 +54,22 @@
   function hideGate() { if (gate) gate.hidden = true; document.body.classList.remove("locked"); }
   function setErr(m) { if (!errEl) return; errEl.textContent = m || ""; errEl.hidden = !m; }
 
+  // Écran « première connexion » (définition du mot de passe personnel)
+  const pwGate = $("#pwGate");
+  const pwForm = $("#pwForm");
+  const pwNew = $("#pwNew");
+  const pwNew2 = $("#pwNew2");
+  const pwError = $("#pwError");
+  const pwSubmit = $("#pwSubmit");
+  function showPwGate() { if (gate) gate.hidden = true; if (pwGate) pwGate.hidden = false; document.body.classList.add("locked"); }
+  function hidePwGate() { if (pwGate) pwGate.hidden = true; document.body.classList.remove("locked"); }
+  function setPwErr(m) { if (!pwError) return; pwError.textContent = m || ""; pwError.hidden = !m; }
+
   function traduireErreur(msg) {
     const m = (msg || "").toLowerCase();
     if (m.includes("invalid login")) return "Email ou mot de passe incorrect.";
     if (m.includes("email not confirmed")) return "Email non confirmé : vérifiez votre boîte mail.";
+    if (m.includes("different from the old")) return "Choisissez un mot de passe différent du mot de passe provisoire.";
     if (m.includes("network")) return "Problème de connexion réseau. Réessayez.";
     return msg || "Une erreur est survenue.";
   }
@@ -202,6 +214,10 @@
       }
       myProfile = prof;
 
+      // Première connexion : le compte a été créé avec un mot de passe
+      // provisoire → l'utilisateur doit définir son propre mot de passe.
+      if (myProfile.must_change_password) { showPwGate(); return; }
+
       // Équipe visible (soi + sous-arbre grâce à la RLS)
       const { data: team } = await sb
         .from("profiles").select("id,full_name,email,role,manager_id,agence").order("full_name");
@@ -246,6 +262,35 @@
     });
   }
 
+  // Définition du mot de passe personnel (première connexion)
+  if (pwForm) {
+    pwForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setPwErr("");
+      const p1 = pwNew.value || "", p2 = pwNew2.value || "";
+      if (p1.length < 8) { setPwErr("Le mot de passe doit contenir au moins 8 caractères."); return; }
+      if (p1 !== p2) { setPwErr("Les deux mots de passe ne correspondent pas."); return; }
+      pwSubmit.disabled = true;
+      const label = pwSubmit.textContent; pwSubmit.textContent = "Enregistrement…";
+      try {
+        const { error } = await sb.auth.updateUser({ password: p1 });
+        if (error) { setPwErr(traduireErreur(error.message)); return; }
+        // Lève le marqueur pour ne plus redemander.
+        if (myProfile) {
+          await sb.from("profiles").update({ must_change_password: false }).eq("id", myProfile.id);
+          myProfile.must_change_password = false;
+        }
+        hidePwGate();
+        pwNew.value = ""; pwNew2.value = "";
+        await loadAndStart();
+      } catch (err) {
+        setPwErr("Une erreur est survenue. Réessayez.");
+      } finally {
+        pwSubmit.disabled = false; pwSubmit.textContent = label;
+      }
+    });
+  }
+
   const btnLogout = $("#btnLogout");
   if (btnLogout) btnLogout.addEventListener("click", () => window.RexDB.signOut());
 
@@ -255,7 +300,8 @@
     // ou trop lent), on bascule sur l'écran de connexion au lieu de rester
     // sur une page vide.
     const watchdog = setTimeout(() => {
-      if (document.body.classList.contains("booting") && $("#authGate").hidden) {
+      if (document.body.classList.contains("booting")
+          && $("#authGate").hidden && $("#pwGate").hidden) {
         showGate();
         setErr("Le serveur met trop de temps à répondre. Vérifiez votre connexion, puis réessayez.");
       }

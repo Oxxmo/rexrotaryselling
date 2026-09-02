@@ -28,6 +28,21 @@
     </form>
   </div>
 
+  <!-- Écran « première connexion » : définir son mot de passe personnel -->
+  <div id="pwGate" class="auth-gate" hidden>
+    <form id="pwForm" class="auth-card" autocomplete="on">
+      <img class="auth-logo" src="assets/logo-red.png" alt="Rex-Rotary" />
+      <h1 class="auth-title">Bienvenue !</h1>
+      <p class="auth-sub">Pour votre première connexion, choisissez votre mot de passe personnel.</p>
+      <label class="auth-label" for="pwNew">Nouveau mot de passe</label>
+      <input id="pwNew" type="password" autocomplete="new-password" required placeholder="8 caractères minimum" />
+      <label class="auth-label" for="pwNew2">Confirmer le mot de passe</label>
+      <input id="pwNew2" type="password" autocomplete="new-password" required placeholder="••••••••" />
+      <p id="pwError" class="auth-error" hidden></p>
+      <button id="pwSubmit" type="submit" class="btn btn--primary btn--wide">Enregistrer mon mot de passe</button>
+    </form>
+  </div>
+
   <!-- En-tête collant : reste visible au défilement -->
   <header class="topbar">
     <div class="appbar">

@@ -345,7 +345,7 @@ table.grid td input:focus{outline:2px solid var(--rex-light)}
 
 @media print{
   body{background:#fff;padding:0}
-  .appbar,.menu-panel,.progress-wrap,.section-nav,.booklet,.bottombar,.modal,.toast,.auth-gate{display:none !important}
+  .appbar,.menu-panel,.progress-wrap,.section-nav,.booklet,.bottombar,.modal,.toast,.auth-gate,#pwGate{display:none !important}
   .print-area{display:block;padding:0 6mm}
   .print-doc .logo{height:34px;width:auto;display:block;margin:0 0 8px}
   .print-doc h1{color:var(--rex);font-size:20px;margin:0 0 2px}
