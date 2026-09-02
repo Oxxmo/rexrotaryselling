@@ -35,6 +35,13 @@ situées sous lui** dans l'organigramme (RRO → CA → RO → commercial).
   demande ou signaler un bug ; les tickets ne sont visibles que par leur auteur et par
   le **développeur dédié** (`profiles.is_dev = true`), qui les consulte via *Tickets reçus*
   et en gère le statut (ouvert / en cours / résolu).
+- **Mode hors-ligne** : chaque saisie est enregistrée immédiatement **sur l'appareil**
+  (localStorage) ; rien n'est perdu en cas de coupure réseau ou de fermeture de l'app.
+  Les RDV modifiés hors ligne sont **resynchronisés automatiquement** au retour du réseau
+  (indicateur « à synchroniser » dans l'en-tête). L'application peut même **s'ouvrir sans
+  réseau** à partir des données en cache. Périmètre volontairement limité aux **données
+  personnelles** de l'utilisateur (ses RDV + sa présentation) ; les RDV des collaborateurs
+  (vue responsable) restent consultés en ligne.
 
 ## Mise en place de la base (à faire une seule fois)
 
@@ -89,6 +96,7 @@ index.html               Page unique de l'application (+ écran de connexion)
 css/styles.css           Styles (écran + impression PDF + connexion)
 js/config.js             URL + clé publique Supabase
 js/vendor/supabase.js    Bibliothèque Supabase (hébergée localement, pas de CDN)
+js/offline.js            Cache local + file de synchronisation (mode hors-ligne)
 js/supa.js               Authentification + accès aux données (Row-Level Security)
 js/admin.js              Console d'administration des comptes (responsables)
 js/tickets.js            Système de tickets (demandes / bugs)

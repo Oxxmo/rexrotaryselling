@@ -196,13 +196,16 @@
 
   async function loadAndStart() {
     setErr("");
+    // Session locale (lecture immédiate, disponible même hors ligne).
+    let user = null;
     try {
-      // On réutilise la session déjà stockée localement (lecture immédiate,
-      // sans aller-retour réseau susceptible de bloquer le démarrage).
       const { data: { session } } = await sb.auth.getSession();
-      const user = session && session.user;
-      if (!user) { showGate(); return; }
+      user = session && session.user;
+    } catch (e) { /* ignoré */ }
+    if (!user) { showGate(); return; }
+    if (window.RexOffline) window.RexOffline.init(user.id);
 
+    try {
       // Profil de l'utilisateur
       const { data: prof, error: perr } = await sb
         .from("profiles").select("*").eq("id", user.id).maybeSingle();
@@ -218,6 +221,8 @@
       // provisoire → l'utilisateur doit définir son propre mot de passe.
       if (myProfile.must_change_password) { showPwGate(); return; }
 
+      if (window.RexOffline) window.RexOffline.cacheProfile(myProfile);
+
       // Équipe visible (soi + sous-arbre grâce à la RLS)
       const { data: team } = await sb
         .from("profiles").select("id,full_name,email,role,manager_id,agence").order("full_name");
@@ -231,16 +236,30 @@
       if (rerr) throw rerr;
 
       hideGate();
-      const badge = $("#userBadge");
-      if (badge) badge.textContent = `${myProfile.full_name || myProfile.email} · ${ROLE_LABEL[myProfile.role]}`;
-
+      setBadge(myProfile, false);
       window.RexApp.boot({ profile: myProfile, rdvs: (rows || []).map(mapRow) });
     } catch (e) {
-      // Ne jamais laisser une page blanche : on retombe sur l'écran de connexion.
-      console.error("Démarrage impossible :", e);
+      console.error("Démarrage en ligne impossible :", e);
+      // Repli hors-ligne : si l'appareil dispose du cache de cet utilisateur,
+      // on ouvre l'application à partir des données locales (RDV perso).
+      if (window.RexOffline && window.RexOffline.hasCache(user.id) && window.RexOffline.cachedProfile()) {
+        const cp = window.RexOffline.cachedProfile();
+        myProfile = cp;
+        teamById = {}; teamById[cp.id] = cp;
+        hideGate();
+        setBadge(cp, true);
+        window.RexApp.boot({ profile: cp, rdvs: window.RexOffline.ownCachedRdvs(), offline: true });
+        return;
+      }
+      // Sinon, écran de connexion avec message (jamais de page blanche).
       showGate();
       setErr("Connexion au serveur impossible pour le moment. Vérifiez votre connexion, puis réessayez.");
     }
+  }
+
+  function setBadge(p, offline) {
+    const badge = $("#userBadge");
+    if (badge) badge.textContent = `${p.full_name || p.email} · ${ROLE_LABEL[p.role]}${offline ? " (hors ligne)" : ""}`;
   }
 
   /* ----------------------- Événements ----------------------- */
