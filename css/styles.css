@@ -173,6 +173,19 @@ body.booting .topbar,body.booting .booklet,body.booting .bottombar{display:none 
 .nav-chip .dot{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#d6d8dd}
 .nav-chip.filled .dot{background:var(--ok)}
 .nav-chip.active{border-color:var(--rex);background:var(--rex-light);color:var(--rex-dark)}
+/* Bouton Affaire, à droite des secteurs */
+.nav-affaire{
+  flex:0 0 auto;align-self:stretch;margin-left:6px;padding:6px 12px;
+  border:1px solid var(--line);border-radius:10px;background:#f1f2f4;color:var(--muted);
+  font-weight:800;font-size:.7rem;cursor:not-allowed;white-space:nowrap;
+  border-left:2px solid var(--line);transition:filter .15s;
+}
+.nav-affaire.ready{
+  background:linear-gradient(120deg,var(--rex),var(--rex-dark));color:#fff;
+  border-color:var(--rex-dark);cursor:pointer;box-shadow:0 2px 8px rgba(193,18,47,.28);
+}
+.nav-affaire.ready:hover{filter:brightness(1.06)}
+@media(min-width:560px){ .nav-affaire{font-size:.8rem;padding:8px 14px} }
 @media(min-width:560px){
   .nav-chip__label{font-size:.74rem}
   .nav-chip{padding:8px 4px 7px}
