@@ -31,31 +31,55 @@
   function ownedByMe(r) { return !!r && r.author_id === myId(); }
   function isReadOnly() { return !ownedByMe(current()); }
 
-  // Enregistrement d'un RDV en base (création ou mise à jour).
+  // Pousse un RDV vers Supabase. En cas d'échec (hors ligne), la donnée
+  // reste enregistrée localement et en file d'attente (rien de perdu).
+  async function pushRdv(r) {
+    try {
+      await window.RexDB.upsertRdv(r);
+      window.RexOffline.markSynced(r.id);
+      setSaveStatus("saved");
+    } catch (e) {
+      setSaveStatus("offline");
+    }
+    updateSyncIndicator();
+  }
+  // Enregistrement d'un RDV : local immédiat (durable) puis envoi réseau.
   async function saveRdv(r) {
     if (!r) return;
-    try { await window.RexDB.upsertRdv(r); }
-    catch (e) { setSaveStatus("error"); toast("Échec de l'enregistrement : " + (e.message || e)); throw e; }
+    window.RexOffline.putLocal(r);
+    await pushRdv(r);
   }
 
   let saveTimer = null;
   function touch() {
     const r = current(); if (!r || isReadOnly()) return;
     r.updatedAt = Date.now();
+    window.RexOffline.putLocal(r);   // sauvegarde locale immédiate, avant le réseau
     setSaveStatus("saving");
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      saveRdv(r).then(() => setSaveStatus("saved")).catch(() => {});
-    }, 400);
+    saveTimer = setTimeout(() => { pushRdv(r); }, 500);
   }
   function setSaveStatus(state) {
     const el = $("#saveStatus");
     if (!el) return;
-    if (isReadOnly()) { el.textContent = "Lecture seule"; el.classList.remove("saving"); el.classList.add("readonly"); return; }
-    el.classList.remove("readonly");
+    el.classList.remove("readonly", "saving", "offline");
+    if (isReadOnly()) { el.textContent = "Lecture seule"; el.classList.add("readonly"); return; }
     if (state === "saving") { el.textContent = "Enregistrement…"; el.classList.add("saving"); }
-    else if (state === "error") { el.textContent = "Non enregistré ✕"; el.classList.remove("saving"); }
-    else { el.textContent = "Enregistré ✓"; el.classList.remove("saving"); }
+    else if (state === "offline") { el.textContent = "Hors ligne ✓ (local)"; el.classList.add("offline"); }
+    else { el.textContent = "Enregistré ✓"; }
+  }
+  // Indicateur global « à synchroniser » (RDV/présentation en attente d'envoi).
+  function updateSyncIndicator() {
+    const el = $("#syncBadge");
+    if (!el) return;
+    const n = window.RexOffline.pendingCount();
+    if (n > 0) {
+      el.hidden = false;
+      el.textContent = navigator.onLine ? `⇅ ${n} à synchroniser` : `⚠︎ Hors ligne — ${n} en attente`;
+      el.classList.toggle("offline", !navigator.onLine);
+    } else {
+      el.hidden = true;
+    }
   }
 
   const val = (id) => { const r = current(); return r ? r.data[id] : undefined; };
@@ -205,17 +229,21 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
   function bindPresentation() {
     const el = $("#presentationText");
     if (!el) return;
-    // Présentation enregistrée par l'utilisateur, ou présentation par défaut.
+    // Présentation : version locale (cache) sinon compte, sinon défaut.
+    const cached = window.RexOffline.getCachedPresentation();
     const saved = window.RexDB.getPresentation();
-    el.value = isFilled(saved) ? saved : DEFAULT_PRESENTATION;
+    el.value = isFilled(cached) ? cached : (isFilled(saved) ? saved : DEFAULT_PRESENTATION);
     const status = $("#presentationStatus");
     el.addEventListener("input", () => {
+      window.RexOffline.putLocalPresentation(el.value);   // durable immédiatement
       if (status) status.textContent = "Enregistrement…";
+      updateSyncIndicator();
       clearTimeout(presTimer);
       presTimer = setTimeout(() => {
         window.RexDB.savePresentation(el.value)
-          .then(() => { if (status) status.textContent = "Enregistré ✓"; })
-          .catch(() => { if (status) status.textContent = "Non enregistré ✕"; });
+          .then(() => { window.RexOffline.markPresentationSynced(); if (status) status.textContent = "Enregistré ✓"; })
+          .catch(() => { if (status) status.textContent = "Hors ligne ✓ (local)"; })
+          .finally(updateSyncIndicator);
       }, 600);
     });
   }
@@ -864,18 +892,30 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     $("#includeEmpty").addEventListener("change", renderPdfPreview);
     $("#btnPrint").addEventListener("click", doPrint);
     const bMail = $("#btnMailOpen"); if (bMail) bMail.addEventListener("click", openMailClient);
+    const bSync = $("#syncBadge");
+    if (bSync) bSync.addEventListener("click", () => {
+      if (!navigator.onLine) { toast("Toujours hors ligne — vos saisies sont en sécurité sur l'appareil"); return; }
+      toast("Synchronisation…");
+      window.RexOffline.flush().then(res => {
+        updateSyncIndicator();
+        toast(res.remaining ? `${res.remaining} élément(s) encore en attente` : "Tout est synchronisé ✓");
+      });
+    });
     $$("[data-copy]").forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
   }
 
   /* ----------------------- Démarrage ----------------------- */
   // Appelé par supa.js une fois l'utilisateur connecté et les données chargées.
   let wired = false;
-  async function boot({ profile, rdvs }) {
-    store = Array.isArray(rdvs) ? rdvs : [];
+  async function boot({ profile, rdvs, offline }) {
+    window.RexOffline.init(profile.id);
+    // Fusionne les données serveur avec les éventuelles saisies locales non
+    // encore synchronisées (elles sont prioritaires).
+    store = window.RexOffline.reconcile(Array.isArray(rdvs) ? rdvs : [], profile.id);
     // Garantir au moins un RDV modifiable appartenant à l'utilisateur.
     if (!store.some(ownedByMe)) {
       const r = newRdv();
-      try { await saveRdv(r); } catch (e) { /* réseau indisponible : on garde en mémoire */ }
+      await saveRdv(r);   // enregistré localement même si le réseau est absent
       store.unshift(r);
     }
     const mine = store.filter(ownedByMe).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -889,10 +929,17 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     refreshRdvSelect();
     updateAllMeta();
     applyReadOnly();
-    if (!wired) { trackActiveOnScroll(); wire(); wired = true; }
+    if (!wired) {
+      trackActiveOnScroll(); wire();
+      window.RexOffline.onChange(updateSyncIndicator);
+      wired = true;
+    }
     setSaveStatus("saved");
+    updateSyncIndicator();
     if (window.RexAdmin && window.RexAdmin.onBoot) window.RexAdmin.onBoot();
     if (window.RexTickets && window.RexTickets.onBoot) window.RexTickets.onBoot();
+    // Resynchronise les saisies hors-ligne éventuelles dès qu'on est en ligne.
+    if (navigator.onLine) window.RexOffline.flush().then(updateSyncIndicator);
   }
 
   // Rafraîchit le filtre « propriétaire » et la liste après une action admin.

@@ -54,6 +54,13 @@ button{font-family:inherit}
 .save-status{font-size:.75rem;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px}
 .save-status.saving{background:rgba(255,255,255,.35)}
 .save-status.readonly{background:rgba(255,255,255,.28);font-style:italic}
+.save-status.offline{background:rgba(255,193,7,.30)}
+/* Indicateur « à synchroniser » (mode hors-ligne) */
+.sync-badge{
+  border:0;cursor:pointer;border-radius:999px;padding:4px 10px;
+  font-size:.72rem;font-weight:700;background:#fff;color:var(--rex-dark);
+}
+.sync-badge.offline{background:#fde68a;color:#7c4a03}
 
 /* Boutons */
 .btn{
