@@ -126,6 +126,34 @@
       return body;
     },
 
+    /* ---------- Tickets (demandes / bugs) ---------- */
+    isDev() { return !!(myProfile && myProfile.is_dev); },
+
+    async createTicket(subject, message) {
+      if (!myProfile) throw new Error("Non connecté.");
+      const row = {
+        author_id: myProfile.id,
+        author_name: myProfile.full_name || myProfile.email,
+        author_email: myProfile.email,
+        subject: subject,
+        message: message
+      };
+      const { error } = await sb.from("tickets").insert(row);
+      if (error) throw error;
+    },
+
+    async listTickets() {
+      const { data, error } = await sb.from("tickets")
+        .select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+
+    async setTicketStatus(id, status) {
+      const { error } = await sb.from("tickets").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+
     async signOut() {
       try { await sb.auth.signOut(); } catch (e) { /* ignore */ }
       location.reload();

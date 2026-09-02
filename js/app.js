@@ -436,51 +436,40 @@
   /* ----------------------- Résumé CRM ----------------------- */
   function buildCrmSummary() {
     const r = current(), d = r.data;
+    const HEADER_IDS = ["date_rdv", "societe", "contact", "fonction", "commercial"];
     const L = [];
-    const push = (label, fid) => { if (isFilled(d[fid])) L.push(`${label} : ${flat(d[fid], fid)}`); };
-    const flat = (v, fid) => {
-      const f = BOOKLET.flatMap(s => s.fields).find(x => x.id === fid);
-      return f ? displayValue(f).replace(/\n/g, " / ") : String(v);
-    };
 
+    // En-tête
     L.push(`=== SYNTHÈSE RDV DÉCOUVERTE — ${d.societe || "?"} ===`);
-    if (d.date_rdv) L.push(`Date : ${d.date_rdv}`);
-    push("Contact", "contact");
-    push("Fonction", "fonction");
-    push("Secteur / valeurs ajoutées", "secteur");
-    push("Localisation / sites", "localisation");
-    push("Effectif", "salaries");
-    if (isFilled(d.decisions)) L.push(`Prise de décision : ${flat(d.decisions, "decisions")}`);
+    if (isFilled(d.date_rdv)) L.push(`Date du RDV : ${d.date_rdv}`);
+    if (isFilled(d.contact)) L.push(`Contact : ${d.contact}${isFilled(d.fonction) ? " (" + d.fonction + ")" : ""}`);
+    if (isFilled(d.commercial)) L.push(`Commercial : ${d.commercial}`);
     L.push("");
 
-    L.push("— Environnement actuel —");
-    push("Gestionnaire IT / maintenance", "inf_gestionnaire");
-    push("Note parc informatique", "inf_note");
-    push("Note prestataire télécom", "tel_note");
-    push("Antivirus / Pack Office", "inf_av_office");
-    push("RGPD", "sec_rgpd");
-    L.push("");
+    // Toutes les sections du livret, champ par champ (uniquement ce qui est renseigné).
+    BOOKLET.forEach(sec => {
+      const lines = [];
+      sec.fields.forEach(f => {
+        if (HEADER_IDS.includes(f.id)) return;         // déjà repris en en-tête
+        if (!isFilled(val(f.id))) return;
+        const v = displayValue(f);
+        if (v.indexOf("\n") !== -1) {
+          lines.push(`${f.label} :`);
+          v.split("\n").forEach(x => lines.push("  " + x));
+        } else {
+          lines.push(`${f.label} : ${v}`);
+        }
+      });
+      if (lines.length) {
+        L.push(`— ${sec.title.toUpperCase()} —`);
+        lines.forEach(x => L.push(x));
+        L.push("");
+      }
+    });
 
-    if (isFilled(d.val_reformulation)) {
-      L.push("— Problématiques / besoin / objectif budgétaire —");
-      L.push(flat(d.val_reformulation, "val_reformulation"));
-      L.push("");
-    }
-    if (isFilled(d.val_quand)) L.push(`Équipement souhaité (QUAND) : ${d.val_quand}`);
-    if (isFilled(d.val_processus)) L.push(`Processus de décision : ${flat(d.val_processus, "val_processus")}`);
-
-    const projF = BOOKLET.flatMap(s => s.fields).find(f => f.id === "val_projets");
-    if (isFilled(d.val_projets)) {
-      const t = tableToText(projF, d.val_projets);
-      if (t) { L.push(""); L.push("— Projets à présenter —"); L.push(t); }
-    }
-
-    L.push("");
-    if (isFilled(d.dem_rdv_demo)) L.push(`RDV de démo : ${d.dem_rdv_demo}`);
-    if (isFilled(d.val_prochain_rdv)) L.push(`Prochain RDV : ${d.val_prochain_rdv}`);
-
-    L.push("");
-    L.push(r.affaire.active ? ">>> AFFAIRE À LEVER (voir fiche affaire détaillée)" : ">>> Pas d'affaire levée à ce stade.");
+    L.push(r.affaire.active
+      ? ">>> AFFAIRE À LEVER (voir l'onglet Affaire — 11 critères)"
+      : ">>> Pas d'affaire levée à ce stade.");
     return L.join("\n");
   }
 
@@ -723,6 +712,7 @@
     if (!wired) { trackActiveOnScroll(); wire(); wired = true; }
     setSaveStatus("saved");
     if (window.RexAdmin && window.RexAdmin.onBoot) window.RexAdmin.onBoot();
+    if (window.RexTickets && window.RexTickets.onBoot) window.RexTickets.onBoot();
   }
 
   // Rafraîchit le filtre « propriétaire » et la liste après une action admin.

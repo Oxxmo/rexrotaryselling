@@ -46,6 +46,8 @@
       <div class="menu-panel__user">
         <span id="userBadge" class="user-badge"></span>
         <div class="menu-panel__user-actions">
+          <button id="btnTicketNew" class="btn btn--ghost btn--sm">🐞 Signaler / Demande</button>
+          <button id="btnTicketList" class="btn btn--ghost btn--sm" hidden>📥 Tickets reçus</button>
           <button id="btnAdmin" class="btn btn--ghost btn--sm" hidden>⚙︎ Administration</button>
           <button id="btnLogout" class="btn btn--ghost btn--sm">Se déconnecter</button>
         </div>
@@ -173,6 +175,43 @@
     </div>
   </div>
 
+  <!-- Modale : créer un ticket (tout le monde) -->
+  <div id="ticketModal" class="modal" hidden>
+    <div class="modal__backdrop" data-ticket-close></div>
+    <div class="modal__panel">
+      <div class="modal__header">
+        <h2>Signaler un problème / une demande</h2>
+        <button class="btn btn--ghost" data-ticket-close aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted">Votre message est transmis uniquement à la personne en charge du développement (HEITGEN Scott).</p>
+        <div id="ticketError" class="auth-error" hidden></div>
+        <div class="admin-grid">
+          <label style="grid-column:1 / -1">Objet<input id="tk_subject" type="text" autocomplete="off" placeholder="Ex. : la bureautique ne s'affiche pas dans le CRM" /></label>
+          <label style="grid-column:1 / -1">Description<textarea id="tk_message" rows="6" placeholder="Décrivez le problème ou la demande le plus précisément possible (page concernée, ce que vous attendiez, etc.)"></textarea></label>
+        </div>
+        <div class="admin-form__buttons">
+          <button id="tk_submit" class="btn btn--primary">Envoyer la demande</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale : liste des tickets (dev uniquement) -->
+  <div id="ticketListModal" class="modal" hidden>
+    <div class="modal__backdrop" data-ticketlist-close></div>
+    <div class="modal__panel">
+      <div class="modal__header">
+        <h2>Tickets reçus</h2>
+        <button class="btn btn--ghost" data-ticketlist-close aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal__body">
+        <p id="ticketListEmpty" class="muted" hidden>Aucun ticket pour le moment.</p>
+        <div id="ticketList" class="ticket-list"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Zone d'impression (générée dynamiquement) -->
   <div id="printArea" class="print-area"></div>
 
@@ -185,6 +224,7 @@
   <script src="js/data.js"></script>
   <script src="js/app.js"></script>
   <script src="js/admin.js"></script>
+  <script src="js/tickets.js"></script>
   <script src="js/supa.js"></script>
 </body>
 </html>

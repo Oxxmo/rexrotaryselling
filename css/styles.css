@@ -98,6 +98,19 @@ button{font-family:inherit}
 .admin-table th,.admin-table td{white-space:nowrap;vertical-align:middle}
 .admin-actions{display:flex;gap:6px;flex-wrap:wrap}
 @media (max-width:560px){ .admin-grid{grid-template-columns:1fr} }
+.admin-grid textarea{padding:10px;border:1px solid var(--line);border-radius:10px;font-size:1rem;font-family:inherit;font-weight:400;resize:vertical}
+
+/* Tickets */
+.ticket-list{display:flex;flex-direction:column;gap:12px}
+.ticket-card{border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:10px;padding:12px 14px;background:var(--card)}
+.ticket-card--ouvert{border-left-color:var(--rex)}
+.ticket-card--en_cours{border-left-color:#d97706}
+.ticket-card--resolu{border-left-color:var(--ok);opacity:.75}
+.ticket-card__head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.ticket-card__head strong{font-size:.98rem}
+.ticket-card__meta{font-size:.78rem;color:var(--muted);margin-bottom:8px}
+.ticket-card__msg{font-size:.9rem;white-space:normal;line-height:1.45}
+.ticket-status{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;flex:0 0 auto}
 
 /* Livret en lecture seule (RDV d'un collaborateur) */
 .booklet.readonly{opacity:.96}
