@@ -210,3 +210,64 @@ create policy rdv_delete on public.rendez_vous
 --  Chacun verra alors automatiquement ses RDV + ceux de tout
 --  son sous-arbre, sans autre réglage.
 -- ============================================================
+
+
+-- ============================================================
+--  SYSTÈME DE TICKETS (demandes / bugs)
+--  ------------------------------------------------------------
+--  Tout utilisateur peut créer un ticket ; seuls l'auteur et le
+--  « développeur dédié » (profiles.is_dev = true) peuvent le lire.
+-- ============================================================
+
+-- Marqueur « développeur dédié » sur les profils
+alter table public.profiles add column if not exists is_dev boolean not null default false;
+
+-- Le ticket n'est visible que par son auteur et par le dev dédié.
+create or replace function public.is_dev(_uid uuid)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select is_dev from public.profiles where id = _uid), false);
+$$;
+revoke all on function public.is_dev(uuid) from public;
+grant execute on function public.is_dev(uuid) to authenticated;
+
+create table if not exists public.tickets (
+  id           uuid primary key default gen_random_uuid(),
+  author_id    uuid references public.profiles(id) on delete set null,
+  author_name  text,
+  author_email text,
+  subject      text not null,
+  message      text not null,
+  status       text not null default 'ouvert' check (status in ('ouvert','en_cours','resolu')),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+create index if not exists tickets_created_idx on public.tickets(created_at desc);
+
+drop trigger if exists trg_tickets_touch on public.tickets;
+create trigger trg_tickets_touch
+  before update on public.tickets
+  for each row execute function public.touch_updated_at();
+
+alter table public.tickets enable row level security;
+
+drop policy if exists tickets_insert on public.tickets;
+create policy tickets_insert on public.tickets
+  for insert to authenticated with check (author_id = auth.uid());
+
+drop policy if exists tickets_select on public.tickets;
+create policy tickets_select on public.tickets
+  for select to authenticated
+  using (author_id = auth.uid() or public.is_dev(auth.uid()));
+
+drop policy if exists tickets_update on public.tickets;
+create policy tickets_update on public.tickets
+  for update to authenticated
+  using (public.is_dev(auth.uid())) with check (public.is_dev(auth.uid()));
+
+drop policy if exists tickets_delete on public.tickets;
+create policy tickets_delete on public.tickets
+  for delete to authenticated using (public.is_dev(auth.uid()));
+
+-- Désigner le développeur dédié (à adapter) :
+--   update public.profiles set is_dev = true where email = 'scott.heitgen@rex-rotary.fr';

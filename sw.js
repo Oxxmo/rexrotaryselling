@@ -1,5 +1,5 @@
 /* Rex Seller — service worker (mode hors-ligne) */
-const CACHE = "rexseller-v6";
+const CACHE = "rexseller-v7";
 const ASSETS = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const ASSETS = [
   "./js/data.js",
   "./js/app.js",
   "./js/admin.js",
+  "./js/tickets.js",
   "./js/supa.js",
   "./manifest.webmanifest",
   "./assets/icon.svg",

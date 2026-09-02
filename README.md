@@ -31,6 +31,10 @@ situées sous lui** dans l'organigramme (RRO → CA → RO → commercial).
 - **Console d'administration intégrée** (☰ → *Administration*, responsables uniquement) :
   créer / modifier / supprimer les comptes de son équipe et réinitialiser les mots de
   passe, sans toucher au SQL. Chaque responsable ne gère que son sous-arbre.
+- **Système de tickets** (☰ → *Signaler / Demande*) : tout utilisateur peut créer une
+  demande ou signaler un bug ; les tickets ne sont visibles que par leur auteur et par
+  le **développeur dédié** (`profiles.is_dev = true`), qui les consulte via *Tickets reçus*
+  et en gère le statut (ouvert / en cours / résolu).
 
 ## Mise en place de la base (à faire une seule fois)
 
@@ -87,6 +91,7 @@ js/config.js             URL + clé publique Supabase
 js/vendor/supabase.js    Bibliothèque Supabase (hébergée localement, pas de CDN)
 js/supa.js               Authentification + accès aux données (Row-Level Security)
 js/admin.js              Console d'administration des comptes (responsables)
+js/tickets.js            Système de tickets (demandes / bugs)
 js/data.js               Structure du livret + critères de l'affaire
 js/app.js                Logique (saisie, sauvegarde en base, synthèses)
 supabase/schema.sql      Schéma de la base + règles de visibilité hiérarchique
