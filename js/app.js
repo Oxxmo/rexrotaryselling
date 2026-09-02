@@ -128,6 +128,26 @@
     return true;
   }
 
+  // Présentation par défaut (native), affichée tant que l'utilisateur ne l'a
+  // pas personnalisée. Chacun n'a plus qu'à adapter son prénom / secteur.
+  const DEFAULT_PRESENTATION =
+`Donc Alexandre, j'habite à St Aulaire, consultant du secteur centre sud Corrèze chez Rex Rotary. Entreprise fondée en 1974 avec plus de 600 collaborateurs ainsi que 60 agences sur toute la France. Notre agence se situe à Brive donc l'entreprise mise beaucoup sur la proximité, l'une des valeurs de l'entreprise.
+
+Pour cela nous fonctionnons en trinômes, c'est-à-dire un commercial, un informaticien Jessy ainsi qu'un technicien Ange. Cela nous permet d'assurer 2 autres valeurs essentielles chez nous, la transmission de l'information et la réactivité.
+Nous avons notre propre Hotline basé à Lyon, ce n'est pas de la sous-traitance et elle prend en charge 80% des demandes. Si faut se déplacer, le service de proximité prend alors tout son sens.
+L'objectif est donc d'accompagner nos clients sur toutes les phases d'un projet : la conception, l'installation et la mise en place, et demain le SAV et d'éventuels dépannages.
+
+Aujourd'hui Rex Rotary accompagne les entreprises comme la vôtre sur 6 métiers afin de vous rendre plus productifs :
+- L'informatique : gérer un réseau informatique qu'il soit local ou distant
+- La sauvegarde et la sécurité : protéger vos données selon les normes RGPD et vous garantir de récupérer vos données quel que soit l'incident.
+- La dématérialisation : via des systèmes simples et fluides pour votre communication interne et/ou externe
+- Les systèmes d'impression : tout format, tout volume
+- La communication via l'affichage dynamique et les écrans interactifs
+- Téléphonie et internet
+
+L'idée de ce RDV c'est de voir comment vous êtes équipés et comment vous fonctionnez pour vous apporter une plus-value, qu'elle soit fonctionnelle, organisationnelle ou financière.
+Soit je suis en mesure de le faire seul, soit nous passerons par un audit réalisé par mon informaticien.`;
+
   // Carte spéciale « Présentation Rex-Rotary » : contenu propre au compte
   // de l'utilisateur (pas au RDV), réutilisé sur tous ses rendez-vous.
   function presentationCardHtml() {
@@ -185,7 +205,9 @@
   function bindPresentation() {
     const el = $("#presentationText");
     if (!el) return;
-    el.value = window.RexDB.getPresentation();
+    // Présentation enregistrée par l'utilisateur, ou présentation par défaut.
+    const saved = window.RexDB.getPresentation();
+    el.value = isFilled(saved) ? saved : DEFAULT_PRESENTATION;
     const status = $("#presentationStatus");
     el.addEventListener("input", () => {
       if (status) status.textContent = "Enregistrement…";
