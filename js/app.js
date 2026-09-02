@@ -66,7 +66,10 @@
         <span class="nav-chip__icon">${sec.icon}</span>
         <span class="nav-chip__label">${esc(sec.short || sec.title)}</span>
       </button>`;
-    }).join("");
+    }).join("") +
+    // Bouton Affaire, à droite des secteurs : actif seulement quand l'affaire est mûre.
+    `<button id="btnAffaire" class="nav-affaire" disabled>💼 Affaire</button>`;
+
     $$(".nav-chip", nav).forEach(chip => chip.addEventListener("click", () => {
       const id = chip.dataset.goto;
       const card = $(`#sec-${id}`);
@@ -75,6 +78,9 @@
       const top = card.getBoundingClientRect().top + window.scrollY - stickyHeight() - 6;
       window.scrollTo({ top, behavior: "smooth" });
     }));
+    const bAff = $("#btnAffaire", nav);
+    if (bAff) bAff.addEventListener("click", openAffaire);
+    updateAffaireButton();
   }
 
   function stickyHeight() { const t = $(".topbar"); return t ? t.offsetHeight : 0; }
@@ -285,6 +291,32 @@
     $("#progressFill").style.width = pct + "%";
     $("#progressLabel").textContent = pct + " %";
     renderNavState();
+    updateAffaireButton();
+  }
+
+  /* ----------------------- Affaire : conditions & ouverture ----------------------- */
+  // Critères requis (issus de la découverte) pour "lever" l'affaire :
+  //  signataire, influenceur clé, besoin/solution, quand veut-il être équipé,
+  //  type & date de prochaine relance.
+  const AFFAIRE_REQUIS = ["cr_signataire", "cr_influenceur", "cr_besoin", "cr_quand", "cr_relance"];
+  function affaireReady() {
+    if (!current()) return false;
+    const s = suggestCriteria();
+    return AFFAIRE_REQUIS.every(k => isFilled(s[k]));
+  }
+  function affaireHasContent(r) {
+    r = r || current();
+    return !!r && AFFAIRE_CRITERES.some(c => isFilled(r.affaire.data[c.id]));
+  }
+  function updateAffaireButton() {
+    const btn = $("#btnAffaire");
+    if (!btn) return;
+    const ready = affaireReady();
+    btn.disabled = !ready;
+    btn.classList.toggle("ready", ready);
+    btn.title = ready
+      ? "Ouvrir la fiche affaire (11 critères)"
+      : "Disponible une fois renseignés : le signataire, l'influenceur clé, le besoin, la date d'équipement souhaitée et la prochaine relance.";
   }
 
   /* ----------------------- Gestion des RDV ----------------------- */
@@ -333,7 +365,13 @@
     if (main) main.classList.toggle("readonly", ro);
     $$("#booklet input, #booklet textarea, #booklet select").forEach(el => { el.disabled = ro; });
     $$("#booklet button").forEach(el => { if (!el.closest(".section-head")) el.disabled = ro; });
-    const del = $("#btnDelete"); if (del) del.disabled = ro;
+    // Suppression réservée aux responsables (RO/CA/RRO) : masquée pour les commerciaux.
+    const del = $("#btnDelete");
+    if (del) {
+      const canDelete = window.RexDB.isManager();
+      del.hidden = !canDelete;
+      del.disabled = !canDelete;
+    }
     setSaveStatus("saved");
   }
 
@@ -407,8 +445,8 @@
       if (parts.length) html += `<h2>${sec.icon} ${esc(sec.title)}</h2>${parts.join("")}`;
     });
 
-    // Affaire
-    if (r.affaire.active) html += buildAffairePrint();
+    // Affaire (incluse si des critères ont été renseignés)
+    if (affaireHasContent(r)) html += buildAffairePrint();
 
     html += `<div class="foot">Document généré par Rex Seller — ${new Date().toLocaleString("fr-FR")}</div>`;
     return `<div class="print-doc">${html}</div>`;
@@ -467,8 +505,8 @@
       }
     });
 
-    L.push(r.affaire.active
-      ? ">>> AFFAIRE À LEVER (voir l'onglet Affaire — 11 critères)"
+    L.push(affaireHasContent(r)
+      ? ">>> AFFAIRE À LEVER (voir la fiche Affaire — 11 critères)"
       : ">>> Pas d'affaire levée à ce stade.");
     return L.join("\n");
   }
@@ -566,12 +604,76 @@
     $("#affaireText").value = L.join("\n");
   }
 
+  /* ----------------------- Modale Affaire ----------------------- */
+  function openAffaire() {
+    if (!affaireReady()) { toast("Complétez d'abord signataire, influenceur, besoin, date d'équipement et relance."); return; }
+    const aff = current().affaire;
+    aff.active = true;
+    applyCriteriaSuggestions(false);   // pré-remplit les critères vides depuis le livret
+    renderAffaireForm();
+    buildAffaireOutput();
+    $("#affaireModal").hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+  function closeAffaire() {
+    $("#affaireModal").hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  /* ----------------------- Mail récap client ----------------------- */
+  function buildClientEmail() {
+    const d = current().data;
+    const dateFr = s => { try { const p = String(s).split("-"); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s; } catch (e) { return s; } };
+    const soc = d.societe || "";
+    const contact = d.contact || "";
+    const commercial = d.commercial || "";
+
+    // Thèmes abordés (haut niveau) selon les sections renseignées — sans détailler.
+    const THEMES = [
+      { id: "info_infra", label: "votre infrastructure informatique" },
+      { id: "securite", label: "la sécurité et la sauvegarde de vos données" },
+      { id: "demat", label: "la dématérialisation de vos documents" },
+      { id: "impression", label: "votre parc d'impression" },
+      { id: "communication", label: "votre communication" },
+      { id: "telephonie", label: "votre téléphonie et vos accès Internet" }
+    ];
+    const themes = THEMES.filter(t => {
+      const sec = BOOKLET.find(s => s.id === t.id);
+      return sec && sec.fields.some(f => isFilled(d[f.id]));
+    }).map(t => t.label);
+    let themesTxt;
+    if (!themes.length) themesTxt = "votre organisation actuelle et vos enjeux";
+    else if (themes.length === 1) themesTxt = themes[0];
+    else themesTxt = themes.slice(0, -1).join(", ") + " et " + themes[themes.length - 1];
+
+    const prochain = d.val_prochain_rdv || d.dem_rdv_demo || "";
+
+    const L = [];
+    L.push(`Objet : Suite à notre rendez-vous${soc ? " — " + soc : ""}`);
+    L.push("");
+    L.push(contact ? `Bonjour ${contact},` : "Bonjour,");
+    L.push("");
+    L.push(`Je tenais à vous remercier pour le temps que vous m'avez accordé${isFilled(d.date_rdv) ? " le " + dateFr(d.date_rdv) : ""} et pour la qualité de nos échanges.`);
+    L.push("");
+    L.push(`Notre entretien m'a permis de mieux cerner ${themesTxt}, ainsi que vos priorités et votre manière de fonctionner.`);
+    L.push("");
+    L.push("De mon côté, je prépare une proposition sur-mesure afin de répondre au plus près de vos objectifs et de vous apporter des solutions concrètes.");
+    L.push("");
+    if (prochain) {
+      L.push(`Comme convenu, je vous propose de nous retrouver le ${dateFr(prochain)} afin de vous présenter mes préconisations.`);
+    } else {
+      L.push("Je reviendrai très prochainement vers vous afin de convenir d'un prochain rendez-vous et de vous présenter mes préconisations.");
+    }
+    L.push("");
+    L.push("Restant à votre entière disposition d'ici là, je vous prie d'agréer, Madame, Monsieur, mes salutations les plus cordiales.");
+    L.push("");
+    if (commercial) L.push(commercial);
+    L.push("Rex-Rotary");
+    return L.join("\n");
+  }
+
   /* ----------------------- Modale ----------------------- */
   function openSynthese() {
-    refreshFromData();
-    $("#affaireToggle").checked = current().affaire.active;
-    $("#affaireToggle").disabled = isReadOnly();
-    toggleAffaire();
     $("#syntheseModal").hidden = false;
     document.body.style.overflow = "hidden";
     switchTab("pdf");
@@ -585,21 +687,7 @@
     $$(".tabpane").forEach(p => p.classList.toggle("tabpane--active", p.dataset.pane === name));
     if (name === "pdf") renderPdfPreview();
     if (name === "crm") $("#crmText").value = buildCrmSummary();
-    if (name === "affaire") buildAffaireOutput();
-  }
-  function refreshFromData() { /* place-holder for future recompute */ }
-
-  function toggleAffaire() {
-    const on = $("#affaireToggle").checked;
-    const aff = current().affaire;
-    aff.active = on;
-    // Pré-remplissage automatique des critères restés vides, à chaque activation
-    // (reflète toujours les dernières réponses du livret).
-    if (on) applyCriteriaSuggestions(false);
-    touch();
-    $("#affaireForm").hidden = !on;
-    $("#affaireOutputWrap").hidden = !on;
-    if (on) { renderAffaireForm(); buildAffaireOutput(); }
+    if (name === "mail") $("#mailText").value = buildClientEmail();
   }
 
   /* ----------------------- Utilitaires UI ----------------------- */
@@ -642,12 +730,16 @@
       store.push(copy); switchTo(copy.id); toast("RDV dupliqué");
     });
     $("#btnDelete").addEventListener("click", async () => {
-      const r = current();
-      if (!ownedByMe(r)) { toast("Vous ne pouvez supprimer que vos propres RDV"); return; }
-      if (store.filter(ownedByMe).length <= 1) { toast("Impossible de supprimer votre dernier RDV"); return; }
+      if (!window.RexDB.isManager()) { toast("Seul un responsable peut supprimer un rendez-vous"); return; }
+      const r = current(); if (!r) return;
       if (!confirm("Supprimer définitivement ce rendez-vous ?")) return;
       try { await window.RexDB.deleteRdv(r.id); } catch (e) { toast("Échec de la suppression"); return; }
       store = store.filter(x => x.id !== r.id);
+      if (!store.some(ownedByMe)) {
+        const nr = newRdv();
+        try { await saveRdv(nr); } catch (e) { /* réseau : gardé en mémoire */ }
+        store.push(nr);
+      }
       currentId = (visibleRdvs()[0] || store[0]).id;
       switchTo(currentId); toast("RDV supprimé");
     });
@@ -680,10 +772,10 @@
 
     $("#btnSynthese").addEventListener("click", openSynthese);
     $$("[data-close]").forEach(el => el.addEventListener("click", closeSynthese));
+    $$("[data-affaire-close]").forEach(el => el.addEventListener("click", closeAffaire));
     $$(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
     $("#includeEmpty").addEventListener("change", renderPdfPreview);
     $("#btnPrint").addEventListener("click", doPrint);
-    $("#affaireToggle").addEventListener("change", () => { toggleAffaire(); });
     $$("[data-copy]").forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
   }
 

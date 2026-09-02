@@ -166,10 +166,15 @@ create policy rdv_update on public.rendez_vous
   using ( author_id = auth.uid() )
   with check ( author_id = auth.uid() );
 
+-- Suppression réservée aux responsables (ro/ca/rro), dans leur sous-arbre.
+-- Un commercial ne peut supprimer aucun rendez-vous.
 drop policy if exists rdv_delete on public.rendez_vous;
 create policy rdv_delete on public.rendez_vous
   for delete to authenticated
-  using ( author_id = auth.uid() );
+  using (
+    public.can_view(auth.uid(), author_id)
+    and coalesce((select role from public.profiles where id = auth.uid()), 'commercial') <> 'commercial'
+  );
 
 -- ============================================================
 --  FIN DU SCHÉMA
