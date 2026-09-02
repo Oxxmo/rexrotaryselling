@@ -19,8 +19,13 @@
   let ownerFilter = "all";        // filtre « propriétaire » (utile aux responsables)
 
   function myId() { const me = window.RexDB.me(); return me ? me.id : null; }
+  function todayISO() {
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
   function newRdv() {
-    return { id: uid(), author_id: myId(), createdAt: Date.now(), updatedAt: Date.now(), data: {}, affaire: { active: false, data: {} } };
+    // La date du RDV est pré-remplie à aujourd'hui (modifiable ensuite).
+    return { id: uid(), author_id: myId(), createdAt: Date.now(), updatedAt: Date.now(), data: { date_rdv: todayISO() }, affaire: { active: false, data: {} } };
   }
   function current() { return store.find(r => r.id === currentId); }
   function ownedByMe(r) { return !!r && r.author_id === myId(); }
@@ -59,16 +64,23 @@
   /* ----------------------- Rendu du livret ----------------------- */
   function renderNav() {
     const nav = $("#sectionNav");
-    nav.innerHTML = BOOKLET.map((sec, i) => {
+    const chips = BOOKLET.map((sec, i) => {
       const filled = sectionFilled(sec);
       return `<button class="nav-chip ${i === 0 ? "active" : ""} ${filled ? "filled" : ""}" data-goto="${sec.id}" title="${esc(sec.title)}">
         <span class="dot"></span>
         <span class="nav-chip__icon">${sec.icon}</span>
         <span class="nav-chip__label">${esc(sec.short || sec.title)}</span>
       </button>`;
-    }).join("") +
-    // Bouton Affaire, à droite des secteurs : actif seulement quand l'affaire est mûre.
-    `<button id="btnAffaire" class="nav-affaire" disabled>💼 Affaire</button>`;
+    });
+    // Chip « Présentation » juste après « Entreprise ».
+    chips.splice(1, 0, `<button class="nav-chip" data-goto="presentation" title="Présentation Rex-Rotary">
+        <span class="dot"></span>
+        <span class="nav-chip__icon">📢</span>
+        <span class="nav-chip__label">Présentation</span>
+      </button>`);
+    nav.innerHTML = chips.join("") +
+      // Bouton Affaire, à droite des secteurs : actif seulement quand l'affaire est mûre.
+      `<button id="btnAffaire" class="nav-affaire" disabled>💼 Affaire</button>`;
 
     $$(".nav-chip", nav).forEach(chip => chip.addEventListener("click", () => {
       const id = chip.dataset.goto;
@@ -116,9 +128,31 @@
     return true;
   }
 
+  // Carte spéciale « Présentation Rex-Rotary » : contenu propre au compte
+  // de l'utilisateur (pas au RDV), réutilisé sur tous ses rendez-vous.
+  function presentationCardHtml() {
+    return `
+      <section class="section-card" id="sec-presentation">
+        <button class="section-head" data-toggle>
+          <span class="section-head__icon">📢</span>
+          <span class="section-head__text">
+            <span class="section-head__title">Présentation Rex-Rotary</span>
+            <span class="section-head__meta">Votre présentation personnelle — enregistrée sur votre compte</span>
+          </span>
+          <span class="section-head__chev">▾</span>
+        </button>
+        <div class="section-body">
+          <p class="section-intro">Rédigez votre présentation de Rex-Rotary telle que vous aimez la faire. Elle est propre à votre compte et réutilisée automatiquement sur tous vos rendez-vous. <span id="presentationStatus" class="pres-status"></span></p>
+          <div class="field">
+            <textarea id="presentationText" rows="10" placeholder="Ex. : Rex-Rotary accompagne les entreprises dans la gestion documentaire, l'impression, la téléphonie…"></textarea>
+          </div>
+        </div>
+      </section>`;
+  }
+
   function renderBooklet() {
     const root = $("#booklet");
-    root.innerHTML = BOOKLET.map((sec, i) => `
+    const cards = BOOKLET.map((sec, i) => `
       <section class="section-card ${i === 0 ? "open" : ""}" id="sec-${sec.id}">
         <button class="section-head" data-toggle>
           <span class="section-head__icon">${sec.icon}</span>
@@ -132,13 +166,36 @@
           ${sec.intro ? `<p class="section-intro">${esc(sec.intro)}</p>` : ""}
           ${sec.fields.map(f => renderField(f)).join("")}
         </div>
-      </section>`).join("");
+      </section>`);
+    // Insère la présentation juste après la première section (« Votre entreprise »).
+    cards.splice(1, 0, presentationCardHtml());
+    root.innerHTML = cards.join("");
 
     $$("[data-toggle]", root).forEach(btn =>
       btn.addEventListener("click", () => openSection(btn.closest(".section-card"))));
 
     BOOKLET.forEach(sec => sec.fields.forEach(f => bindField(f)));
+    bindPresentation();
     updateAllMeta();
+  }
+
+  // La présentation n'appartient pas au RDV : elle est toujours modifiable
+  // (réglage du compte) et enregistrée sur le profil de l'utilisateur.
+  let presTimer = null;
+  function bindPresentation() {
+    const el = $("#presentationText");
+    if (!el) return;
+    el.value = window.RexDB.getPresentation();
+    const status = $("#presentationStatus");
+    el.addEventListener("input", () => {
+      if (status) status.textContent = "Enregistrement…";
+      clearTimeout(presTimer);
+      presTimer = setTimeout(() => {
+        window.RexDB.savePresentation(el.value)
+          .then(() => { if (status) status.textContent = "Enregistré ✓"; })
+          .catch(() => { if (status) status.textContent = "Non enregistré ✕"; });
+      }, 600);
+    });
   }
 
   function openSection(card, forceOpen) {
@@ -621,7 +678,7 @@
   }
 
   /* ----------------------- Mail récap client ----------------------- */
-  function buildClientEmail() {
+  function clientEmailParts() {
     const d = current().data;
     const dateFr = s => { try { const p = String(s).split("-"); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s; } catch (e) { return s; } };
     const soc = d.societe || "";
@@ -648,9 +705,8 @@
 
     const prochain = d.val_prochain_rdv || d.dem_rdv_demo || "";
 
+    const subject = `Suite à notre rendez-vous${soc ? " — " + soc : ""}`;
     const L = [];
-    L.push(`Objet : Suite à notre rendez-vous${soc ? " — " + soc : ""}`);
-    L.push("");
     L.push(contact ? `Bonjour ${contact},` : "Bonjour,");
     L.push("");
     L.push(`Je tenais à vous remercier pour le temps que vous m'avez accordé${isFilled(d.date_rdv) ? " le " + dateFr(d.date_rdv) : ""} et pour la qualité de nos échanges.`);
@@ -669,7 +725,16 @@
     L.push("");
     if (commercial) L.push(commercial);
     L.push("Rex-Rotary");
-    return L.join("\n");
+    return { subject, body: L.join("\n") };
+  }
+  function buildClientEmail() {
+    const { subject, body } = clientEmailParts();
+    return `Objet : ${subject}\n\n${body}`;
+  }
+  function openMailClient() {
+    const { subject, body } = clientEmailParts();
+    const href = "mailto:?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+    window.location.href = href;
   }
 
   /* ----------------------- Modale ----------------------- */
@@ -776,6 +841,7 @@
     $$(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
     $("#includeEmpty").addEventListener("change", renderPdfPreview);
     $("#btnPrint").addEventListener("click", doPrint);
+    const bMail = $("#btnMailOpen"); if (bMail) bMail.addEventListener("click", openMailClient);
     $$("[data-copy]").forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
   }
 

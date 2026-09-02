@@ -29,6 +29,7 @@ create table if not exists public.profiles (
               check (role in ('rro','ca','ro','commercial')),
   manager_id  uuid references public.profiles(id) on delete set null,
   agence      text,
+  presentation text,          -- présentation personnelle de Rex-Rotary (propre à l'utilisateur)
   created_at  timestamptz not null default now()
 );
 
@@ -145,9 +146,17 @@ create policy profiles_select on public.profiles
   for select to authenticated
   using ( public.can_view(auth.uid(), id) );
 
--- (Aucune politique d'écriture sur profiles : la gestion des
---  comptes/hiérarchie se fait côté administration. Sans policy
---  INSERT/UPDATE/DELETE, ces opérations sont refusées par défaut.)
+-- Écriture : chaque utilisateur peut modifier UNIQUEMENT sa présentation
+-- (le grant de colonne ci-dessous empêche de toucher role/manager_id).
+-- La gestion des comptes/hiérarchie reste réservée à l'administration.
+revoke update on public.profiles from authenticated;
+grant update (presentation) on public.profiles to authenticated;
+
+drop policy if exists profiles_update_self on public.profiles;
+create policy profiles_update_self on public.profiles
+  for update to authenticated
+  using ( id = auth.uid() )
+  with check ( id = auth.uid() );
 
 -- --- rendez_vous : lecture hiérarchique, écriture par le seul propriétaire ---
 drop policy if exists rdv_select on public.rendez_vous;

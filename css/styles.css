@@ -186,6 +186,9 @@ body.booting .topbar,body.booting .booklet,body.booting .bottombar{display:none 
 }
 .nav-affaire.ready:hover{filter:brightness(1.06)}
 @media(min-width:560px){ .nav-affaire{font-size:.8rem;padding:8px 14px} }
+.pres-status{font-size:.8rem;color:var(--ok);font-weight:600;margin-left:6px}
+.mail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.mail-actions .btn{flex:1 1 auto}
 @media(min-width:560px){
   .nav-chip__label{font-size:.74rem}
   .nav-chip{padding:8px 4px 7px}

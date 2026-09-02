@@ -126,6 +126,16 @@
       return body;
     },
 
+    /* ---------- Présentation personnelle (Rex-Rotary) ---------- */
+    getPresentation() { return (myProfile && myProfile.presentation) || ""; },
+    async savePresentation(text) {
+      if (!myProfile) throw new Error("Non connecté.");
+      const { error } = await sb.from("profiles")
+        .update({ presentation: text }).eq("id", myProfile.id);
+      if (error) throw error;
+      myProfile.presentation = text;
+    },
+
     /* ---------- Tickets (demandes / bugs) ---------- */
     isDev() { return !!(myProfile && myProfile.is_dev); },
 
