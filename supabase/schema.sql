@@ -170,11 +170,21 @@ create policy rdv_insert on public.rendez_vous
   for insert to authenticated
   with check ( author_id = auth.uid() );
 
+-- Mise à jour : le propriétaire, ou un responsable (ro/ca/rro) sur un RDV
+-- de son sous-arbre (RDV réalisés en binôme).
 drop policy if exists rdv_update on public.rendez_vous;
 create policy rdv_update on public.rendez_vous
   for update to authenticated
-  using ( author_id = auth.uid() )
-  with check ( author_id = auth.uid() );
+  using (
+    author_id = auth.uid()
+    or ( public.can_view(auth.uid(), author_id)
+         and coalesce((select role from public.profiles where id = auth.uid()), 'commercial') <> 'commercial' )
+  )
+  with check (
+    author_id = auth.uid()
+    or ( public.can_view(auth.uid(), author_id)
+         and coalesce((select role from public.profiles where id = auth.uid()), 'commercial') <> 'commercial' )
+  );
 
 -- Suppression réservée aux responsables (ro/ca/rro), dans leur sous-arbre.
 -- Un commercial ne peut supprimer aucun rendez-vous.

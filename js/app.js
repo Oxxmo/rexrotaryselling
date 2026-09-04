@@ -12,6 +12,19 @@
       });
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
+  /* ---- Nouveautés affichées après une mise à jour (à incrémenter à chaque release) ---- */
+  const APP_VERSION = "2026-09-02";
+  const WHATS_NEW = [
+    "Mode hors-ligne : vous pouvez saisir un RDV sans réseau, rien n'est perdu, et tout se synchronise automatiquement au retour de la connexion.",
+    "Nouvelle case « Déjà client Rex-Rotary » par métier (informatique, téléphonie, démat, impression, communication) pour éviter de requalifier ce que l'on connaît déjà.",
+    "Bouton « Affaire » à droite des secteurs : il s'active dès que le signataire, l'influenceur, le besoin, la date d'équipement et la relance sont renseignés.",
+    "Onglet « Mail client » : un mail de synthèse prêt à envoyer, avec le bouton « Ouvrir dans ma messagerie ».",
+    "Le résumé CRM et la fiche affaire ne contiennent plus que les informations réellement renseignées (plus court à coller).",
+    "Section « Présentation Rex-Rotary » personnelle, enregistrée sur votre compte.",
+    "Les responsables peuvent modifier les RDV de leur équipe (RDV réalisés en binôme).",
+    "À la première connexion, chacun définit son propre mot de passe."
+  ];
+
   /* ----------------------- État & stockage (Supabase) ----------------------- */
   // Les données sont fournies par la couche d'authentification (supa.js) via boot().
   let store = [];
@@ -29,35 +42,43 @@
   }
   function current() { return store.find(r => r.id === currentId); }
   function ownedByMe(r) { return !!r && r.author_id === myId(); }
-  function isReadOnly() { return !ownedByMe(current()); }
+  // Un responsable (RO/CA/RRO) peut aussi modifier les RDV de son équipe
+  // (RDV en binôme). Tous les RDV chargés sont dans son périmètre (RLS).
+  function canEdit(r) { return ownedByMe(r) || (!!r && window.RexDB.isManager()); }
+  function isReadOnly() { return !canEdit(current()); }
 
   // Pousse un RDV vers Supabase. En cas d'échec (hors ligne), la donnée
   // reste enregistrée localement et en file d'attente (rien de perdu).
-  async function pushRdv(r) {
+  // Pousse un RDV vers Supabase. `cached` = true pour les RDV personnels
+  // (sauvegardés localement et rejouables hors ligne) ; false pour les RDV
+  // d'un collaborateur modifiés par un responsable (en ligne uniquement).
+  async function pushRdv(r, cached) {
     try {
       await window.RexDB.upsertRdv(r);
-      window.RexOffline.markSynced(r.id);
+      if (cached) window.RexOffline.markSynced(r.id);
       setSaveStatus("saved");
     } catch (e) {
-      setSaveStatus("offline");
+      if (cached) setSaveStatus("offline");
+      else { setSaveStatus("error"); toast("Modification non enregistrée — reconnectez-vous."); }
     }
     updateSyncIndicator();
   }
-  // Enregistrement d'un RDV : local immédiat (durable) puis envoi réseau.
+  // Enregistrement d'un RDV personnel : local immédiat (durable) puis réseau.
   async function saveRdv(r) {
     if (!r) return;
     window.RexOffline.putLocal(r);
-    await pushRdv(r);
+    await pushRdv(r, true);
   }
 
   let saveTimer = null;
   function touch() {
     const r = current(); if (!r || isReadOnly()) return;
     r.updatedAt = Date.now();
-    window.RexOffline.putLocal(r);   // sauvegarde locale immédiate, avant le réseau
+    const own = ownedByMe(r);
+    if (own) window.RexOffline.putLocal(r);   // sauvegarde locale immédiate (offline)
     setSaveStatus("saving");
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { pushRdv(r); }, 500);
+    saveTimer = setTimeout(() => { pushRdv(r, own); }, 500);
   }
   function setSaveStatus(state) {
     const el = $("#saveStatus");
@@ -66,6 +87,7 @@
     if (isReadOnly()) { el.textContent = "Lecture seule"; el.classList.add("readonly"); return; }
     if (state === "saving") { el.textContent = "Enregistrement…"; el.classList.add("saving"); }
     else if (state === "offline") { el.textContent = "Hors ligne ✓ (local)"; el.classList.add("offline"); }
+    else if (state === "error") { el.textContent = "Non enregistré ✕"; }
     else { el.textContent = "Enregistré ✓"; }
   }
   // Indicateur global « à synchroniser » (RDV/présentation en attente d'envoi).
@@ -141,7 +163,12 @@
     }, { passive: true });
   }
 
+  // Métiers pour lesquels on peut cocher « déjà client » (inutile de requalifier).
+  const CLIENT_SECTIONS = ["info_infra", "telephonie", "demat", "impression", "communication"];
+  function isClientSection(secId) { const r = current(); return !!(r && r.data["client_" + secId]); }
+
   function sectionFilled(sec) {
+    if (isClientSection(sec.id)) return true;
     return sec.fields.some(f => isFilled(val(f.id)));
   }
   function isFilled(v) {
@@ -208,7 +235,8 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
         </button>
         <div class="section-body">
           ${sec.intro ? `<p class="section-intro">${esc(sec.intro)}</p>` : ""}
-          ${sec.fields.map(f => renderField(f)).join("")}
+          ${CLIENT_SECTIONS.includes(sec.id) ? `<label class="client-toggle"><input type="checkbox" data-client="${sec.id}"><span>Déjà client Rex-Rotary sur ce métier — inutile de requalifier</span></label>` : ""}
+          <div class="section-fields">${sec.fields.map(f => renderField(f)).join("")}</div>
         </div>
       </section>`);
     // Insère la présentation juste après la première section (« Votre entreprise »).
@@ -219,8 +247,28 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
       btn.addEventListener("click", () => openSection(btn.closest(".section-card"))));
 
     BOOKLET.forEach(sec => sec.fields.forEach(f => bindField(f)));
+    bindClientToggles();
     bindPresentation();
     updateAllMeta();
+  }
+
+  // Case « déjà client » : masque les champs du métier et l'indique dans les synthèses.
+  function bindClientToggles() {
+    $$("[data-client]").forEach(cb => {
+      const secId = cb.dataset.client;
+      const card = $(`#sec-${secId}`);
+      const paint = () => { if (card) card.classList.toggle("is-client", cb.checked); };
+      cb.checked = isClientSection(secId);
+      paint();
+      cb.addEventListener("change", () => {
+        if (isReadOnly()) { cb.checked = !cb.checked; return; }
+        current().data["client_" + secId] = cb.checked;
+        paint(); touch();
+        const sec = BOOKLET.find(s => s.id === secId);
+        if (sec) updateSectionMeta(sec);
+        updateProgress();
+      });
+    });
   }
 
   // La présentation n'appartient pas au RDV : elle est toujours modifiable
@@ -379,10 +427,12 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
   function updateAllMeta() { BOOKLET.forEach(sec => updateSectionMeta(sec)); updateProgress(); }
   function updateMeta(f) { const sec = BOOKLET.find(s => s.fields.includes(f)); if (sec) updateSectionMeta(sec); }
   function updateSectionMeta(sec) {
+    const el = $(`[data-meta="${sec.id}"]`);
+    if (!el) return;
+    if (isClientSection(sec.id)) { el.textContent = "Déjà client Rex-Rotary"; return; }
     const total = sec.fields.length;
     const done = sec.fields.filter(f => isFilled(val(f.id))).length;
-    const el = $(`[data-meta="${sec.id}"]`);
-    if (el) el.textContent = `${done}/${total} renseignés`;
+    el.textContent = `${done}/${total} renseignés`;
   }
   function updateNavChip() { renderNavState(); }
   function renderNavState() {
@@ -393,7 +443,11 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
   }
   function updateProgress() {
     const all = BOOKLET.flatMap(s => s.fields);
-    const done = all.filter(f => isFilled(val(f.id))).length;
+    // Un métier « déjà client » compte comme entièrement traité.
+    let done = 0;
+    BOOKLET.forEach(s => {
+      done += isClientSection(s.id) ? s.fields.length : s.fields.filter(f => isFilled(val(f.id))).length;
+    });
     const pct = Math.round((done / all.length) * 100);
     $("#progressFill").style.width = pct + "%";
     $("#progressLabel").textContent = pct + " %";
@@ -537,6 +591,10 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
       <div class="sub">Livret de découverte · Rex Seller</div>${meta}`;
 
     BOOKLET.forEach(sec => {
+      if (isClientSection(sec.id)) {
+        html += `<h2>${sec.icon} ${esc(sec.title)}</h2><div class="qa"><span class="a">Déjà client Rex-Rotary sur ce métier.</span></div>`;
+        return;
+      }
       const parts = [];
       sec.fields.forEach(f => {
         const filled = isFilled(val(f.id));
@@ -563,7 +621,8 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     const a = current().affaire.data;
     let h = `<h2>💼 Affaire — les 11 critères</h2>`;
     AFFAIRE_CRITERES.forEach(c => {
-      h += `<div class="qa"><span class="q">${esc(c.label)} :</span> <span class="a">${esc(a[c.id] || "—")}</span></div>`;
+      if (!isFilled(a[c.id])) return;   // pas de lignes vides
+      h += `<div class="qa"><span class="q">${esc(c.label)} :</span> <span class="a">${esc(a[c.id])}</span></div>`;
     });
     return h;
   }
@@ -593,6 +652,12 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
 
     // Toutes les sections du livret, champ par champ (uniquement ce qui est renseigné).
     BOOKLET.forEach(sec => {
+      if (isClientSection(sec.id)) {
+        L.push(`— ${sec.title.toUpperCase()} —`);
+        L.push("Déjà client Rex-Rotary sur ce métier.");
+        L.push("");
+        return;
+      }
       const lines = [];
       sec.fields.forEach(f => {
         if (HEADER_IDS.includes(f.id)) return;         // déjà repris en en-tête
@@ -707,7 +772,8 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
   function buildAffaireOutput() {
     const a = current().affaire.data;
     const L = ["=== DÉTAIL AFFAIRE (à coller dans le suivi CRM) ==="];
-    AFFAIRE_CRITERES.forEach(c => L.push(`${c.label} : ${a[c.id] || ""}`));
+    // Seuls les critères renseignés (pas de lignes vides dans le CRM).
+    AFFAIRE_CRITERES.forEach(c => { if (isFilled(a[c.id])) L.push(`${c.label} : ${a[c.id]}`); });
     $("#affaireText").value = L.join("\n");
   }
 
@@ -816,6 +882,22 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     catch (e) { el.removeAttribute("readonly"); el.select(); document.execCommand("copy"); el.setAttribute("readonly", ""); toast("Copié ✓"); }
   }
 
+  /* ----------------------- Nouveautés (message de mise à jour) ----------------------- */
+  function maybeShowWhatsNew() {
+    let seen = null;
+    try { seen = localStorage.getItem("rex.seenVersion"); } catch (e) { /* privé */ }
+    if (seen === APP_VERSION) return;                 // déjà vues sur cet appareil
+    const list = $("#whatsnewList");
+    if (list) list.innerHTML = WHATS_NEW.map(x => `<li>${esc(x)}</li>`).join("");
+    const modal = $("#whatsnewModal");
+    if (modal) modal.hidden = false;
+  }
+  function closeWhatsNew() {
+    const modal = $("#whatsnewModal");
+    if (modal) modal.hidden = true;
+    try { localStorage.setItem("rex.seenVersion", APP_VERSION); } catch (e) { /* privé */ }
+  }
+
   /* ----------------------- Événements globaux ----------------------- */
   function wire() {
     $("#btnMenu").addEventListener("click", () => {
@@ -902,6 +984,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
       });
     });
     $$("[data-copy]").forEach(b => b.addEventListener("click", () => copyText(b.dataset.copy)));
+    $$("[data-whatsnew-close]").forEach(el => el.addEventListener("click", closeWhatsNew));
   }
 
   /* ----------------------- Démarrage ----------------------- */
@@ -940,6 +1023,8 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     if (window.RexTickets && window.RexTickets.onBoot) window.RexTickets.onBoot();
     // Resynchronise les saisies hors-ligne éventuelles dès qu'on est en ligne.
     if (navigator.onLine) window.RexOffline.flush().then(updateSyncIndicator);
+    // Message « Nouveautés » après une mise à jour (une fois par appareil).
+    maybeShowWhatsNew();
   }
 
   // Rafraîchit le filtre « propriétaire » et la liste après une action admin.
