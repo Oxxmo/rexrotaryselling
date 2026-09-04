@@ -99,6 +99,20 @@
       if (error) throw error;
     },
 
+    // Mise à jour d'un RDV existant (sans INSERT) : utilisé quand un
+    // responsable modifie le RDV d'un collaborateur — l'upsert échouerait
+    // sur la règle d'INSERT (author_id ≠ soi), alors que l'UPDATE est permis.
+    async updateRdv(r) {
+      const d = r.data || {};
+      const { error } = await sb.from("rendez_vous").update({
+        societe: d.societe || "",
+        date_rdv: d.date_rdv ? d.date_rdv : null,
+        data: d,
+        affaire: r.affaire || { active: false, data: {} }
+      }).eq("id", r.id);
+      if (error) throw error;
+    },
+
     async deleteRdv(id) {
       const { error } = await sb.from("rendez_vous").delete().eq("id", id);
       if (error) throw error;
