@@ -13,16 +13,13 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
   /* ---- Nouveautés affichées après une mise à jour (à incrémenter à chaque release) ---- */
-  const APP_VERSION = "2026-09-02";
+  const APP_VERSION = "2026-09-04";
   const WHATS_NEW = [
-    "Mode hors-ligne : vous pouvez saisir un RDV sans réseau, rien n'est perdu, et tout se synchronise automatiquement au retour de la connexion.",
-    "Nouvelle case « Déjà client Rex-Rotary » par métier (informatique, téléphonie, démat, impression, communication) pour éviter de requalifier ce que l'on connaît déjà.",
-    "Bouton « Affaire » à droite des secteurs : il s'active dès que le signataire, l'influenceur, le besoin, la date d'équipement et la relance sont renseignés.",
-    "Onglet « Mail client » : un mail de synthèse prêt à envoyer, avec le bouton « Ouvrir dans ma messagerie ».",
+    "Mode hors-ligne : vous pouvez saisir un RDV sans réseau (sur le site comme sur l'application) ; rien n'est perdu et tout se synchronise automatiquement au retour de la connexion.",
+    "Nouvelle case « Déjà client Rex-Rotary » par métier (informatique, sécurité, téléphonie, dématérialisation, impression, communication) pour éviter de requalifier ce que l'on connaît déjà.",
     "Le résumé CRM et la fiche affaire ne contiennent plus que les informations réellement renseignées (plus court à coller).",
-    "Section « Présentation Rex-Rotary » personnelle, enregistrée sur votre compte.",
-    "Les responsables peuvent modifier les RDV de leur équipe (RDV réalisés en binôme).",
-    "À la première connexion, chacun définit son propre mot de passe."
+    "Affichage optimisé sur téléphone (barre des secteurs qui défile, meilleure lisibilité).",
+    "Les responsables peuvent désormais modifier les RDV de leur équipe (RDV réalisés en binôme)."
   ];
 
   /* ----------------------- État & stockage (Supabase) ----------------------- */
@@ -164,7 +161,7 @@
   }
 
   // Métiers pour lesquels on peut cocher « déjà client » (inutile de requalifier).
-  const CLIENT_SECTIONS = ["info_infra", "telephonie", "demat", "impression", "communication"];
+  const CLIENT_SECTIONS = ["info_infra", "securite", "telephonie", "demat", "impression", "communication"];
   function isClientSection(secId) { const r = current(); return !!(r && r.data["client_" + secId]); }
 
   function sectionFilled(sec) {
