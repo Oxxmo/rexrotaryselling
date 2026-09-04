@@ -51,8 +51,14 @@
   // d'un collaborateur modifiés par un responsable (en ligne uniquement).
   async function pushRdv(r, cached) {
     try {
-      await window.RexDB.upsertRdv(r);
-      if (cached) window.RexOffline.markSynced(r.id);
+      if (cached) {
+        // RDV personnel : upsert (création ou mise à jour) + file hors-ligne.
+        await window.RexDB.upsertRdv(r);
+        window.RexOffline.markSynced(r.id);
+      } else {
+        // RDV d'un collaborateur (responsable) : mise à jour seule (pas d'INSERT).
+        await window.RexDB.updateRdv(r);
+      }
       setSaveStatus("saved");
     } catch (e) {
       if (cached) setSaveStatus("offline");
