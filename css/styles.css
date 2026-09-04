@@ -367,3 +367,39 @@ table.grid td input:focus{outline:2px solid var(--rex-light)}
   .print-doc table td,.print-doc table th{border:1px solid #bbb;padding:4px 6px;text-align:left}
   .print-doc .foot{margin-top:20px;font-size:10px;color:#888;border-top:1px solid #ddd;padding-top:6px}
 }
+
+/* ============================================================
+   Case « Déjà client » par métier
+   ============================================================ */
+.client-toggle{
+  display:flex;align-items:center;gap:10px;cursor:pointer;
+  background:var(--rex-light);border:1px solid #f3c6cf;border-radius:10px;
+  padding:10px 12px;margin-bottom:12px;font-weight:600;font-size:.85rem;color:var(--rex-dark);
+}
+.client-toggle input{width:18px;height:18px;flex:0 0 auto;accent-color:var(--rex)}
+.section-card.is-client .section-fields{display:none}
+
+/* Nouveautés (message de mise à jour) */
+.whatsnew-list{margin:6px 0 16px;padding-left:20px;display:flex;flex-direction:column;gap:8px}
+.whatsnew-list li{font-size:.92rem;line-height:1.4}
+
+/* ============================================================
+   Ajustements mobile (responsive)
+   ============================================================ */
+@media (max-width:559px){
+  /* La barre de sections défile horizontalement au lieu de s'écraser */
+  .section-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:8px 10px 9px}
+  .section-nav::-webkit-scrollbar{display:none}
+  .nav-chip{flex:0 0 auto;min-width:58px}
+  .nav-affaire{align-self:auto}
+  /* En-tête : on gagne de la place */
+  .appbar__product small{display:none}
+  .appbar__product{font-size:1rem}
+  .save-status{font-size:.66rem;padding:3px 7px}
+  .sync-badge{font-size:.64rem;padding:3px 7px}
+  .appbar{gap:8px;padding:8px 12px}
+  /* Boutons du menu : pleine largeur, faciles à toucher */
+  .menu-panel__buttons .btn{flex:1 1 auto}
+  .menu-panel__user{flex-wrap:wrap}
+  .bottombar .btn--wide{font-size:.95rem}
+}
