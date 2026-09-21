@@ -103,6 +103,7 @@ button{font-family:inherit}
 .admin-form__buttons{display:flex;gap:8px;flex-wrap:wrap}
 .admin-team{border-top:1px solid var(--line);padding-top:16px}
 .admin-table th,.admin-table td{white-space:nowrap;vertical-align:middle}
+.admin-table td{padding:8px 12px;font-size:.86rem}
 .admin-actions{display:flex;gap:6px;flex-wrap:wrap}
 @media (max-width:560px){ .admin-grid{grid-template-columns:1fr} }
 .admin-grid textarea{padding:10px;border:1px solid var(--line);border-radius:10px;font-size:1rem;font-family:inherit;font-weight:400;resize:vertical}
@@ -403,3 +404,17 @@ table.grid td input:focus{outline:2px solid var(--rex-light)}
   .menu-panel__user{flex-wrap:wrap}
   .bottombar .btn--wide{font-size:.95rem}
 }
+
+/* Tableaux extensibles (ajout de machines) */
+.tbl-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.tbl-wrap .tbl-actions .btn{background:#eceef1;color:var(--ink)}
+
+/* Outil de pilotage */
+.pilot-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px}
+.pilot-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.pilot-card__val{font-size:1.5rem;font-weight:800;color:var(--rex-dark);line-height:1.1}
+.pilot-card__lbl{font-size:.74rem;color:var(--muted);font-weight:600;margin-top:2px}
+.pilot-table th,.pilot-table td{white-space:nowrap}
+.pilot-table td{padding:8px 12px;font-size:.86rem}
+.pilot-table td.num{text-align:right;font-variant-numeric:tabular-nums;padding-right:14px}
+.pilot-inactif{color:#b91c1c;font-weight:600}

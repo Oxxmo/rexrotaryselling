@@ -13,13 +13,11 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
   /* ---- Nouveautés affichées après une mise à jour (à incrémenter à chaque release) ---- */
-  const APP_VERSION = "2026-09-04";
+  const APP_VERSION = "2026-09-21";
   const WHATS_NEW = [
-    "Mode hors-ligne : vous pouvez saisir un RDV sans réseau (sur le site comme sur l'application) ; rien n'est perdu et tout se synchronise automatiquement au retour de la connexion.",
-    "Nouvelle case « Déjà client Rex-Rotary » par métier (informatique, sécurité, téléphonie, dématérialisation, impression, communication) pour éviter de requalifier ce que l'on connaît déjà.",
-    "Le résumé CRM et la fiche affaire ne contiennent plus que les informations réellement renseignées (plus court à coller).",
-    "Affichage optimisé sur téléphone (barre des secteurs qui défile, meilleure lisibilité).",
-    "Les responsables peuvent désormais modifier les RDV de leur équipe (RDV réalisés en binôme)."
+    "Matériel d'impression : vous pouvez désormais ajouter autant de machines que nécessaire grâce au bouton « ＋ Ajouter une machine » (au-delà des 3 colonnes initiales).",
+    "Nouvelles lignes « Volumes réels réalisés », séparées N&B et Couleur, pour chaque machine (en location comme à l'achat).",
+    "Nouvel outil de pilotage pour les responsables (☰ → Pilotage) : utilisation par consultant et vue d'ensemble, avec export CSV."
   ];
 
   /* ----------------------- État & stockage (Supabase) ----------------------- */
@@ -336,15 +334,52 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     return `<div class="field">${label}${control}</div>`;
   }
 
+  // Nombre de colonnes d'un tableau : valeur de base, éventuellement étendue
+  // par l'utilisateur (bouton « + »), et jamais inférieure aux données saisies.
+  function colsFor(f, obj) {
+    let n = f.cols || 1;
+    const stored = parseInt(val(f.id + "__cols"), 10);
+    if (stored && stored > n) n = stored;
+    const o = obj || val(f.id);
+    if (o && typeof o === "object") {
+      Object.keys(o).forEach(k => {
+        const m = /^(\d+)-(\d+)$/.exec(k);
+        if (m && o[k] !== "" && o[k] != null) { const c = parseInt(m[2], 10) + 1; if (c > n) n = c; }
+      });
+    }
+    return n;
+  }
+  // Les tableaux à colonnes libres (Machine 1, 2, 3…) sont extensibles ;
+  // ceux à colonnes nommées (ex. Projets) ne le sont pas.
+  function isExtensible(f) { return !f.columns; }
+
   function renderTable(f) {
-    const cols = f.cols;
+    const cols = colsFor(f);
     const header = f.columns
       ? `<tr><th>${esc(f.rowHeader || "")}</th>${f.columns.map(c => `<th>${esc(c)}</th>`).join("")}</tr>`
       : `<tr><th></th>${Array.from({ length: cols }, (_, c) => `<th>${esc((f.colLabel || "Col") + " " + (c + 1))}</th>`).join("")}</tr>`;
     const body = f.rows.map((rlabel, r) =>
       `<tr><td><span class="rowlabel">${esc(rlabel)}</span></td>${Array.from({ length: cols }, (_, c) =>
         `<td><input type="text" data-cell="${r}-${c}"></td>`).join("")}</tr>`).join("");
-    return `<div class="tbl-scroll"><table class="grid" data-field="${f.id}"><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
+    const label = (f.colLabel || "colonne").toLowerCase();
+    const actions = isExtensible(f) ? `
+      <div class="tbl-actions">
+        <button type="button" class="btn btn--ghost btn--sm" data-addcol="${f.id}">＋ Ajouter une ${esc(label)}</button>
+        ${cols > (f.cols || 1) ? `<button type="button" class="btn btn--ghost btn--sm" data-delcol="${f.id}">− Retirer la dernière</button>` : ""}
+      </div>` : "";
+    return `<div class="tbl-wrap" data-tblwrap="${f.id}">
+      <div class="tbl-scroll"><table class="grid" data-field="${f.id}"><thead>${header}</thead><tbody>${body}</tbody></table></div>
+      ${actions}
+    </div>`;
+  }
+
+  // Re-dessine un tableau après ajout/retrait d'une colonne.
+  function refreshTable(f) {
+    const wrap = $(`[data-tblwrap="${f.id}"]`);
+    if (!wrap) return;
+    wrap.outerHTML = renderTable(f);
+    bindField(f);
+    applyReadOnly();
   }
 
   /* ----------------------- Liaison des champs ----------------------- */
@@ -409,11 +444,33 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
       }
       case "table": {
         const tbl = $(`table[data-field="${f.id}"]`);
+        if (!tbl) break;
         const obj = (stored && typeof stored === "object") ? stored : {};
         $$("input[data-cell]", tbl).forEach(inp => {
           const key = inp.dataset.cell;
           if (obj[key]) inp.value = obj[key];
           inp.addEventListener("input", () => { obj[key] = inp.value; setVal(f.id, obj); onChange(f); });
+        });
+        // Ajouter / retirer une machine (colonne)
+        const add = $(`[data-addcol="${f.id}"]`);
+        if (add) add.addEventListener("click", () => {
+          if (isReadOnly()) return;
+          setVal(f.id + "__cols", colsFor(f) + 1);
+          refreshTable(f);
+        });
+        const del = $(`[data-delcol="${f.id}"]`);
+        if (del) del.addEventListener("click", () => {
+          if (isReadOnly()) return;
+          const n = colsFor(f);
+          if (n <= (f.cols || 1)) return;
+          // On ne retire une colonne que si elle est vide (aucune perte de saisie).
+          const last = n - 1;
+          const used = f.rows.some((_, r) => { const v = obj[`${r}-${last}`]; return v && String(v).trim() !== ""; });
+          if (used) { toast("Videz d'abord cette colonne avant de la retirer"); return; }
+          f.rows.forEach((_, r) => { delete obj[`${r}-${last}`]; });
+          setVal(f.id, obj);
+          setVal(f.id + "__cols", n - 1);
+          refreshTable(f);
         });
         break;
       }
@@ -560,7 +617,8 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     const lines = [];
     f.rows.forEach((rlabel, r) => {
       const cells = [];
-      for (let c = 0; c < f.cols; c++) { const cv = obj[`${r}-${c}`]; if (cv && cv.trim()) cells.push(cv.trim()); }
+      const nc = colsFor(f, obj);
+      for (let c = 0; c < nc; c++) { const cv = obj[`${r}-${c}`]; if (cv && cv.trim()) cells.push(cv.trim()); }
       if (cells.length) lines.push(`${rlabel} : ${cells.join(" | ")}`);
     });
     return lines.join("\n");
@@ -569,9 +627,9 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     if (!isFilled(obj)) return "";
     const head = f.columns
       ? `<tr><th>${esc(f.rowHeader || "")}</th>${f.columns.map(c => `<th>${esc(c)}</th>`).join("")}</tr>`
-      : `<tr><th></th>${Array.from({ length: f.cols }, (_, c) => `<th>${esc((f.colLabel || "") + " " + (c + 1))}</th>`).join("")}</tr>`;
+      : `<tr><th></th>${Array.from({ length: colsFor(f, obj) }, (_, c) => `<th>${esc((f.colLabel || "") + " " + (c + 1))}</th>`).join("")}</tr>`;
     const rows = f.rows.map((rlabel, r) => {
-      const tds = Array.from({ length: f.cols }, (_, c) => `<td>${esc(obj[`${r}-${c}`] || "")}</td>`).join("");
+      const tds = Array.from({ length: colsFor(f, obj) }, (_, c) => `<td>${esc(obj[`${r}-${c}`] || "")}</td>`).join("");
       return `<tr><td><b>${esc(rlabel)}</b></td>${tds}</tr>`;
     }).join("");
     return `<table><thead>${head}</thead><tbody>${rows}</tbody></table>`;
@@ -1024,6 +1082,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     updateSyncIndicator();
     if (window.RexAdmin && window.RexAdmin.onBoot) window.RexAdmin.onBoot();
     if (window.RexTickets && window.RexTickets.onBoot) window.RexTickets.onBoot();
+    if (window.RexPilotage && window.RexPilotage.onBoot) window.RexPilotage.onBoot();
     // Resynchronise les saisies hors-ligne éventuelles dès qu'on est en ligne.
     if (navigator.onLine) window.RexOffline.flush().then(updateSyncIndicator);
     // Message « Nouveautés » après une mise à jour (une fois par appareil).

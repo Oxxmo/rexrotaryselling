@@ -296,3 +296,40 @@ create policy tickets_delete on public.tickets
 
 -- Désigner le développeur dédié (à adapter) :
 --   update public.profiles set is_dev = true where email = 'scott.heitgen@rex-rotary.fr';
+
+
+-- ============================================================
+--  PILOTAGE — statistiques d'utilisation (agrégats uniquement)
+--  ------------------------------------------------------------
+--  Un responsable voit son sous-arbre ; le développeur/admin
+--  (profiles.is_dev) voit l'ensemble. Aucun contenu de RDV n'est
+--  exposé : uniquement des compteurs.
+-- ============================================================
+create or replace function public.usage_stats()
+returns table (
+  user_id uuid, full_name text, email text, role text,
+  nb_rdv bigint, nb_30j bigint, nb_7j bigint, nb_affaires bigint,
+  champs_moyen numeric, dernier_rdv timestamptz
+)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.full_name, p.email, p.role,
+         count(r.id),
+         count(r.id) filter (where r.created_at >= now() - interval '30 days'),
+         count(r.id) filter (where r.created_at >= now() - interval '7 days'),
+         count(r.id) filter (where exists (
+           select 1 from jsonb_each_text(coalesce(r.affaire -> 'data', '{}'::jsonb)) e
+           where coalesce(e.value, '') <> ''
+         )),
+         coalesce(round(avg(
+           case when r.id is null then null
+                else (select count(*) from jsonb_object_keys(coalesce(r.data, '{}'::jsonb)))
+           end)::numeric, 1), 0),
+         max(r.updated_at)
+  from public.profiles p
+  left join public.rendez_vous r on r.author_id = p.id
+  where public.is_dev(auth.uid()) or public.can_view(auth.uid(), p.id)
+  group by p.id, p.full_name, p.email, p.role
+  order by count(r.id) desc, p.full_name;
+$$;
+revoke all on function public.usage_stats() from public;
+grant execute on function public.usage_stats() to authenticated;
