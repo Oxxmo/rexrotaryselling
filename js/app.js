@@ -13,11 +13,12 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
   /* ---- Nouveautés affichées après une mise à jour (à incrémenter à chaque release) ---- */
-  const APP_VERSION = "2026-09-21";
+  const APP_VERSION = "2026-09-21.2";
   const WHATS_NEW = [
     "Matériel d'impression : vous pouvez désormais ajouter autant de machines que nécessaire grâce au bouton « ＋ Ajouter une machine » (au-delà des 3 colonnes initiales).",
     "Nouvelles lignes « Volumes réels réalisés », séparées N&B et Couleur, pour chaque machine (en location comme à l'achat).",
-    "Nouvel outil de pilotage pour les responsables (☰ → Pilotage) : utilisation par consultant et vue d'ensemble, avec export CSV."
+    "Nouvel outil de pilotage pour les responsables (☰ → Pilotage) : utilisation par consultant et vue d'ensemble, avec export CSV.",
+    "Résumé CRM : nouveau « Mini résumé » rédigé en quelques phrases, bien plus court à coller dans Contact et relance (le résumé complet reste disponible d'un clic)."
   ];
 
   /* ----------------------- État & stockage (Supabase) ----------------------- */
@@ -699,6 +700,160 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
   }
 
   /* ----------------------- Résumé CRM ----------------------- */
+  /* ----------------------- Mini résumé (style rédigé) -----------------------
+     Synthèse courte en quelques phrases, prête à coller dans « Contact et
+     relance ». Seuls les éléments renseignés apparaissent.
+  --------------------------------------------------------------------------- */
+  function buildMiniSummary() {
+    const r = current(), d = r.data;
+    const g = id => { const v = d[id]; if (v == null || typeof v === "object") return ""; return String(v).trim(); };
+    // Minuscule initiale, sauf acronymes (BTP, TPE…) pour ne rien dénaturer.
+    const lc = s => {
+      if (!s) return s;
+      const first = String(s).split(/\s/)[0];
+      if (first.length > 1 && first === first.toUpperCase()) return s;
+      return s.charAt(0).toLowerCase() + s.slice(1);
+    };
+    const dateFr = s => { const p = String(s).split("-"); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s; };
+    const yn = id => { const v = d[id]; return (v && typeof v === "object") ? (v.v || "") : ""; };
+    const L = [];
+    const push = s => {
+      if (!s) return;
+      let t = String(s).replace(/\s+/g, " ").trim();
+      if (!t) return;
+      if (!/[.!?]$/.test(t)) t += ".";
+      L.push(t);
+    };
+    const field = id => BOOKLET.flatMap(s => s.fields).find(x => x.id === id);
+    const rowIdx = (f, re) => f.rows.findIndex(x => re.test(x));
+
+    // En-tête léger : société, date, interlocuteur
+    const head = [];
+    if (g("societe")) head.push(g("societe"));
+    if (g("date_rdv")) head.push("RDV du " + dateFr(g("date_rdv")));
+    if (head.length) { L.push("=== " + head.join(" — ") + " ==="); }
+    if (g("contact")) push("Interlocuteur : " + g("contact") + (g("fonction") ? " (" + g("fonction") + ")" : ""));
+
+    // 1) Profil de l'entreprise
+    const secteur = g("secteur");
+    let intro = "";
+    if (secteur) {
+      intro = /^(entreprise|société|societe|groupe|cabinet|étude|etude|association)/i.test(secteur)
+        ? secteur : "Entreprise de " + lc(secteur);
+    }
+    const bits = [];
+    if (g("localisation")) bits.push("située à " + g("localisation"));
+    if (g("salaries")) bits.push("comptant " + g("salaries") + (/salari/i.test(g("salaries")) ? "" : " salariés"));
+    if (g("typo_clients")) bits.push("clientèle " + lc(g("typo_clients")));
+    if (intro || bits.length) push([intro].concat(bits).filter(Boolean).join(", "));
+    if (g("projets")) push("Projets de développement : " + lc(g("projets")));
+
+    // 2) Décision
+    if (g("decisions")) push("Prise de décision : " + lc(g("decisions")));
+
+    // 3) Informatique
+    if (!isClientSection("info_infra")) {
+      const it = [];
+      if (g("inf_note")) it.push("parc informatique noté " + g("inf_note") + "/10");
+      if (g("inf_pc_serveur")) it.push(lc(g("inf_pc_serveur")));
+      if (g("inf_gestionnaire")) it.push("prestataire : " + g("inf_gestionnaire"));
+      if (it.length) push(it[0].charAt(0).toUpperCase() + it[0].slice(1) + (it.length > 1 ? " ; " + it.slice(1).join(" ; ") : ""));
+      if (g("inf_budget")) push("Budget informatique : " + lc(g("inf_budget")));
+      if (g("inf_ecart10")) push("Attentes / insatisfaction : " + lc(g("inf_ecart10")));
+    } else push("Informatique : déjà client Rex-Rotary");
+
+    // 4) Sécurité & sauvegarde
+    if (!isClientSection("securite")) {
+      const sec = [];
+      if (g("sec_protection")) sec.push(lc(g("sec_protection")));
+      const sauv = ["sec_sauv_serveurs", "sec_sauv_postes", "sec_sauv_sensibles", "sec_sauv_mails"].map(g).filter(Boolean)[0];
+      if (sauv) sec.push(/sauvegard/i.test(sauv) ? lc(sauv) : "sauvegardes : " + lc(sauv));
+      if (g("sec_rgpd")) sec.push("RGPD : " + lc(g("sec_rgpd")));
+      if (sec.length) push("Sécurité : " + sec.join(" ; "));
+    } else push("Sécurité & sauvegarde : déjà client Rex-Rotary");
+
+    // 5) Dématérialisation
+    if (!isClientSection("demat")) {
+      const dm = [];
+      if (g("dem_partage")) dm.push(g("dem_partage"));
+      if (g("dem_archives_num")) dm.push("archives : " + lc(g("dem_archives_num")));
+      if (g("dem_acces_distance")) dm.push("accès à distance : " + lc(g("dem_acces_distance")));
+      if (dm.length) push("Dématérialisation : " + dm.join(" ; "));
+    } else push("Dématérialisation : déjà client Rex-Rotary");
+
+    // 6) Parc d'impression (modèle, budget, volumes par machine)
+    if (!isClientSection("impression")) {
+      const machines = [];
+      [["imp_location", ""], ["imp_achat", " (achat)"]].forEach(([fid, suffix]) => {
+        const f = field(fid), obj = d[fid];
+        if (!f || !obj || typeof obj !== "object") return;
+        const nc = colsFor(f, obj);
+        const iModel = 0;
+        const iBudget = rowIdx(f, /^Budget total/i);
+        const iNB = rowIdx(f, /Volumes réels réalisés — N&B/i);
+        const iCoul = rowIdx(f, /Volumes réels réalisés — Couleur/i);
+        const cell = (i, c) => (i >= 0 && obj[`${i}-${c}`]) ? String(obj[`${i}-${c}`]).trim() : "";
+        for (let c = 0; c < nc; c++) {
+          const model = cell(iModel, c), budget = cell(iBudget, c);
+          const vNB = cell(iNB, c), vC = cell(iCoul, c);
+          if (!model && !budget && !vNB && !vC) continue;
+          let s = model || ("Machine " + (c + 1));
+          if (budget) s += " — " + budget;
+          const vols = [];
+          if (vNB) vols.push(vNB + " N&B");
+          if (vC) vols.push(vC + " couleur");
+          if (vols.length) s += " (" + vols.join(", ") + ")";
+          machines.push(s + suffix);
+        }
+      });
+      if (machines.length) push("Parc d'impression : " + machines.join(" ; "));
+    } else push("Impression : déjà client Rex-Rotary");
+
+    // 7) Téléphonie
+    if (!isClientSection("telephonie")) {
+      const tel = [];
+      if (g("tel_note")) tel.push("prestataire noté " + g("tel_note") + "/10");
+      if (g("tel_pourquoi")) tel.push(lc(g("tel_pourquoi")));
+      const lignes = [];
+      if (g("tel_postes_fixe")) lignes.push(g("tel_postes_fixe") + " postes fixes");
+      if (g("tel_lignes_mobiles")) lignes.push(g("tel_lignes_mobiles") + " lignes mobiles");
+      if (lignes.length) tel.push(lignes.join(", "));
+      if (tel.length) push("Téléphonie : " + tel.join(" ; "));
+    } else push("Téléphonie : déjà client Rex-Rotary");
+
+    // 8) Communication
+    if (!isClientSection("communication")) {
+      const com = [g("com_ext_comment"), g("com_ext_outils")].filter(Boolean);
+      if (com.length) push("Communication : " + lc(com.join(" ; ")));
+    }
+
+    // 9) Besoins et projets à présenter
+    if (g("val_reformulation")) push("Besoins prioritaires : " + lc(g("val_reformulation")));
+    const fProj = field("val_projets"), proj = d.val_projets;
+    if (fProj && proj && typeof proj === "object") {
+      const lignes = [];
+      fProj.rows.forEach((gamme, i) => {
+        const sol = (proj[`${i}-1`] || "").trim();
+        if (sol) lignes.push(gamme + " : " + sol);
+      });
+      if (lignes.length) push("Projets à présenter — " + lignes.join(" ; "));
+    }
+
+    // 10) Échéances et suite à donner
+    const suite = [];
+    if (g("val_quand")) suite.push("objectif d'équipement avant le " + dateFr(g("val_quand")));
+    if (g("val_prochain_rdv")) suite.push("prochain RDV le " + dateFr(g("val_prochain_rdv")));
+    if (g("dem_rdv_demo")) suite.push("démonstration le " + dateFr(g("dem_rdv_demo")));
+    if (yn("val_audit") === "Oui" || yn("sec_rdv_audit") === "Oui") suite.push("audit à planifier");
+    if (yn("imp_docs") === "Oui") suite.push("récupérer contrat, échéancier et relevés compteurs");
+    if (suite.length) push(suite.join(" ; ").replace(/^./, c => c.toUpperCase()));
+    if (g("val_engagement")) push("Engagement : " + lc(g("val_engagement")));
+
+    L.push("");
+    L.push(affaireHasContent(r) ? ">>> Affaire à lever." : ">>> Pas d'affaire levée à ce stade.");
+    return L.join("\n");
+  }
+
   function buildCrmSummary() {
     const r = current(), d = r.data;
     const HEADER_IDS = ["date_rdv", "societe", "contact", "fonction", "commercial"];
@@ -928,8 +1083,14 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     $$(".tab").forEach(t => t.classList.toggle("tab--active", t.dataset.tab === name));
     $$(".tabpane").forEach(p => p.classList.toggle("tabpane--active", p.dataset.pane === name));
     if (name === "pdf") renderPdfPreview();
-    if (name === "crm") $("#crmText").value = buildCrmSummary();
+    if (name === "crm") renderCrm();
     if (name === "mail") $("#mailText").value = buildClientEmail();
+  }
+  // Onglet CRM : mini résumé rédigé (par défaut) ou résumé complet détaillé.
+  function renderCrm() {
+    const checked = document.querySelector('input[name="crmMode"]:checked');
+    const mode = checked ? checked.value : "mini";
+    $("#crmText").value = (mode === "full") ? buildCrmSummary() : buildMiniSummary();
   }
 
   /* ----------------------- Utilitaires UI ----------------------- */
@@ -1033,6 +1194,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     $$("[data-affaire-close]").forEach(el => el.addEventListener("click", closeAffaire));
     $$(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
     $("#includeEmpty").addEventListener("change", renderPdfPreview);
+    $$('input[name="crmMode"]').forEach(x => x.addEventListener("change", renderCrm));
     $("#btnPrint").addEventListener("click", doPrint);
     const bMail = $("#btnMailOpen"); if (bMail) bMail.addEventListener("click", openMailClient);
     const bSync = $("#syncBadge");
