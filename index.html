@@ -132,6 +132,10 @@
         <!-- Onglet CRM -->
         <section class="tabpane" data-pane="crm">
           <p class="muted">Résumé prêt à coller dans le suivi CRM.</p>
+          <div class="crm-modes">
+            <label><input type="radio" name="crmMode" value="mini" checked /> <span>Mini résumé</span></label>
+            <label><input type="radio" name="crmMode" value="full" /> <span>Résumé complet</span></label>
+          </div>
           <textarea id="crmText" class="output-text" rows="16" readonly></textarea>
           <button class="btn btn--primary btn--wide" data-copy="crmText">📋 Copier le résumé</button>
         </section>

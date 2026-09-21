@@ -418,3 +418,8 @@ table.grid td input:focus{outline:2px solid var(--rex-light)}
 .pilot-table td{padding:8px 12px;font-size:.86rem}
 .pilot-table td.num{text-align:right;font-variant-numeric:tabular-nums;padding-right:14px}
 .pilot-inactif{color:#b91c1c;font-weight:600}
+
+/* Choix du format de résumé CRM */
+.crm-modes{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 10px}
+.crm-modes label{display:flex;align-items:center;gap:6px;font-weight:600;font-size:.86rem;cursor:pointer}
+.crm-modes input{width:16px;height:16px;accent-color:var(--rex)}
