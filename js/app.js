@@ -1242,6 +1242,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     }
     setSaveStatus("saved");
     updateSyncIndicator();
+    const ver = $("#appVersion"); if (ver) ver.textContent = "v" + APP_VERSION;
     if (window.RexAdmin && window.RexAdmin.onBoot) window.RexAdmin.onBoot();
     if (window.RexTickets && window.RexTickets.onBoot) window.RexTickets.onBoot();
     if (window.RexPilotage && window.RexPilotage.onBoot) window.RexPilotage.onBoot();

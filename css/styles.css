@@ -423,3 +423,4 @@ table.grid td input:focus{outline:2px solid var(--rex-light)}
 .crm-modes{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 10px}
 .crm-modes label{display:flex;align-items:center;gap:6px;font-weight:600;font-size:.86rem;cursor:pointer}
 .crm-modes input{width:16px;height:16px;accent-color:var(--rex)}
+.app-version{font-size:.7rem;color:var(--muted);font-weight:600;flex:0 0 auto}

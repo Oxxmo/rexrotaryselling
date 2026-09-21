@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/icon.svg" />
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css?v=18" />
 </head>
 <body class="booting">
 
@@ -61,6 +61,7 @@
     <div id="menuPanel" class="menu-panel" hidden>
       <div class="menu-panel__user">
         <span id="userBadge" class="user-badge"></span>
+        <span id="appVersion" class="app-version" title="Version de l'application"></span>
         <div class="menu-panel__user-actions">
           <button id="btnPilotage" class="btn btn--ghost btn--sm" hidden>📊 Pilotage</button>
           <button id="btnTicketNew" class="btn btn--ghost btn--sm">🐞 Signaler / Demande</button>
@@ -298,14 +299,14 @@
 
   <!-- Client Supabase (authentification + base de données), hébergé localement
        pour rester indépendant de tout CDN externe -->
-  <script src="js/vendor/supabase.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/offline.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/admin.js"></script>
-  <script src="js/tickets.js"></script>
-  <script src="js/pilotage.js"></script>
-  <script src="js/supa.js"></script>
+  <script src="js/vendor/supabase.js?v=18"></script>
+  <script src="js/config.js?v=18"></script>
+  <script src="js/data.js?v=18"></script>
+  <script src="js/offline.js?v=18"></script>
+  <script src="js/app.js?v=18"></script>
+  <script src="js/admin.js?v=18"></script>
+  <script src="js/tickets.js?v=18"></script>
+  <script src="js/pilotage.js?v=18"></script>
+  <script src="js/supa.js?v=18"></script>
 </body>
 </html>
