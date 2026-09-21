@@ -1,5 +1,5 @@
 /* Rex Seller — service worker (mode hors-ligne) */
-const CACHE = "rexseller-v17";
+const CACHE = "rexseller-v18";
 const ASSETS = [
   "./",
   "./index.html",
@@ -41,10 +41,13 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
   e.respondWith(
-    fetch(e.request).then((resp) => {
+    // « reload » : on court-circuite le cache HTTP du navigateur, qui pouvait
+    // renvoyer un fichier périmé (page à jour mais script ancien) après une
+    // mise à jour. On garde le cache comme secours hors ligne.
+    fetch(e.request.url, { cache: "reload", credentials: "same-origin" }).then((resp) => {
       const copy = resp.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
       return resp;
-    }).catch(() => caches.match(e.request))
+    }).catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
 });
