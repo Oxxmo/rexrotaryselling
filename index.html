@@ -9,38 +9,46 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/icon.svg" />
-  <link rel="stylesheet" href="css/styles.css?v=18" />
+  <!-- Manrope est hébergée localement : la typographie reste correcte hors ligne
+       et l'application ne dépend d'aucun CDN externe. -->
+  <link rel="preload" href="assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="css/styles.css?v=19" />
 </head>
 <body class="booting">
 
   <!-- Écran de connexion (affiché tant que l'utilisateur n'est pas authentifié) -->
   <div id="authGate" class="auth-gate" hidden>
-    <form id="authForm" class="auth-card" autocomplete="on">
-      <img class="auth-logo" src="assets/logo-red.png" alt="Rex-Rotary" />
-      <h1 class="auth-title">Rex Seller</h1>
-      <p class="auth-sub">Connectez-vous pour accéder à vos rendez-vous.</p>
-      <label class="auth-label" for="authEmail">Email</label>
-      <input id="authEmail" type="email" name="email" inputmode="email" autocomplete="username" required placeholder="prenom.nom@entreprise.fr" />
-      <label class="auth-label" for="authPassword">Mot de passe</label>
-      <input id="authPassword" type="password" name="password" autocomplete="current-password" required placeholder="••••••••" />
-      <p id="authError" class="auth-error" hidden></p>
-      <button id="authSubmit" type="submit" class="btn btn--primary btn--wide">Se connecter</button>
-    </form>
+    <div class="auth-stack">
+      <form id="authForm" class="auth-card" autocomplete="on">
+        <img class="auth-logo" src="assets/logo-red.png" alt="Rex-Rotary" />
+        <h1 class="auth-title">Rex Seller</h1>
+        <p class="auth-sub">Connectez-vous pour accéder à vos rendez-vous.</p>
+        <label class="auth-label" for="authEmail">Email</label>
+        <input id="authEmail" type="email" name="email" inputmode="email" autocomplete="username" required placeholder="prenom.nom@entreprise.fr" />
+        <label class="auth-label" for="authPassword">Mot de passe</label>
+        <input id="authPassword" type="password" name="password" autocomplete="current-password" required placeholder="••••••••" />
+        <p id="authError" class="auth-error" hidden></p>
+        <button id="authSubmit" type="submit" class="btn btn--primary btn--wide">Se connecter</button>
+      </form>
+      <p class="auth-foot">Rex Seller · Aide à la découverte en rendez-vous</p>
+    </div>
   </div>
 
   <!-- Écran « première connexion » : définir son mot de passe personnel -->
   <div id="pwGate" class="auth-gate" hidden>
-    <form id="pwForm" class="auth-card" autocomplete="on">
-      <img class="auth-logo" src="assets/logo-red.png" alt="Rex-Rotary" />
-      <h1 class="auth-title">Bienvenue !</h1>
-      <p class="auth-sub">Pour votre première connexion, choisissez votre mot de passe personnel.</p>
-      <label class="auth-label" for="pwNew">Nouveau mot de passe</label>
-      <input id="pwNew" type="password" autocomplete="new-password" required placeholder="8 caractères minimum" />
-      <label class="auth-label" for="pwNew2">Confirmer le mot de passe</label>
-      <input id="pwNew2" type="password" autocomplete="new-password" required placeholder="••••••••" />
-      <p id="pwError" class="auth-error" hidden></p>
-      <button id="pwSubmit" type="submit" class="btn btn--primary btn--wide">Enregistrer mon mot de passe</button>
-    </form>
+    <div class="auth-stack">
+      <form id="pwForm" class="auth-card" autocomplete="on">
+        <img class="auth-logo" src="assets/logo-red.png" alt="Rex-Rotary" />
+        <h1 class="auth-title">Bienvenue !</h1>
+        <p class="auth-sub">Pour votre première connexion, choisissez votre mot de passe personnel.</p>
+        <label class="auth-label" for="pwNew">Nouveau mot de passe</label>
+        <input id="pwNew" type="password" autocomplete="new-password" required placeholder="8 caractères minimum" />
+        <label class="auth-label" for="pwNew2">Confirmer le mot de passe</label>
+        <input id="pwNew2" type="password" autocomplete="new-password" required placeholder="••••••••" />
+        <p id="pwError" class="auth-error" hidden></p>
+        <button id="pwSubmit" type="submit" class="btn btn--primary btn--wide">Enregistrer mon mot de passe</button>
+      </form>
+    </div>
   </div>
 
   <!-- En-tête collant : reste visible au défilement -->
@@ -50,60 +58,93 @@
         <img class="appbar__logo" src="assets/logo-white.png" alt="Rex-Rotary" />
         <span class="appbar__product">Seller<small>Aide à la découverte</small></span>
       </div>
+
+      <!-- Rendez-vous en cours : ouvre le panneau de gestion -->
+      <button id="rdvChip" class="rdv-chip" title="Gérer les rendez-vous">
+        <span id="rdvChipLabel" class="rdv-chip__label">Rendez-vous</span>
+        <span class="rdv-chip__caret" aria-hidden="true">▾</span>
+      </button>
+
       <div class="appbar__actions">
         <button id="syncBadge" class="sync-badge" title="Synchroniser maintenant" hidden></button>
-        <span id="saveStatus" class="save-status" title="Sauvegarde automatique">Enregistré</span>
-        <button id="btnMenu" class="btn btn--ghost" aria-label="Menu">☰</button>
+        <span id="saveStatus" class="save-status" title="Sauvegarde automatique">Enregistré ✓</span>
+
+        <!-- Anneau de progression du livret -->
+        <span class="progress-ring" title="Progression du livret">
+          <svg width="42" height="42" viewBox="0 0 42 42" aria-hidden="true">
+            <circle class="progress-ring__track" cx="21" cy="21" r="16"></circle>
+            <circle id="progressRing" class="progress-ring__value" cx="21" cy="21" r="16" transform="rotate(-90 21 21)"></circle>
+          </svg>
+          <span id="progressLabel" class="progress-ring__label">0%</span>
+        </span>
+
+        <button id="btnMenu" class="appbar__menu" aria-label="Menu">☰</button>
       </div>
     </div>
+  </header>
 
-    <!-- Panneau de gestion des rendez-vous -->
-    <div id="menuPanel" class="menu-panel" hidden>
+  <!-- Panneau de gestion des rendez-vous (feuille modale) -->
+  <div id="menuPanel" class="menu-modal" hidden>
+    <div class="menu-modal__backdrop" data-menu-close></div>
+    <div class="menu-modal__panel menu-panel">
       <div class="menu-panel__user">
-        <span id="userBadge" class="user-badge"></span>
-        <span id="appVersion" class="app-version" title="Version de l'application"></span>
+        <div class="user-ident">
+          <span id="userAvatar" class="user-avatar" aria-hidden="true"></span>
+          <span class="user-ident__text">
+            <b id="userName" class="user-name"></b>
+            <small id="userRole" class="user-role"></small>
+          </span>
+          <span id="appVersion" class="app-version" title="Version de l'application"></span>
+        </div>
         <div class="menu-panel__user-actions">
-          <button id="btnPilotage" class="btn btn--ghost btn--sm" hidden>📊 Pilotage</button>
-          <button id="btnTicketNew" class="btn btn--ghost btn--sm">🐞 Signaler / Demande</button>
-          <button id="btnTicketList" class="btn btn--ghost btn--sm" hidden>📥 Tickets reçus</button>
-          <button id="btnAdmin" class="btn btn--ghost btn--sm" hidden>⚙︎ Administration</button>
-          <button id="btnLogout" class="btn btn--ghost btn--sm">Se déconnecter</button>
+          <button id="btnPilotage" class="btn btn--sm" hidden>📊 Pilotage</button>
+          <button id="btnTicketNew" class="btn btn--sm">🐞 Signaler / Demande</button>
+          <button id="btnTicketList" class="btn btn--sm" hidden>📥 Tickets reçus</button>
+          <button id="btnAdmin" class="btn btn--sm" hidden>⚙︎ Administration</button>
+          <button id="btnLogout" class="btn btn--sm btn--logout">Se déconnecter</button>
         </div>
       </div>
-      <div class="menu-panel__row" id="ownerFilterRow" hidden>
-        <label for="ownerFilter">Voir les rendez-vous de</label>
-        <select id="ownerFilter"></select>
-      </div>
-      <div class="menu-panel__row">
-        <label for="rdvSelect">Rendez-vous en cours</label>
-        <select id="rdvSelect"></select>
+      <div class="menu-panel__rows">
+        <div class="menu-panel__row" id="ownerFilterRow" hidden>
+          <label for="ownerFilter">Voir les rendez-vous de</label>
+          <select id="ownerFilter"></select>
+        </div>
+        <div class="menu-panel__row">
+          <label for="rdvSelect">Rendez-vous en cours</label>
+          <select id="rdvSelect"></select>
+        </div>
       </div>
       <div class="menu-panel__buttons">
         <button id="btnNew" class="btn btn--primary">＋ Nouveau RDV</button>
-        <button id="btnDuplicate" class="btn btn--ghost">Dupliquer</button>
-        <button id="btnExport" class="btn btn--ghost">Exporter (.json)</button>
-        <button id="btnImport" class="btn btn--ghost">Importer</button>
+        <button id="btnDuplicate" class="btn">Dupliquer</button>
+        <button id="btnExport" class="btn">Exporter (.json)</button>
+        <button id="btnImport" class="btn">Importer</button>
         <button id="btnDelete" class="btn btn--danger">Supprimer</button>
       </div>
       <input type="file" id="importFile" accept="application/json" hidden />
     </div>
-
-    <!-- Progression -->
-    <div class="progress-wrap">
-      <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
-      <span id="progressLabel" class="progress-label">0 %</span>
-    </div>
-
-    <!-- Navigation par sections (une seule ligne) -->
-    <nav id="sectionNav" class="section-nav" aria-label="Sections du livret"></nav>
-  </header>
+  </div>
 
   <!-- Contenu du livret -->
-  <main id="booklet" class="booklet"></main>
+  <main class="page">
+    <div class="hero">
+      <div class="hero__head">
+        <div class="hero__overline">Rendez-vous découverte</div>
+        <h1 id="heroSociete" class="hero__title">Nouveau rendez-vous</h1>
+      </div>
+      <div id="heroMeta" class="hero__meta"></div>
+    </div>
+    <div id="booklet" class="booklet"></div>
+  </main>
 
-  <!-- Barre d'action bas de page -->
-  <div class="bottombar">
-    <button id="btnSynthese" class="btn btn--primary btn--wide">🧾 Générer la synthèse du RDV</button>
+  <!-- Dock de navigation flottant : sections + Affaire + Synthèse -->
+  <div class="dock-wrap">
+    <div class="dock">
+      <nav id="sectionNav" class="dock__chips" aria-label="Sections du livret"></nav>
+      <span class="dock__divider" aria-hidden="true"></span>
+      <button id="btnAffaire" class="nav-affaire" aria-disabled="true">💼 Affaire</button>
+      <button id="btnSynthese" class="dock__cta" title="Générer la synthèse du RDV">🧾 Synthèse</button>
+    </div>
   </div>
 
   <!-- Modale Synthèse -->
@@ -112,7 +153,7 @@
     <div class="modal__panel">
       <div class="modal__header">
         <h2>Synthèse du rendez-vous</h2>
-        <button class="btn btn--ghost" data-close aria-label="Fermer">✕</button>
+        <button class="modal__close" data-close aria-label="Fermer">✕</button>
       </div>
 
       <div class="modal__tabs">
@@ -160,7 +201,7 @@
     <div class="modal__panel">
       <div class="modal__header">
         <h2>💼 Affaire — les 11 critères</h2>
-        <button class="btn btn--ghost" data-affaire-close aria-label="Fermer">✕</button>
+        <button class="modal__close" data-affaire-close aria-label="Fermer">✕</button>
       </div>
       <div class="modal__body">
         <div id="affaireForm"></div>
@@ -179,7 +220,7 @@
     <div class="modal__panel">
       <div class="modal__header">
         <h2>Administration des comptes</h2>
-        <button class="btn btn--ghost" data-admin-close aria-label="Fermer">✕</button>
+        <button class="modal__close" data-admin-close aria-label="Fermer">✕</button>
       </div>
       <div class="modal__body">
         <section class="admin-form">
@@ -218,7 +259,7 @@
     <div class="modal__panel">
       <div class="modal__header">
         <h2>Signaler un problème / une demande</h2>
-        <button class="btn btn--ghost" data-ticket-close aria-label="Fermer">✕</button>
+        <button class="modal__close" data-ticket-close aria-label="Fermer">✕</button>
       </div>
       <div class="modal__body">
         <p class="muted">Votre message est transmis uniquement à la personne en charge du développement (HEITGEN Scott).</p>
@@ -240,7 +281,7 @@
     <div class="modal__panel">
       <div class="modal__header">
         <h2>Tickets reçus</h2>
-        <button class="btn btn--ghost" data-ticketlist-close aria-label="Fermer">✕</button>
+        <button class="modal__close" data-ticketlist-close aria-label="Fermer">✕</button>
       </div>
       <div class="modal__body">
         <p id="ticketListEmpty" class="muted" hidden>Aucun ticket pour le moment.</p>
@@ -255,7 +296,7 @@
     <div class="modal__panel">
       <div class="modal__header">
         <h2>📊 Pilotage de l'utilisation</h2>
-        <button class="btn btn--ghost" data-pilotage-close aria-label="Fermer">✕</button>
+        <button class="modal__close" data-pilotage-close aria-label="Fermer">✕</button>
       </div>
       <div class="modal__body">
         <p class="muted">Statistiques d'utilisation de Rex Seller. Seuls des totaux sont affichés — jamais le contenu des rendez-vous.</p>
@@ -270,7 +311,7 @@
           </table>
         </div>
         <div class="admin-form__buttons" style="margin-top:14px">
-          <button id="pilotExport" class="btn btn--ghost">⬇️ Exporter en CSV</button>
+          <button id="pilotExport" class="btn">⬇️ Exporter en CSV</button>
         </div>
       </div>
     </div>
@@ -282,7 +323,7 @@
     <div class="modal__panel">
       <div class="modal__header">
         <h2>✨ Nouveautés</h2>
-        <button class="btn btn--ghost" data-whatsnew-close aria-label="Fermer">✕</button>
+        <button class="modal__close" data-whatsnew-close aria-label="Fermer">✕</button>
       </div>
       <div class="modal__body">
         <p class="muted">Voici ce qui a évolué dans Rex Seller :</p>
@@ -299,14 +340,14 @@
 
   <!-- Client Supabase (authentification + base de données), hébergé localement
        pour rester indépendant de tout CDN externe -->
-  <script src="js/vendor/supabase.js?v=18"></script>
-  <script src="js/config.js?v=18"></script>
-  <script src="js/data.js?v=18"></script>
-  <script src="js/offline.js?v=18"></script>
-  <script src="js/app.js?v=18"></script>
-  <script src="js/admin.js?v=18"></script>
-  <script src="js/tickets.js?v=18"></script>
-  <script src="js/pilotage.js?v=18"></script>
-  <script src="js/supa.js?v=18"></script>
+  <script src="js/vendor/supabase.js?v=19"></script>
+  <script src="js/config.js?v=19"></script>
+  <script src="js/data.js?v=19"></script>
+  <script src="js/offline.js?v=19"></script>
+  <script src="js/app.js?v=19"></script>
+  <script src="js/admin.js?v=19"></script>
+  <script src="js/tickets.js?v=19"></script>
+  <script src="js/pilotage.js?v=19"></script>
+  <script src="js/supa.js?v=19"></script>
 </body>
 </html>

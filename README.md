@@ -23,7 +23,9 @@ situées sous lui** dans l'organigramme (RRO → CA → RO → commercial).
   - CA → toute son agence ; RRO → toute la région.
   Les responsables disposent d'un **filtre « Voir les RDV de »** ; les RDV d'un
   collaborateur s'ouvrent en **lecture seule**.
-- Livret complet en sections repliables, barre de progression et navigation rapide.
+- Livret complet en sections repliables, **anneau de progression** dans l'en-tête et
+  **dock de navigation flottant** (secteurs, *Affaire*, *Synthèse*) accessible d'un pouce
+  sur mobile. Chaque section affiche son avancement (`3/8`, `Client ✓`).
 - Sauvegarde automatique + gestion de **plusieurs rendez-vous** (nouveau, dupliquer, supprimer).
 - **Export / import** d'un RDV au format `.json`.
 - Types de champs fidèles au livret : notes 1–10, Oui/Non, tableaux, cases à cocher, etc.
@@ -94,6 +96,7 @@ Pour l'installer sur mobile : ouvrir l'URL dans le navigateur → menu → *Ajou
 ```
 index.html               Page unique de l'application (+ écran de connexion)
 css/styles.css           Styles (écran + impression PDF + connexion)
+assets/fonts/            Police Manrope (hébergée localement, voir le README du dossier)
 js/config.js             URL + clé publique Supabase
 js/vendor/supabase.js    Bibliothèque Supabase (hébergée localement, pas de CDN)
 js/offline.js            Cache local + file de synchronisation (mode hors-ligne)

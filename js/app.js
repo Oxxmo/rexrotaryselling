@@ -13,8 +13,12 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
   /* ---- Nouveautés affichées après une mise à jour (à incrémenter à chaque release) ---- */
-  const APP_VERSION = "2026-09-21.2";
+  const APP_VERSION = "2026-09-21.3";
   const WHATS_NEW = [
+    "Nouveau design : barre du haut avec anneau de progression, sections qui s'ouvrent en douceur et navigation regroupée dans une barre flottante en bas de l'écran (secteurs, Affaire, Synthèse).",
+    "Le rendez-vous en cours est rappelé en haut de page et dans la barre rouge : société, date et interlocuteur toujours sous les yeux.",
+    "Chaque section affiche sa progression (par ex. 3/8) et passe au vert dès qu'elle est complète.",
+    "Affichage revu sur téléphone, tablette et ordinateur.",
     "Matériel d'impression : vous pouvez désormais ajouter autant de machines que nécessaire grâce au bouton « ＋ Ajouter une machine » (au-delà des 3 colonnes initiales).",
     "Nouvelles lignes « Volumes réels réalisés », séparées N&B et Couleur, pour chaque machine (en location comme à l'achat).",
     "Nouvel outil de pilotage pour les responsables (☰ → Pilotage) : utilisation par consultant et vue d'ensemble, avec export CSV.",
@@ -110,6 +114,16 @@
   const setVal = (id, v) => { if (isReadOnly()) return; const r = current(); if (!r) return; r.data[id] = v; touch(); };
 
   /* ----------------------- Rendu du livret ----------------------- */
+  // Ordre des cartes du livret : « Votre entreprise », « Présentation »,
+  // puis les autres sections. Sert au dock, au suivi du défilement et à la
+  // numérotation (« Section 01 », « Section 02 », …).
+  function cardOrder() {
+    const ids = BOOKLET.map(s => s.id);
+    ids.splice(1, 0, "presentation");
+    return ids;
+  }
+
+  // Dock flottant : une pastille par section (icône + libellé + point d'état).
   function renderNav() {
     const nav = $("#sectionNav");
     const chips = BOOKLET.map((sec, i) => {
@@ -124,22 +138,22 @@
     chips.splice(1, 0, `<button class="nav-chip" data-goto="presentation" title="Présentation Rex-Rotary">
         <span class="dot"></span>
         <span class="nav-chip__icon">📢</span>
-        <span class="nav-chip__label">Présentation</span>
+        <span class="nav-chip__label">Présent.</span>
       </button>`);
-    nav.innerHTML = chips.join("") +
-      // Bouton Affaire, à droite des secteurs : actif seulement quand l'affaire est mûre.
-      `<button id="btnAffaire" class="nav-affaire" disabled>💼 Affaire</button>`;
+    nav.innerHTML = chips.join("");
 
     $$(".nav-chip", nav).forEach(chip => chip.addEventListener("click", () => {
       const id = chip.dataset.goto;
       const card = $(`#sec-${id}`);
+      if (!card) return;
       openSection(card, true);
       setActiveChip(id);
-      const top = card.getBoundingClientRect().top + window.scrollY - stickyHeight() - 6;
-      window.scrollTo({ top, behavior: "smooth" });
+      // L'ouverture de la carte est animée : on laisse un souffle avant de viser.
+      setTimeout(() => {
+        const top = card.getBoundingClientRect().top + window.scrollY - stickyHeight() - 12;
+        window.scrollTo({ top, behavior: "smooth" });
+      }, 60);
     }));
-    const bAff = $("#btnAffaire", nav);
-    if (bAff) bAff.addEventListener("click", openAffaire);
     updateAffaireButton();
   }
 
@@ -154,10 +168,11 @@
       if (ticking) return; ticking = true;
       requestAnimationFrame(() => {
         const y = stickyHeight() + 12;
-        let cur = BOOKLET[0].id;
-        for (const sec of BOOKLET) {
-          const card = $(`#sec-${sec.id}`);
-          if (card && card.getBoundingClientRect().top <= y) cur = sec.id;
+        const ids = cardOrder();
+        let cur = ids[0];
+        for (const id of ids) {
+          const card = $(`#sec-${id}`);
+          if (card && card.getBoundingClientRect().top <= y) cur = id;
         }
         setActiveChip(cur);
         ticking = false;
@@ -201,48 +216,57 @@ Aujourd'hui Rex Rotary accompagne les entreprises comme la vôtre sur 6 métiers
 L'idée de ce RDV c'est de voir comment vous êtes équipés et comment vous fonctionnez pour vous apporter une plus-value, qu'elle soit fonctionnelle, organisationnelle ou financière.
 Soit je suis en mesure de le faire seul, soit nous passerons par un audit réalisé par mon informaticien.`;
 
-  // Carte spéciale « Présentation Rex-Rotary » : contenu propre au compte
-  // de l'utilisateur (pas au RDV), réutilisé sur tous ses rendez-vous.
-  function presentationCardHtml() {
+  // Enveloppe commune d'une carte : l'ouverture est animée via une grille
+  // (grid-template-rows : 0fr -> 1fr), ce qui évite tout saut de hauteur.
+  function sectionCardHtml({ id, index, icon, title, open, body }) {
     return `
-      <section class="section-card" id="sec-presentation">
+      <section class="section-card${open ? " open" : ""}" id="sec-${id}" style="--i:${index}">
         <button class="section-head" data-toggle>
-          <span class="section-head__icon">📢</span>
+          <span class="section-head__icon">${icon}</span>
           <span class="section-head__text">
-            <span class="section-head__title">Présentation Rex-Rotary</span>
-            <span class="section-head__meta">Votre présentation personnelle — enregistrée sur votre compte</span>
+            <span class="section-head__overline">Section ${String(index + 1).padStart(2, "0")}</span>
+            <span class="section-head__title">${esc(title)}</span>
           </span>
-          <span class="section-head__chev">▾</span>
+          <span class="section-head__aside">
+            <span class="section-head__meta" data-meta="${id}"></span>
+            <span class="section-head__chev" aria-hidden="true">▾</span>
+          </span>
         </button>
         <div class="section-body">
-          <p class="section-intro">Rédigez votre présentation de Rex-Rotary telle que vous aimez la faire. Elle est propre à votre compte et réutilisée automatiquement sur tous vos rendez-vous. <span id="presentationStatus" class="pres-status"></span></p>
-          <div class="field">
-            <textarea id="presentationText" rows="10" placeholder="Ex. : Rex-Rotary accompagne les entreprises dans la gestion documentaire, l'impression, la téléphonie…"></textarea>
+          <div class="section-body__clip">
+            <div class="section-body__inner">${body}</div>
           </div>
         </div>
       </section>`;
   }
 
+  // Carte spéciale « Présentation Rex-Rotary » : contenu propre au compte
+  // de l'utilisateur (pas au RDV), réutilisé sur tous ses rendez-vous.
+  function presentationCardHtml(index) {
+    return sectionCardHtml({
+      id: "presentation", index, icon: "📢", title: "Présentation Rex-Rotary", open: false,
+      body: `
+          <p class="section-intro">Rédigez votre présentation de Rex-Rotary telle que vous aimez la faire. Elle est propre à votre compte et réutilisée automatiquement sur tous vos rendez-vous. <span id="presentationStatus" class="pres-status"></span></p>
+          <div class="field">
+            <textarea id="presentationText" rows="10" placeholder="Ex. : Rex-Rotary accompagne les entreprises dans la gestion documentaire, l'impression, la téléphonie…"></textarea>
+          </div>`
+    });
+  }
+
   function renderBooklet() {
     const root = $("#booklet");
-    const cards = BOOKLET.map((sec, i) => `
-      <section class="section-card ${i === 0 ? "open" : ""}" id="sec-${sec.id}">
-        <button class="section-head" data-toggle>
-          <span class="section-head__icon">${sec.icon}</span>
-          <span class="section-head__text">
-            <span class="section-head__title">${esc(sec.title)}</span>
-            <span class="section-head__meta" data-meta="${sec.id}"></span>
-          </span>
-          <span class="section-head__chev">▾</span>
-        </button>
-        <div class="section-body">
+    const order = cardOrder();
+    const cards = order.map((id, index) => {
+      if (id === "presentation") return presentationCardHtml(index);
+      const sec = BOOKLET.find(s => s.id === id);
+      return sectionCardHtml({
+        id: sec.id, index, icon: sec.icon, title: sec.title, open: index === 0,
+        body: `
           ${sec.intro ? `<p class="section-intro">${esc(sec.intro)}</p>` : ""}
           ${CLIENT_SECTIONS.includes(sec.id) ? `<label class="client-toggle"><input type="checkbox" data-client="${sec.id}"><span>Déjà client Rex-Rotary sur ce métier — inutile de requalifier</span></label>` : ""}
-          <div class="section-fields">${sec.fields.map(f => renderField(f)).join("")}</div>
-        </div>
-      </section>`);
-    // Insère la présentation juste après la première section (« Votre entreprise »).
-    cards.splice(1, 0, presentationCardHtml());
+          <div class="section-fields">${sec.fields.map(f => renderField(f)).join("")}</div>`
+      });
+    });
     root.innerHTML = cards.join("");
 
     $$("[data-toggle]", root).forEach(btn =>
@@ -284,9 +308,12 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     const saved = window.RexDB.getPresentation();
     el.value = isFilled(cached) ? cached : (isFilled(saved) ? saved : DEFAULT_PRESENTATION);
     const status = $("#presentationStatus");
+    updatePresentationMeta();
     el.addEventListener("input", () => {
       window.RexOffline.putLocalPresentation(el.value);   // durable immédiatement
       if (status) status.textContent = "Enregistrement…";
+      updatePresentationMeta();
+      renderNavState();
       updateSyncIndicator();
       clearTimeout(presTimer);
       presTimer = setTimeout(() => {
@@ -478,22 +505,50 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     }
   }
 
+  // Identité du RDV : ces champs alimentent l'en-tête et la pastille rouge.
+  const HEADER_FIELDS = ["societe", "date_rdv", "contact", "fonction"];
   function onChange(f) {
     updateMeta(f);
     updateProgress();
     updateNavChip(f);
+    if (HEADER_FIELDS.includes(f.id)) { updateHeader(); refreshRdvSelect(); }
   }
 
   /* ----------------------- Méta & progression ----------------------- */
-  function updateAllMeta() { BOOKLET.forEach(sec => updateSectionMeta(sec)); updateProgress(); }
+  function updateAllMeta() {
+    BOOKLET.forEach(sec => updateSectionMeta(sec));
+    updatePresentationMeta();
+    updateHeader();
+    updateProgress();
+  }
   function updateMeta(f) { const sec = BOOKLET.find(s => s.fields.includes(f)); if (sec) updateSectionMeta(sec); }
   function updateSectionMeta(sec) {
     const el = $(`[data-meta="${sec.id}"]`);
     if (!el) return;
-    if (isClientSection(sec.id)) { el.textContent = "Déjà client Rex-Rotary"; return; }
+    if (isClientSection(sec.id)) {
+      el.textContent = "Client ✓";
+      el.title = "Déjà client Rex-Rotary sur ce métier";
+      el.classList.add("is-complete");
+      return;
+    }
     const total = sec.fields.length;
     const done = sec.fields.filter(f => isFilled(val(f.id))).length;
-    el.textContent = `${done}/${total} renseignés`;
+    el.textContent = `${done}/${total}`;
+    el.title = `${done} question(s) renseignée(s) sur ${total}`;
+    el.classList.toggle("is-complete", done === total);
+  }
+  // Pastille de la carte « Présentation » (propre au compte, pas au RDV).
+  function presentationFilled() {
+    const el = $("#presentationText");
+    return el ? isFilled(el.value) : false;
+  }
+  function updatePresentationMeta() {
+    const el = $('[data-meta="presentation"]');
+    if (!el) return;
+    const ready = presentationFilled();
+    el.textContent = ready ? "Prête ✓" : "À rédiger";
+    el.title = "Votre présentation personnelle — enregistrée sur votre compte";
+    el.classList.toggle("is-complete", ready);
   }
   function updateNavChip() { renderNavState(); }
   function renderNavState() {
@@ -501,7 +556,35 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
       const chip = $(`.nav-chip[data-goto="${sec.id}"]`);
       if (chip) chip.classList.toggle("filled", sectionFilled(sec));
     });
+    const pres = $('.nav-chip[data-goto="presentation"]');
+    if (pres) pres.classList.toggle("filled", presentationFilled());
   }
+
+  // En-tête du rendez-vous en cours (titre, méta) + pastille de la barre rouge.
+  function dateFr(s) {
+    const p = String(s || "").split("-");
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s;
+  }
+  function updateHeader() {
+    const r = current();
+    const d = r ? r.data : {};
+    const soc = $("#heroSociete");
+    if (soc) soc.textContent = d.societe || "Nouveau rendez-vous";
+    const meta = $("#heroMeta");
+    if (meta) {
+      meta.textContent =
+        (isFilled(d.date_rdv) ? "RDV du " + dateFr(d.date_rdv) : "") +
+        (isFilled(d.contact) ? " · " + d.contact + (isFilled(d.fonction) ? ` (${d.fonction})` : "") : "");
+    }
+    const chip = $("#rdvChipLabel");
+    if (chip) {
+      chip.textContent = (d.societe || "Rendez-vous") +
+        (isFilled(d.date_rdv) ? " ▪ " + dateFr(d.date_rdv) : "");
+    }
+  }
+
+  // Anneau de progression (rayon 16 → circonférence ≈ 100,5).
+  const RING_LENGTH = 100.5;
   function updateProgress() {
     const all = BOOKLET.flatMap(s => s.fields);
     // Un métier « déjà client » compte comme entièrement traité.
@@ -509,9 +592,10 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     BOOKLET.forEach(s => {
       done += isClientSection(s.id) ? s.fields.length : s.fields.filter(f => isFilled(val(f.id))).length;
     });
-    const pct = Math.round((done / all.length) * 100);
-    $("#progressFill").style.width = pct + "%";
-    $("#progressLabel").textContent = pct + " %";
+    const pct = all.length ? Math.round((done / all.length) * 100) : 0;
+    const ring = $("#progressRing");
+    if (ring) ring.style.strokeDashoffset = (RING_LENGTH * (1 - pct / 100)).toFixed(1);
+    $("#progressLabel").textContent = pct + "%";
     renderNavState();
     updateAffaireButton();
   }
@@ -534,7 +618,8 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     const btn = $("#btnAffaire");
     if (!btn) return;
     const ready = affaireReady();
-    btn.disabled = !ready;
+    // Volontairement pas `disabled` : le clic explique ce qu'il reste à remplir.
+    btn.setAttribute("aria-disabled", String(!ready));
     btn.classList.toggle("ready", ready);
     btn.title = ready
       ? "Ouvrir la fiche affaire (11 critères)"
@@ -552,7 +637,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     const sel = $("#rdvSelect");
     sel.innerHTML = visibleRdvs().map(r => {
       const soc = r.data.societe || "Sans nom";
-      const d = r.data.date_rdv ? " · " + r.data.date_rdv : "";
+      const d = r.data.date_rdv ? " · " + dateFr(r.data.date_rdv) : "";
       const who = ownedByMe(r) ? "" : " — " + window.RexDB.authorName(r.author_id);
       return `<option value="${r.id}" ${r.id === currentId ? "selected" : ""}>${esc(soc)}${esc(d)}${esc(who)}</option>`;
     }).join("");
@@ -577,6 +662,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
   function switchTo(id) {
     currentId = id;
     refreshRdvSelect(); renderBooklet(); updateAllMeta(); renderNavState();
+    setActiveChip(BOOKLET[0].id);
     applyReadOnly();
     window.scrollTo({ top: 0 });
   }
@@ -1122,10 +1208,30 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
 
   /* ----------------------- Événements globaux ----------------------- */
   function wire() {
-    $("#btnMenu").addEventListener("click", () => {
-      const p = $("#menuPanel"); p.hidden = !p.hidden;
-      if (!p.hidden) { refreshOwnerFilter(); refreshRdvSelect(); }
+    // Panneau « rendez-vous » : feuille modale, ouverte par ☰ ou par la pastille.
+    const openMenu = () => {
+      const p = $("#menuPanel");
+      refreshOwnerFilter(); refreshRdvSelect();
+      p.hidden = false;
+      document.body.style.overflow = "hidden";
+    };
+    const closeMenu = () => {
+      $("#menuPanel").hidden = true;
+      // Ne pas déverrouiller le défilement si une autre modale vient de s'ouvrir.
+      if (!$$(".modal").some(m => !m.hidden)) document.body.style.overflow = "";
+    };
+    const toggleMenu = () => ($("#menuPanel").hidden ? openMenu() : closeMenu());
+    $("#btnMenu").addEventListener("click", toggleMenu);
+    const chip = $("#rdvChip"); if (chip) chip.addEventListener("click", toggleMenu);
+    $$("[data-menu-close]").forEach(el => el.addEventListener("click", closeMenu));
+    document.addEventListener("keydown", e => {
+      if (e.key !== "Escape") return;
+      if (!$("#menuPanel").hidden) closeMenu();
     });
+    // Les actions du panneau referment la feuille (sauf les listes déroulantes).
+    $$("#menuPanel .menu-panel__buttons .btn, #menuPanel .menu-panel__user-actions .btn")
+      .forEach(b => b.addEventListener("click", () => { if (b.id !== "btnImport") closeMenu(); }));
+    $("#btnAffaire").addEventListener("click", openAffaire);
     $("#rdvSelect").addEventListener("change", e => switchTo(e.target.value));
     const ofilt = $("#ownerFilter");
     if (ofilt) ofilt.addEventListener("change", e => {
@@ -1210,10 +1316,28 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     $$("[data-whatsnew-close]").forEach(el => el.addEventListener("click", closeWhatsNew));
   }
 
+  /* ----------------------- Identité (panneau rendez-vous) ----------------------- */
+  function setIdentity(p, offline) {
+    if (!p) return;
+    const name = p.full_name || p.email || "—";
+    const role = [window.RexDB.roleLabel(p.role), p.agence].filter(Boolean).join(" · ")
+      + (offline ? " (hors ligne)" : "");
+    const av = $("#userAvatar");
+    if (av) {
+      av.textContent = String(name).trim().split(/\s+/).slice(0, 2)
+        .map(w => w[0] || "").join("").toUpperCase();
+    }
+    const nameEl = $("#userName");
+    if (nameEl) { nameEl.textContent = name; nameEl.title = p.email || name; }
+    const roleEl = $("#userRole");
+    if (roleEl) roleEl.textContent = role;
+  }
+
   /* ----------------------- Démarrage ----------------------- */
   // Appelé par supa.js une fois l'utilisateur connecté et les données chargées.
   let wired = false;
   async function boot({ profile, rdvs, offline }) {
+    setIdentity(profile, offline);
     window.RexOffline.init(profile.id);
     // Fusionne les données serveur avec les éventuelles saisies locales non
     // encore synchronisées (elles sont prioritaires).
@@ -1255,7 +1379,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
   // Rafraîchit le filtre « propriétaire » et la liste après une action admin.
   function refreshTeamUI() { refreshOwnerFilter(); refreshRdvSelect(); }
 
-  window.RexApp = { boot, refreshTeamUI };
+  window.RexApp = { boot, refreshTeamUI, setIdentity };
 
   // Service worker (mode hors-ligne pour l'app ; les données restent en ligne)
   if ("serviceWorker" in navigator) {

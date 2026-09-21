@@ -279,9 +279,10 @@
     }
   }
 
+  // L'identité (pastille d'initiales + nom + rôle) est rendue par app.js,
+  // qui possède le panneau « rendez-vous ».
   function setBadge(p, offline) {
-    const badge = $("#userBadge");
-    if (badge) badge.textContent = `${p.full_name || p.email} · ${ROLE_LABEL[p.role]}${offline ? " (hors ligne)" : ""}`;
+    if (window.RexApp && window.RexApp.setIdentity) window.RexApp.setIdentity(p, offline);
   }
 
   /* ----------------------- Événements ----------------------- */
