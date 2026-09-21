@@ -162,6 +162,14 @@
       myProfile.presentation = text;
     },
 
+    /* ---------- Pilotage (statistiques d'utilisation) ---------- */
+    // Agrégats uniquement : jamais le contenu des rendez-vous.
+    async usageStats() {
+      const { data, error } = await sb.rpc("usage_stats");
+      if (error) throw error;
+      return data || [];
+    },
+
     /* ---------- Tickets (demandes / bugs) ---------- */
     isDev() { return !!(myProfile && myProfile.is_dev); },
 

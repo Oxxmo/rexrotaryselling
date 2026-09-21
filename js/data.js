@@ -109,7 +109,8 @@ const BOOKLET = [
           "Date début location",
           "Prix indexé du loyer",
           "Volumes inclus dans le loyer",
-          "Volumes réels réalisés",
+          "Volumes réels réalisés — N&B",
+          "Volumes réels réalisés — Couleur",
           "Prix indexé de la copie supplémentaire",
           "Coût dépassement copies",
           "Frais divers (toners, écologie, recyclage, maintenance…)",
@@ -128,6 +129,8 @@ const BOOKLET = [
           "Fréquence + prix cartouches Cl",
           "Coût Cl",
           "Nombre copies + pourcentage NB / Cl",
+          "Volumes réels réalisés — N&B",
+          "Volumes réels réalisés — Couleur",
           "Changement pièces + prix + fréquence",
           "Amortissement au trimestre (2)",
           "Budget total"

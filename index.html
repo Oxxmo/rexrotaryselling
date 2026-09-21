@@ -62,6 +62,7 @@
       <div class="menu-panel__user">
         <span id="userBadge" class="user-badge"></span>
         <div class="menu-panel__user-actions">
+          <button id="btnPilotage" class="btn btn--ghost btn--sm" hidden>📊 Pilotage</button>
           <button id="btnTicketNew" class="btn btn--ghost btn--sm">🐞 Signaler / Demande</button>
           <button id="btnTicketList" class="btn btn--ghost btn--sm" hidden>📥 Tickets reçus</button>
           <button id="btnAdmin" class="btn btn--ghost btn--sm" hidden>⚙︎ Administration</button>
@@ -243,6 +244,33 @@
     </div>
   </div>
 
+  <!-- Modale Pilotage (responsables et administrateur) -->
+  <div id="pilotageModal" class="modal" hidden>
+    <div class="modal__backdrop" data-pilotage-close></div>
+    <div class="modal__panel">
+      <div class="modal__header">
+        <h2>📊 Pilotage de l'utilisation</h2>
+        <button class="btn btn--ghost" data-pilotage-close aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="muted">Statistiques d'utilisation de Rex Seller. Seuls des totaux sont affichés — jamais le contenu des rendez-vous.</p>
+        <div id="pilotCards" class="pilot-cards"></div>
+        <h3 class="output-title">Détail par consultant</h3>
+        <div class="tbl-scroll">
+          <table class="grid pilot-table">
+            <thead><tr>
+              <th>Consultant</th><th>Rôle</th><th>RDV</th><th>30 j</th><th>7 j</th><th>Affaires</th><th>Dernière activité</th>
+            </tr></thead>
+            <tbody id="pilotBody"></tbody>
+          </table>
+        </div>
+        <div class="admin-form__buttons" style="margin-top:14px">
+          <button id="pilotExport" class="btn btn--ghost">⬇️ Exporter en CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modale « Nouveautés » (affichée après une mise à jour) -->
   <div id="whatsnewModal" class="modal" hidden>
     <div class="modal__backdrop" data-whatsnew-close></div>
@@ -273,6 +301,7 @@
   <script src="js/app.js"></script>
   <script src="js/admin.js"></script>
   <script src="js/tickets.js"></script>
+  <script src="js/pilotage.js"></script>
   <script src="js/supa.js"></script>
 </body>
 </html>
