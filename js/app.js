@@ -13,7 +13,7 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
   /* ---- Nouveautés affichées après une mise à jour (à incrémenter à chaque release) ---- */
-  const APP_VERSION = "2026-09-21.3";
+  const APP_VERSION = "2026-10-06";
   const WHATS_NEW = [
     "Nouveau design : barre du haut avec anneau de progression, sections qui s'ouvrent en douceur et navigation regroupée dans une barre flottante en bas de l'écran (secteurs, Affaire, Synthèse).",
     "Le rendez-vous en cours est rappelé en haut de page et dans la barre rouge : société, date et interlocuteur toujours sous les yeux.",
@@ -22,7 +22,8 @@
     "Matériel d'impression : vous pouvez désormais ajouter autant de machines que nécessaire grâce au bouton « ＋ Ajouter une machine » (au-delà des 3 colonnes initiales).",
     "Nouvelles lignes « Volumes réels réalisés », séparées N&B et Couleur, pour chaque machine (en location comme à l'achat).",
     "Nouvel outil de pilotage pour les responsables (☰ → Pilotage) : utilisation par consultant et vue d'ensemble, avec export CSV.",
-    "Résumé CRM : nouveau « Mini résumé » rédigé en quelques phrases, bien plus court à coller dans Contact et relance (le résumé complet reste disponible d'un clic)."
+    "Résumé CRM : nouveau « Mini résumé » rédigé en quelques phrases, bien plus court à coller dans Contact et relance (le résumé complet reste disponible d'un clic).",
+    "Nouveau bloc « Notes diverses » dans chaque catégorie, reconnaissable à sa couleur ambre : notez-y tout ce qui ne rentre pas dans les questions. Ces notes remontent dans le PDF et dans les résumés."
   ];
 
   /* ----------------------- État & stockage (Supabase) ----------------------- */
@@ -253,6 +254,47 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     });
   }
 
+  // Bloc « Notes diverses » propre à chaque catégorie. Volontairement placé
+  // hors de .section-fields : il reste donc accessible même lorsque le métier
+  // est coché « déjà client ».
+  function noteKey(secId) { return "note_" + secId; }
+  function noteBlockHtml(sec) {
+    return `
+      <div class="note-block" data-noteblock="${sec.id}">
+        <div class="note-block__head">
+          <span class="note-block__pin" aria-hidden="true">📝</span>
+          <span class="note-block__title">Notes diverses</span>
+          <span class="note-block__hint">${esc(sec.short || sec.title)}</span>
+        </div>
+        <textarea class="note-block__input" data-note="${sec.id}" rows="3"
+          placeholder="Informations diverses, remarques, points à retenir pour cette partie…"></textarea>
+      </div>`;
+  }
+  function bindNotes() {
+    $$("[data-note]").forEach(el => {
+      const secId = el.dataset.note;
+      const block = $(`[data-noteblock="${secId}"]`);
+      const paint = () => { if (block) block.classList.toggle("filled", el.value.trim() !== ""); };
+      const stored = val(noteKey(secId));
+      if (stored != null) el.value = stored;
+      paint();
+      el.addEventListener("input", () => {
+        setVal(noteKey(secId), el.value);
+        paint();
+        updateSectionNoteFlag(secId);
+      });
+      updateSectionNoteFlag(secId);
+    });
+  }
+  // Marque visuellement la section (et sa pastille de navigation) quand une note existe.
+  function updateSectionNoteFlag(secId) {
+    const has = isFilled(val(noteKey(secId)));
+    const card = $(`#sec-${secId}`);
+    if (card) card.classList.toggle("has-note", has);
+    const chip = $(`.nav-chip[data-goto="${secId}"]`);
+    if (chip) chip.classList.toggle("has-note", has);
+  }
+
   function renderBooklet() {
     const root = $("#booklet");
     const order = cardOrder();
@@ -264,7 +306,8 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
         body: `
           ${sec.intro ? `<p class="section-intro">${esc(sec.intro)}</p>` : ""}
           ${CLIENT_SECTIONS.includes(sec.id) ? `<label class="client-toggle"><input type="checkbox" data-client="${sec.id}"><span>Déjà client Rex-Rotary sur ce métier — inutile de requalifier</span></label>` : ""}
-          <div class="section-fields">${sec.fields.map(f => renderField(f)).join("")}</div>`
+          <div class="section-fields">${sec.fields.map(f => renderField(f)).join("")}</div>
+          ${noteBlockHtml(sec)}`
       });
     });
     root.innerHTML = cards.join("");
@@ -274,6 +317,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
 
     BOOKLET.forEach(sec => sec.fields.forEach(f => bindField(f)));
     bindClientToggles();
+    bindNotes();
     bindPresentation();
     updateAllMeta();
   }
@@ -739,8 +783,11 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
       <div class="sub">Livret de découverte · Rex Seller</div>${meta}`;
 
     BOOKLET.forEach(sec => {
+      const note = val(noteKey(sec.id));
+      const noteHtml = isFilled(note)
+        ? `<div class="print-note"><b>📝 Notes diverses</b><br>${esc(note).replace(/\n/g, "<br>")}</div>` : "";
       if (isClientSection(sec.id)) {
-        html += `<h2>${sec.icon} ${esc(sec.title)}</h2><div class="qa"><span class="a">Déjà client Rex-Rotary sur ce métier.</span></div>`;
+        html += `<h2>${sec.icon} ${esc(sec.title)}</h2><div class="qa"><span class="a">Déjà client Rex-Rotary sur ce métier.</span></div>${noteHtml}`;
         return;
       }
       const parts = [];
@@ -755,7 +802,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
           parts.push(`<div class="qa"><span class="q">${esc(f.label)} :</span> <span class="a">${a}</span></div>`);
         }
       });
-      if (parts.length) html += `<h2>${sec.icon} ${esc(sec.title)}</h2>${parts.join("")}`;
+      if (parts.length || noteHtml) html += `<h2>${sec.icon} ${esc(sec.title)}</h2>${parts.join("")}${noteHtml}`;
     });
 
     // Affaire (incluse si des critères ont été renseignés)
@@ -935,6 +982,16 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     if (suite.length) push(suite.join(" ; ").replace(/^./, c => c.toUpperCase()));
     if (g("val_engagement")) push("Engagement : " + lc(g("val_engagement")));
 
+    // Notes diverses saisies par catégorie, regroupées en fin de résumé.
+    const notes = BOOKLET
+      .map(sec => ({ titre: sec.short || sec.title, txt: val(noteKey(sec.id)) }))
+      .filter(n => isFilled(n.txt));
+    if (notes.length) {
+      L.push("");
+      L.push("Notes diverses :");
+      notes.forEach(n => L.push("- " + n.titre + " : " + String(n.txt).replace(/\s*\n\s*/g, " / ").trim()));
+    }
+
     L.push("");
     L.push(affaireHasContent(r) ? ">>> Affaire à lever." : ">>> Pas d'affaire levée à ce stade.");
     return L.join("\n");
@@ -954,9 +1011,11 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
 
     // Toutes les sections du livret, champ par champ (uniquement ce qui est renseigné).
     BOOKLET.forEach(sec => {
+      const note = val(noteKey(sec.id));
       if (isClientSection(sec.id)) {
         L.push(`— ${sec.title.toUpperCase()} —`);
         L.push("Déjà client Rex-Rotary sur ce métier.");
+        if (isFilled(note)) { L.push("Notes diverses :"); String(note).split("\n").forEach(x => L.push("  " + x)); }
         L.push("");
         return;
       }
@@ -972,6 +1031,10 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
           lines.push(`${f.label} : ${v}`);
         }
       });
+      if (isFilled(note)) {
+        lines.push("Notes diverses :");
+        String(note).split("\n").forEach(x => lines.push("  " + x));
+      }
       if (lines.length) {
         L.push(`— ${sec.title.toUpperCase()} —`);
         lines.forEach(x => L.push(x));
