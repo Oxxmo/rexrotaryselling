@@ -814,3 +814,27 @@ body.booting .topbar,body.booting .page,body.booting .dock-wrap{display:none !im
   content:"";position:absolute;bottom:4px;right:4px;width:6px;height:6px;
   border-radius:50%;background:#e3b341;
 }
+
+/* Console d'administration : périmètre et recherche */
+.admin-scope{
+  margin:4px 0 10px;padding:9px 12px;border-radius:var(--radius-sm);
+  background:var(--rex-soft);border:1px solid var(--rex-light);
+  color:var(--rex-dark);font-size:.84rem;font-weight:600;
+}
+.admin-search{
+  width:100%;margin:0 0 10px;padding:10px 12px;font-size:15px;font-family:inherit;
+  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--field);
+}
+.admin-search:focus{outline:none;border-color:var(--rex);box-shadow:0 0 0 3px var(--rex-light)}
+
+/* Écran de connexion : lien secondaire et message d'information */
+.auth-link{
+  background:none;border:0;padding:8px 4px 0;margin-top:4px;cursor:pointer;
+  color:var(--rex-dark);font-family:inherit;font-size:.85rem;font-weight:600;
+  text-decoration:underline;text-underline-offset:3px;align-self:center;
+}
+.auth-link:hover{color:var(--rex)}
+.auth-info{
+  background:var(--ok-bg);color:var(--ok-fg);border-radius:10px;padding:9px 12px;
+  font-size:.85rem;margin:0 0 12px;line-height:1.4;
+}

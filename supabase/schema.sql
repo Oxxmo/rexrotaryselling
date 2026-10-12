@@ -145,7 +145,9 @@ alter table public.rendez_vous enable row level security;
 drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles
   for select to authenticated
-  using ( public.can_view(auth.uid(), id) );
+  -- l'administrateur (is_dev) voit tous les profils pour gérer les comptes ;
+  -- la visibilité des RENDEZ-VOUS reste, elle, strictement hiérarchique.
+  using ( public.can_view(auth.uid(), id) or public.is_dev(auth.uid()) );
 
 -- Écriture : chaque utilisateur peut modifier UNIQUEMENT sa présentation
 -- (le grant de colonne ci-dessous empêche de toucher role/manager_id).
