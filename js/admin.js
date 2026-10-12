@@ -28,8 +28,12 @@
   function setErr(m) { const el = $("#adminError"); if (!el) return; el.textContent = m || ""; el.hidden = !m; }
   function toast(m) { const t = $("#toast"); if (!t) return; t.textContent = m; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, 2200); }
 
-  /* ---------- Options de rôle : uniquement en dessous du demandeur ---------- */
+  // L'administrateur (profiles.is_dev) gère l'ensemble des comptes.
+  function isAdmin() { return !!(db() && db().isDev && db().isDev()); }
+
+  /* ---------- Options de rôle : en dessous du demandeur (tous pour l'admin) ---------- */
   function rolesBelowMe() {
+    if (isAdmin()) return ROLE_ORDER.slice();          // commercial, ro, ca, rro
     const mine = order(db().myRole());
     return ROLE_ORDER.filter(r => order(r) < mine); // ex. RRO -> [commercial, ro, ca]
   }
@@ -43,6 +47,11 @@
   /* ---------- Options de responsable : rang strictement supérieur à la cible ---------- */
   function renderManagerOptions(targetRole, selectedId) {
     const sel = $("#adm_manager");
+    if (targetRole === "rro") {
+      // Le RRO est au sommet de l'organigramme : pas de responsable.
+      sel.innerHTML = `<option value="">— Aucun (niveau le plus haut) —</option>`;
+      return;
+    }
     const o = order(targetRole);
     const mgrs = db().profiles()
       .filter(p => order(p.role) > o)
@@ -57,9 +66,17 @@
   function renderTeam() {
     const body = $("#adminTeamBody");
     const me = myId();
+    const admin = isAdmin();
+    const title = $("#adminTeamTitle"); if (title) title.textContent = admin ? "Tous les comptes" : "Votre équipe";
+    const scope = $("#adminScope"); if (scope) scope.hidden = !admin;
+    // Recherche par nom ou e-mail (insensible aux accents et à la casse)
+    const norm = x => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const q = norm(($("#adminSearch") || {}).value);
     const rows = db().profiles()
       .slice()
+      .filter(p => !q || norm(nameOf(p)).includes(q) || norm(p.email).includes(q))
       .sort((a, b) => order(b.role) - order(a.role) || nameOf(a).localeCompare(nameOf(b)));
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="5" class="muted">Aucun compte ne correspond à « ${esc(($("#adminSearch") || {}).value)} ».</td></tr>`; return; }
     body.innerHTML = rows.map(p => {
       const mgr = p.manager_id ? db().profiles().find(x => x.id === p.manager_id) : null;
       const mgrName = mgr ? esc(nameOf(mgr)) : "—";
@@ -129,7 +146,7 @@
     const agence = $("#adm_agence").value.trim();
 
     if (!full_name) { setErr("Le nom est obligatoire."); return; }
-    if (!manager_id) { setErr("Choisissez un responsable."); return; }
+    if (!manager_id && role !== "rro") { setErr("Choisissez un responsable."); return; }
 
     btn.disabled = true;
     const label = btn.textContent; btn.textContent = "Enregistrement…";
@@ -185,6 +202,7 @@
   async function openAdmin() {
     setErr("");
     try { await db().reloadTeam(); } catch (e) { /* on affiche ce qu'on a */ }
+    const search = $("#adminSearch"); if (search) search.value = "";
     resetForm();
     renderTeam();
     $("#adminModal").hidden = false;
@@ -203,15 +221,17 @@
     $("#adm_role").addEventListener("change", () => renderManagerOptions($("#adm_role").value, $("#adm_manager").value));
     $("#adm_submit").addEventListener("click", submitForm);
     $("#adm_cancel").addEventListener("click", resetForm);
+    const search = $("#adminSearch");
+    if (search) search.addEventListener("input", renderTeam);
   }
 
   /* ---------- Appelé par app.js après connexion ---------- */
   window.RexAdmin = {
     onBoot() {
       const btn = $("#btnAdmin");
-      const isManager = db() && db().isManager && db().isManager();
-      if (btn) btn.hidden = !isManager;
-      if (isManager) wire();
+      const allowed = !!(db() && ((db().isManager && db().isManager()) || isAdmin()));
+      if (btn) btn.hidden = !allowed;
+      if (allowed) wire();
     }
   };
 })();

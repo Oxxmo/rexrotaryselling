@@ -7,7 +7,9 @@
 //  les règles hiérarchiques :
 //
 //   - seul un responsable (rro / ca / ro) peut agir ;
-//   - il ne peut créer/modifier que des rôles STRICTEMENT en dessous
+//   - l'administrateur (profiles.is_dev) peut agir sur TOUS les comptes,
+//     quel que soit l'organigramme (sauf sur son propre compte) ;
+//   - un responsable ne crée/modifie que des rôles STRICTEMENT en dessous
 //     du sien, et uniquement dans son sous-arbre (organigramme) ;
 //   - le responsable (manager_id) choisi doit être lui-même ou une
 //     personne de son sous-arbre, d'un rang supérieur à la cible.
@@ -55,14 +57,18 @@ Deno.serve(async (req: Request) => {
   const callerId = userData.user.id;
 
   const { data: caller } = await admin
-    .from("profiles").select("id, role").eq("id", callerId).single();
+    .from("profiles").select("id, role, is_dev").eq("id", callerId).single();
   if (!caller) return json({ error: "Profil introuvable" }, 403);
-  if (caller.role === "commercial") {
+  // L'administrateur (is_dev) gère l'ensemble des comptes, quel que soit
+  // l'organigramme ; les autres ne gèrent que leur sous-arbre.
+  const isAdmin = caller.is_dev === true;
+  if (caller.role === "commercial" && !isAdmin) {
     return json({ error: "Accès réservé aux responsables." }, 403);
   }
 
   // Le demandeur voit-il cette personne dans son sous-arbre (ou est-ce lui) ?
   async function inSubtree(id: string): Promise<boolean> {
+    if (isAdmin) return true;
     const { data, error } = await admin.rpc("can_view", { _viewer: callerId, _author: id });
     return !error && data === true;
   }
@@ -74,9 +80,11 @@ Deno.serve(async (req: Request) => {
   // Valide le couple (rôle cible, responsable) au regard des droits du demandeur.
   async function validateRoleAndManager(role: string, managerId: string): Promise<string | null> {
     if (!ROLES.includes(role)) return "Rôle invalide.";
-    if (ORDER[caller.role] <= ORDER[role]) {
+    if (!isAdmin && ORDER[caller.role] <= ORDER[role]) {
       return "Vous ne pouvez créer/modifier que des rôles inférieurs au vôtre.";
     }
+    // Le RRO est au sommet de l'organigramme : il n'a pas de responsable.
+    if (role === "rro") return managerId ? "Un RRO n'a pas de responsable." : null;
     if (!managerId) return "Le responsable (manager) est obligatoire.";
     const isSelf = managerId === callerId;
     if (!isSelf && !(await inSubtree(managerId))) {
@@ -123,7 +131,7 @@ Deno.serve(async (req: Request) => {
       // must_change_password = true : la personne devra définir son propre
       // mot de passe à sa première connexion.
       const { error: pErr } = await admin.from("profiles")
-        .update({ full_name, role, manager_id, agence, email, must_change_password: true })
+        .update({ full_name, role, manager_id: manager_id || null, agence, email, must_change_password: true })
         .eq("id", created.user.id);
       if (pErr) {
         // Annule la création du compte auth pour ne pas laisser d'orphelin.
@@ -154,7 +162,7 @@ Deno.serve(async (req: Request) => {
         const invalid = await validateRoleAndManager(role, manager_id);
         if (invalid) return json({ error: invalid }, 403);
         patch.role = role;
-        patch.manager_id = manager_id;
+        patch.manager_id = manager_id || null;
       }
 
       if (Object.keys(patch).length === 0) return json({ error: "Rien à modifier." }, 400);
