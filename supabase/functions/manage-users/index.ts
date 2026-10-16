@@ -60,9 +60,11 @@ Deno.serve(async (req: Request) => {
     .from("profiles").select("id, role, is_dev").eq("id", callerId).single();
   if (!caller) return json({ error: "Profil introuvable" }, 403);
   // L'administrateur (is_dev) gère l'ensemble des comptes, quel que soit
-  // l'organigramme ; les autres ne gèrent que leur sous-arbre.
+  // l'organigramme : il se place au-dessus de tous les rangs et de tous les
+  // sous-arbres. Les autres ne gèrent que leur sous-arbre.
   const isAdmin = caller.is_dev === true;
-  if (caller.role === "commercial" && !isAdmin) {
+  const callerRank = isAdmin ? Infinity : ORDER[caller.role];
+  if (callerRank <= ORDER.commercial) {
     return json({ error: "Accès réservé aux responsables." }, 403);
   }
 
@@ -80,7 +82,7 @@ Deno.serve(async (req: Request) => {
   // Valide le couple (rôle cible, responsable) au regard des droits du demandeur.
   async function validateRoleAndManager(role: string, managerId: string): Promise<string | null> {
     if (!ROLES.includes(role)) return "Rôle invalide.";
-    if (!isAdmin && ORDER[caller.role] <= ORDER[role]) {
+    if (callerRank <= ORDER[role]) {
       return "Vous ne pouvez créer/modifier que des rôles inférieurs au vôtre.";
     }
     // Le RRO est au sommet de l'organigramme : il n'a pas de responsable.

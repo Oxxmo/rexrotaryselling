@@ -116,7 +116,7 @@
       wire();
       const b = $("#btnPilotage");
       // Réservé aux responsables (RO/CA/RRO) et à l'administrateur.
-      const allowed = !!db() && ((db().isManager && db().isManager()) || (db().isDev && db().isDev()));
+      const allowed = !!db() && db().canManage();
       if (b) b.hidden = !allowed;
     }
   };

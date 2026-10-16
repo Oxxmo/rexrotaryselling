@@ -572,13 +572,13 @@ table.grid td input[type=text]:focus{
 .admin-form{margin-bottom:22px}
 .admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
 .admin-grid label{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:.82rem;color:var(--ink-soft)}
-.admin-grid input,.admin-grid select,.admin-grid textarea{
+.admin-grid input,.admin-grid select,.admin-grid textarea,.admin-search{
   padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);
   font-size:1rem;font-weight:400;font-family:inherit;background:var(--field);color:var(--ink);
   transition:border-color .2s,background .2s,box-shadow .2s;
 }
 .admin-grid textarea{resize:vertical}
-.admin-grid input:focus,.admin-grid select:focus,.admin-grid textarea:focus{
+.admin-grid input:focus,.admin-grid select:focus,.admin-grid textarea:focus,.admin-search:focus{
   outline:none;border-color:var(--rex);background:#fff;box-shadow:0 0 0 3px var(--rex-light);
 }
 .admin-grid input:disabled{background:#f4f1ef;color:var(--muted)}
@@ -680,10 +680,10 @@ body.booting .topbar,body.booting .page,body.booting .dock-wrap{display:none !im
   transition:border-color .2s,background .2s,box-shadow .2s;
 }
 .auth-card input:focus{outline:none;border-color:var(--rex);background:#fff;box-shadow:0 0 0 3px var(--rex-light)}
-.auth-error{
-  background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-line);
+.auth-error,.auth-info{
   border-radius:var(--radius-sm);padding:10px 12px;font-size:.85rem;font-weight:600;margin:0 0 12px;
 }
+.auth-error{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-line)}
 .auth-card .btn--wide{margin-top:6px;padding:14px;font-size:.92rem;box-shadow:0 10px 26px rgba(120,8,25,.4)}
 .auth-foot{
   position:relative;text-align:center;color:rgba(255,255,255,.85);
@@ -821,11 +821,7 @@ body.booting .topbar,body.booting .page,body.booting .dock-wrap{display:none !im
   background:var(--rex-soft);border:1px solid var(--rex-light);
   color:var(--rex-dark);font-size:.84rem;font-weight:600;
 }
-.admin-search{
-  width:100%;margin:0 0 10px;padding:10px 12px;font-size:15px;font-family:inherit;
-  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--field);
-}
-.admin-search:focus{outline:none;border-color:var(--rex);box-shadow:0 0 0 3px var(--rex-light)}
+.admin-search{width:100%;margin:0 0 10px}  /* champ : mêmes styles que .admin-grid input */
 
 /* Écran de connexion : lien secondaire et message d'information */
 .auth-link{
@@ -834,7 +830,4 @@ body.booting .topbar,body.booting .page,body.booting .dock-wrap{display:none !im
   text-decoration:underline;text-underline-offset:3px;align-self:center;
 }
 .auth-link:hover{color:var(--rex)}
-.auth-info{
-  background:var(--ok-bg);color:var(--ok-fg);border-radius:10px;padding:9px 12px;
-  font-size:.85rem;margin:0 0 12px;line-height:1.4;
-}
+.auth-info{background:var(--ok-bg);color:var(--ok-fg);line-height:1.4}  /* boîte : voir .auth-error */

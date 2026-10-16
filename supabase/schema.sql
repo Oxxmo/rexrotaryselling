@@ -88,6 +88,19 @@ $$;
 revoke all on function public.can_view(uuid, uuid) from public;
 grant execute on function public.can_view(uuid, uuid) to authenticated;
 
+-- Marqueur « administrateur / développeur dédié » sur les profils :
+-- gestion de tous les comptes, tickets, pilotage (utilisé par les règles RLS
+-- ci-dessous, d'où sa définition ici).
+alter table public.profiles add column if not exists is_dev boolean not null default false;
+
+create or replace function public.is_dev(_uid uuid)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select is_dev from public.profiles where id = _uid), false);
+$$;
+revoke all on function public.is_dev(uuid) from public;
+grant execute on function public.is_dev(uuid) to authenticated;
+
 -- ------------------------------------------------------------
 -- 4) Mise à jour automatique de updated_at
 -- ------------------------------------------------------------
@@ -147,7 +160,8 @@ create policy profiles_select on public.profiles
   for select to authenticated
   -- l'administrateur (is_dev) voit tous les profils pour gérer les comptes ;
   -- la visibilité des RENDEZ-VOUS reste, elle, strictement hiérarchique.
-  using ( public.can_view(auth.uid(), id) or public.is_dev(auth.uid()) );
+  -- (select …) : évalué une seule fois par requête, et non à chaque ligne.
+  using ( (select public.is_dev(auth.uid())) or public.can_view((select auth.uid()), id) );
 
 -- Écriture : chaque utilisateur peut modifier UNIQUEMENT sa présentation
 -- (le grant de colonne ci-dessous empêche de toucher role/manager_id).
@@ -246,17 +260,8 @@ create policy rdv_delete on public.rendez_vous
 --  « développeur dédié » (profiles.is_dev = true) peuvent le lire.
 -- ============================================================
 
--- Marqueur « développeur dédié » sur les profils
-alter table public.profiles add column if not exists is_dev boolean not null default false;
-
--- Le ticket n'est visible que par son auteur et par le dev dédié.
-create or replace function public.is_dev(_uid uuid)
-returns boolean
-language sql stable security definer set search_path = public as $$
-  select coalesce((select is_dev from public.profiles where id = _uid), false);
-$$;
-revoke all on function public.is_dev(uuid) from public;
-grant execute on function public.is_dev(uuid) to authenticated;
+-- Le ticket n'est visible que par son auteur et par le dev dédié
+-- (public.is_dev, défini en section 3).
 
 create table if not exists public.tickets (
   id           uuid primary key default gen_random_uuid(),
