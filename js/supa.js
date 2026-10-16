@@ -27,9 +27,12 @@
   // Lien « mot de passe oublié » reçu par e-mail : le jeton arrive dans l'URL
   // (#access_token=…&type=recovery). On le repère avant que la bibliothèque
   // ne nettoie l'adresse ; un lien expiré arrive avec #error_code=….
-  const URL_HASH = String(location.hash || "");
-  const IS_RECOVERY = /(^|[#&])type=recovery(&|$)/.test(URL_HASH);
-  const LINK_ERROR = (/(^|[#&])error_code=([^&]+)/.exec(URL_HASH) || [])[2] || "";
+  const hashParams = new URLSearchParams(location.hash.slice(1));
+  const IS_RECOVERY = hashParams.get("type") === "recovery";
+  const LINK_ERROR = hashParams.get("error_code") || "";
+  function clearUrlHash() {
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { /* ignoré */ }
+  }
 
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY, {
     // detectSessionInUrl : nécessaire pour ouvrir la session du lien de récupération.
@@ -75,54 +78,47 @@
 
   // Arrivée par le lien « mot de passe oublié » : on demande le nouveau mot de
   // passe AVANT d'ouvrir l'application.
-  let recoveryMode = false;
   function showRecovery() {
-    recoveryMode = true;
-    const t = $("#pwTitle"), st = $("#pwSub");
-    if (t) t.textContent = "Nouveau mot de passe";
-    if (st) st.textContent = "Choisissez votre nouveau mot de passe pour accéder à Rex Seller.";
+    $("#pwTitle").textContent = "Nouveau mot de passe";
+    $("#pwSub").textContent = "Choisissez votre nouveau mot de passe pour accéder à Rex Seller.";
     showPwGate();
   }
-  sb.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") showRecovery(); });
 
   /* ---------- « Mot de passe oublié ? » ---------- */
   const forgotForm = $("#forgotForm");
-  const forgotEmail = $("#forgotEmail");
-  const forgotInfo = $("#forgotInfo");
-  const forgotError = $("#forgotError");
-  const forgotSubmit = $("#forgotSubmit");
-  function showForgot(show) {
-    if (form) form.hidden = show;
-    if (forgotForm) forgotForm.hidden = !show;
-    if (show && forgotEmail) {
-      if (forgotInfo) forgotInfo.hidden = true;
-      if (forgotError) forgotError.hidden = true;
-      forgotEmail.value = (emailEl && emailEl.value || "").trim();
-      forgotEmail.focus();
-    }
-  }
-  const btnForgot = $("#authForgot");
-  if (btnForgot) btnForgot.addEventListener("click", () => showForgot(true));
-  const btnForgotBack = $("#forgotBack");
-  if (btnForgotBack) btnForgotBack.addEventListener("click", () => showForgot(false));
   if (forgotForm) {
+    const forgotEmail = $("#forgotEmail");
+    const forgotInfo = $("#forgotInfo");
+    const forgotError = $("#forgotError");
+    const forgotSubmit = $("#forgotSubmit");
+    const setForgotInfo = (m) => { forgotInfo.textContent = m || ""; forgotInfo.hidden = !m; };
+    const setForgotErr = (m) => { forgotError.textContent = m || ""; forgotError.hidden = !m; };
+    const showForgot = (show) => {
+      form.hidden = show;
+      forgotForm.hidden = !show;
+      if (!show) return;
+      setForgotInfo(""); setForgotErr("");
+      forgotEmail.value = (emailEl.value || "").trim();
+      forgotEmail.focus();
+    };
+    $("#authForgot").addEventListener("click", () => showForgot(true));
+    $("#forgotBack").addEventListener("click", () => showForgot(false));
     forgotForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      forgotInfo.hidden = true; forgotError.hidden = true;
+      setForgotInfo(""); setForgotErr("");
       const email = (forgotEmail.value || "").trim();
-      if (!email) { forgotError.textContent = "Indiquez votre adresse e-mail."; forgotError.hidden = false; return; }
+      if (!email) { setForgotErr("Indiquez votre adresse e-mail."); return; }
       forgotSubmit.disabled = true;
       const label = forgotSubmit.textContent; forgotSubmit.textContent = "Envoi…";
       try {
         // Le lien ramène sur cette même page, qui ouvrira l'écran « nouveau mot de passe ».
         const redirectTo = location.origin + location.pathname;
         const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-        if (error) { forgotError.textContent = traduireAuth(error); forgotError.hidden = false; return; }
-        forgotInfo.textContent = "C'est envoyé ! Si un compte existe pour cette adresse, vous allez recevoir "
-          + "un e-mail contenant un lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.";
-        forgotInfo.hidden = false;
+        if (error) throw error;
+        setForgotInfo("C'est envoyé ! Si un compte existe pour cette adresse, vous allez recevoir "
+          + "un e-mail contenant un lien pour choisir un nouveau mot de passe. Pensez à vérifier vos courriers indésirables.");
       } catch (err) {
-        forgotError.textContent = traduireAuth(err); forgotError.hidden = false;
+        setForgotErr(traduireAuth(err));
       } finally {
         forgotSubmit.disabled = false; forgotSubmit.textContent = label;
       }
@@ -160,6 +156,9 @@
   window.RexDB = {
     me() { return myProfile; },
     isManager() { return !!myProfile && myProfile.role !== "commercial"; },
+    // Accès aux outils de gestion (console d'administration, pilotage) :
+    // responsables et administrateur (is_dev).
+    canManage() { return !!myProfile && (myProfile.role !== "commercial" || !!myProfile.is_dev); },
     roleLabel(role) { return ROLE_LABEL[role] || role || ""; },
     authorName(id) {
       const p = teamById[id];
@@ -397,17 +396,11 @@
       pwSubmit.disabled = true;
       const label = pwSubmit.textContent; pwSubmit.textContent = "Enregistrement…";
       try {
-        const { error } = await sb.auth.updateUser({ password: p1 });
+        const { data, error } = await sb.auth.updateUser({ password: p1 });
         if (error) { setPwErr(traduireAuth(error)); return; }
         // Lève le marqueur « mot de passe provisoire » (1re connexion ou récupération).
-        const { data: { session } } = await sb.auth.getSession();
-        const uid = (myProfile && myProfile.id) || (session && session.user && session.user.id);
-        if (uid) await sb.from("profiles").update({ must_change_password: false }).eq("id", uid);
+        await sb.from("profiles").update({ must_change_password: false }).eq("id", data.user.id);
         if (myProfile) myProfile.must_change_password = false;
-        if (recoveryMode) {
-          recoveryMode = false;
-          try { history.replaceState(null, "", location.pathname + location.search); } catch (e2) { /* ignoré */ }
-        }
         hidePwGate();
         pwNew.value = ""; pwNew2.value = "";
         await loadAndStart();
@@ -436,12 +429,9 @@
     }, 12000);
     try {
       const { data: { session } } = await sb.auth.getSession();
+      if (IS_RECOVERY || LINK_ERROR) clearUrlHash();                     // jeton / erreur lus : on nettoie l'adresse
       if (IS_RECOVERY && session) { showRecovery(); return; }           // choisir le nouveau mot de passe
-      if (LINK_ERROR) {                                                  // lien expiré / déjà utilisé
-        try { history.replaceState(null, "", location.pathname + location.search); } catch (e2) { /* ignoré */ }
-        showGate(); setErr(traduireAuth({ code: LINK_ERROR }));
-        return;
-      }
+      if (LINK_ERROR) { showGate(); setErr(traduireAuth({ code: LINK_ERROR })); return; } // lien expiré / déjà utilisé
       if (session) await loadAndStart();
       else showGate();
     } catch (e) {

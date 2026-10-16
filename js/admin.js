@@ -13,6 +13,8 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  // Pour la recherche : insensible aux accents et à la casse.
+  const norm = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
   const ROLE_LABEL = { rro: "Responsable Régional", ca: "Chef d'Agence", ro: "Responsable Opérationnel", commercial: "Commercial" };
   const ROLE_ORDER = ["commercial", "ro", "ca", "rro"];   // du plus bas au plus haut
@@ -29,12 +31,11 @@
   function toast(m) { const t = $("#toast"); if (!t) return; t.textContent = m; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, 2200); }
 
   // L'administrateur (profiles.is_dev) gère l'ensemble des comptes.
-  function isAdmin() { return !!(db() && db().isDev && db().isDev()); }
+  function isAdmin() { return db().isDev(); }
 
   /* ---------- Options de rôle : en dessous du demandeur (tous pour l'admin) ---------- */
   function rolesBelowMe() {
-    if (isAdmin()) return ROLE_ORDER.slice();          // commercial, ro, ca, rro
-    const mine = order(db().myRole());
+    const mine = isAdmin() ? Infinity : order(db().myRole());
     return ROLE_ORDER.filter(r => order(r) < mine); // ex. RRO -> [commercial, ro, ca]
   }
   function renderRoleOptions(selected) {
@@ -66,20 +67,15 @@
   function renderTeam() {
     const body = $("#adminTeamBody");
     const me = myId();
-    const admin = isAdmin();
-    const title = $("#adminTeamTitle"); if (title) title.textContent = admin ? "Tous les comptes" : "Votre équipe";
-    const scope = $("#adminScope"); if (scope) scope.hidden = !admin;
-    // Recherche par nom ou e-mail (insensible aux accents et à la casse)
-    const norm = x => String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    const q = norm(($("#adminSearch") || {}).value);
+    // Recherche par nom ou e-mail
+    const raw = $("#adminSearch").value;
+    const q = norm(raw);
     const rows = db().profiles()
-      .slice()
       .filter(p => !q || norm(nameOf(p)).includes(q) || norm(p.email).includes(q))
       .sort((a, b) => order(b.role) - order(a.role) || nameOf(a).localeCompare(nameOf(b)));
-    if (!rows.length) { body.innerHTML = `<tr><td colspan="5" class="muted">Aucun compte ne correspond à « ${esc(($("#adminSearch") || {}).value)} ».</td></tr>`; return; }
+    if (!rows.length) { body.innerHTML = `<tr><td colspan="5" class="muted">Aucun compte ne correspond à « ${esc(raw)} ».</td></tr>`; return; }
     body.innerHTML = rows.map(p => {
-      const mgr = p.manager_id ? db().profiles().find(x => x.id === p.manager_id) : null;
-      const mgrName = mgr ? esc(nameOf(mgr)) : "—";
+      const mgrName = esc(db().authorName(p.manager_id));
       const isSelf = p.id === me;
       const actions = isSelf
         ? `<span class="muted">vous</span>`
@@ -202,7 +198,10 @@
   async function openAdmin() {
     setErr("");
     try { await db().reloadTeam(); } catch (e) { /* on affiche ce qu'on a */ }
-    const search = $("#adminSearch"); if (search) search.value = "";
+    const admin = isAdmin();
+    $("#adminTeamTitle").textContent = admin ? "Tous les comptes" : "Votre équipe";
+    $("#adminScope").hidden = !admin;
+    $("#adminSearch").value = "";
     resetForm();
     renderTeam();
     $("#adminModal").hidden = false;
@@ -221,15 +220,14 @@
     $("#adm_role").addEventListener("change", () => renderManagerOptions($("#adm_role").value, $("#adm_manager").value));
     $("#adm_submit").addEventListener("click", submitForm);
     $("#adm_cancel").addEventListener("click", resetForm);
-    const search = $("#adminSearch");
-    if (search) search.addEventListener("input", renderTeam);
+    $("#adminSearch").addEventListener("input", renderTeam);
   }
 
   /* ---------- Appelé par app.js après connexion ---------- */
   window.RexAdmin = {
     onBoot() {
       const btn = $("#btnAdmin");
-      const allowed = !!(db() && ((db().isManager && db().isManager()) || isAdmin()));
+      const allowed = !!db() && db().canManage();
       if (btn) btn.hidden = !allowed;
       if (allowed) wire();
     }
