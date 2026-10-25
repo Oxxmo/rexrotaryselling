@@ -215,3 +215,8 @@ body.cmd-mode{padding-bottom:24px}
 .cmd-regles{margin:4px 0 8px;padding-left:18px;font-size:.88rem;line-height:1.6}
 .cmd-apercu{margin:8px 0}
 .cmd-form textarea.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45}
+
+/* Tableau de bord : objectif par commercial */
+.dash-obj{margin:8px 0 12px}
+.dash-obj__head{display:flex;justify-content:space-between;gap:8px;font-size:.88rem;margin-bottom:4px}
+.dash-obj__head span{color:var(--muted);font-weight:600}

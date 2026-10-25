@@ -16,6 +16,7 @@ const ASSETS = [
   "./js/commando-semaine.js",
   "./js/commando.js",
   "./js/commando-console.js",
+  "./js/commando-dashboard.js",
   "./css/commando.css",
   "./js/supa.js",
   "./manifest.webmanifest",

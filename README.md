@@ -45,6 +45,35 @@ situées sous lui** dans l'organigramme (RRO → CA → RO → commercial).
   personnelles** de l'utilisateur (ses RDV + sa présentation) ; les RDV des collaborateurs
   (vue responsable) restent consultés en ligne.
 
+## Rex Commando (agence de Poitiers)
+
+Onglet **☰ → 🎯 Commando**, visible uniquement par les membres listés dans
+`commando_membres` (la restriction est appliquée par les policies RLS, pas seulement par
+l'interface). Chaque lundi matin :
+
+1. le responsable lance la **veille IA** (Edge Function `commando-veille`, API Claude avec
+   recherche web) qui propose 5 thématiques d'actualité reliées aux offres Rex-Rotary,
+   avec sources datées et vérifiées, analyse de la concurrence, règles de ciblage et
+   trames d'appel ;
+2. il en retient 3 et **publie** : chaque entreprise de la base reçoit une couleur figée
+   (vert / orange / rouge / non classée) par thématique, calculée en SQL de façon
+   déterministe (`commando_couleur`) ;
+3. les commerciaux appellent depuis **Ma liste** (chaque entreprise une seule fois, sous
+   sa meilleure couleur) avec la trame adaptée, et notent le résultat en un clic ;
+4. après chaque RDV, un bandeau demande s'il a eu lieu ;
+5. le tableau de bord **Efficacité** montre si les cibles vertes produisent plus de RDV
+   (avertissement sous 30 appels). Objectif : 5 RDV par commercial et par semaine.
+
+La base d'entreprises (établissements actifs de 51 codes postaux, tranches 3 à 49
+salariés) est mise à jour chaque dimanche soir depuis l'API Recherche d'entreprises
+(Edge Function `commando-import`, job pg_cron). Clients et oppositions RGPD sont exclus
+des listes.
+
+- Brief, prompt de veille et plan : [`docs/commando/`](docs/commando/)
+- Migrations : [`supabase/migrations/`](supabase/migrations/) (`commando_*`)
+- Tests : [`supabase/tests/`](supabase/tests/) (SQL) et `supabase/functions/_shared/validation_test.ts` (Deno)
+- Fonctions serveur et secrets : [`supabase/functions/README.md`](supabase/functions/README.md)
+
 ## Mise en place de la base (à faire une seule fois)
 
 1. **Créer le projet Supabase** (région Europe) — noter l'*URL du projet* et la
@@ -101,12 +130,20 @@ js/config.js             URL + clé publique Supabase
 js/vendor/supabase.js    Bibliothèque Supabase (hébergée localement, pas de CDN)
 js/offline.js            Cache local + file de synchronisation (mode hors-ligne)
 js/supa.js               Authentification + accès aux données (Row-Level Security)
+js/commando-core.js      Rex Commando : accès, navigation, utilitaires
+js/commando.js           Rex Commando : écran commercial (Ma liste, fiche, appels)
+js/commando-semaine.js   Rex Commando : console de la semaine (veille, propositions, publication)
+js/commando-console.js   Rex Commando : base, secteurs, membres, imports, paramètres
+js/commando-dashboard.js Rex Commando : tableau de bord d'efficacité
+css/commando.css         Styles de l'onglet Commando
 js/admin.js              Console d'administration des comptes (responsables)
 js/tickets.js            Système de tickets (demandes / bugs)
 js/data.js               Structure du livret + critères de l'affaire
 js/app.js                Logique (saisie, sauvegarde en base, synthèses)
 supabase/schema.sql      Schéma de la base + règles de visibilité hiérarchique
-supabase/functions/      Edge Function « manage-users » (gestion des comptes)
+supabase/functions/      Edge Functions : manage-users, commando-import, commando-veille
+supabase/migrations/     Migrations Rex Commando
+supabase/tests/          Tests SQL (accès, moteur de couleurs)
 manifest.webmanifest     Manifeste PWA (installation)
 sw.js                    Service worker (cache de l'app ; données toujours en ligne)
 assets/icon.svg          Icône

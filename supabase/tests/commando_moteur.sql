@@ -309,4 +309,33 @@ begin
 end $$;
 select pg_temp.redevenir_admin();
 
+-- ------------------------------------------------------------
+-- 8) Tableau de bord : commando_stats (responsable) et export
+-- ------------------------------------------------------------
+select pg_temp.devenir(:'scott');
+do $$
+declare r jsonb; n int;
+begin
+  r := public.commando_stats();
+  assert (r->'total'->>'appels')::int = 1, 'stats : 1 appel : ' || (r->'total')::text;
+  assert (r->'total'->>'echantillon_insuffisant')::boolean, 'stats : échantillon < 30 signalé';
+  assert (select count(*) from jsonb_array_elements(r->'par_couleur') c where c->>'couleur' = 'vert' and (c->>'appels')::int = 1) = 1, 'stats par couleur';
+  assert jsonb_array_length(r->'semaine_courante_par_commercial') = 3, 'stats : 3 commerciaux membres face à l''objectif';
+  select count(*) into n from public.commando_appels_export();
+  assert n = 1, 'export CSV : 1 ligne';
+  raise notice 'OK 8 : tableau de bord et export';
+end $$;
+select pg_temp.redevenir_admin();
+-- Un commercial n'a pas accès aux statistiques globales
+select pg_temp.devenir(:'teo');
+do $$
+begin
+  begin
+    perform public.commando_stats();
+    assert false, 'un commercial a pu lire les statistiques';
+  exception when insufficient_privilege then null; end;
+  raise notice 'OK 9 : statistiques réservées au responsable';
+end $$;
+select pg_temp.redevenir_admin();
+
 rollback;
