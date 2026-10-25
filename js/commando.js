@@ -24,6 +24,7 @@
   const STATUTS = { injoignable: "Injoignable", rappeler: "À rappeler", refus: "Refus", rdv: "RDV pris" };
   const RDV_STATUTS = { prevu: "prévu", honore: "honoré", annule: "annulé", reporte: "reporté" };
   const COULEUR_LABEL = { vert: "Vert", orange: "Orange", rouge: "Rouge" };
+  const RECOMPENSES = { premier_rdv: "Premier RDV de l'heure", rdv_bonus: "RDV pris", fiche_mystere: "Fiche mystère (pronostic tenu)", fidele: "Fidèle de la semaine" };
 
   /* ---------- État ---------- */
   let semaines = [];          // semaines publiées (les 8 dernières)
@@ -113,7 +114,7 @@
     return `<button class="cmd-item ${r.deja_appelee ? "cmd-item--bloque" : ""} cmd-item--${r.couleur || "non"}" data-siret="${esc(r.siret)}">
       <div class="cmd-item__top">
         <span class="cmd-item__nom">${esc(r.raison_sociale)}${r.enseigne && r.enseigne !== r.raison_sociale ? ` <small>· ${esc(r.enseigne)}</small>` : ""}</span>
-        <span class="cmd-item__badges">${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${badgeCouleur(r.couleur)}</span>
+        <span class="cmd-item__badges">${r.recompense ? `<span class="cmd-badge cmd-badge--warn" title="${esc(RECOMPENSES[r.recompense] || "")}">🎁</span>` : ""}${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${badgeCouleur(r.couleur)}</span>
       </div>
       <div class="cmd-item__meta">${esc(r.naf_libelle || r.naf_code || "")} · ${esc(trancheLabel(r.tranche_effectif, r.annee_effectif))} · ${esc(ancienneteLabel(r.anciennete))} · ${esc(r.commune || r.code_postal)}</div>
       <div class="cmd-item__theme">🎯 ${esc(r.thematique_titre || "")}${r.telephone ? ` · ☎︎ ${esc(r.telephone)}` : ""}</div>
@@ -134,14 +135,16 @@
     return `<select id="listeSemaine" class="cmd-sem">${semaines.map(s => `<option value="${s.id}" ${semaine && s.id === semaine.id ? "selected" : ""}>${esc(C().fmtSemaine(s.semaine))}</option>`).join("")}</select>`;
   }
   async function renderListe(el) {
-    el.innerHTML = `<div id="listeHead"></div><div id="listeRdv"></div><div id="listeFiltres"></div><div id="listeBody"></div>`;
+    el.innerHTML = `<div id="listeHead"></div><div id="listeJeux"></div><div id="listeRdv"></div><div id="listeFiltres"></div><div id="listeBody"></div>`;
   }
   async function showListe(el) {
     el.querySelector("#listeBody").innerHTML = `<p class="cmd-empty"><span class="cmd-spin"></span>Chargement…</p>`;
     await chargerSemaines();
     await chargerSemaine();
     await rendreTete(el);
+    await rendreJeux(el);
     await rendreConfirmations(el);
+    C().poll(() => rendreJeux(el), 30000);
     el.querySelector("#listeFiltres").innerHTML = semaine ? barreFiltres(true) : "";
     brancherFiltres(el, () => rendreListe(el.querySelector("#listeBody"), lignes, lignes));
     if (!semaine) {
@@ -166,6 +169,69 @@
     const sel = head.querySelector("#listeSemaine");
     if (sel) sel.addEventListener("change", async () => { semaine = semaines.find(s => s.id === sel.value); themeActif = null; await showListe(el); });
   }
+  /* ---------- Jeux de l'heure : premier RDV, pronostic, fiches gagnées ---------- */
+  function heureCourte(ts) {
+    try { return new Date(ts).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" }); } catch (e) { return "—"; }
+  }
+  function creneauCourt(ts) {
+    const h = Number(new Date(ts).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit" }).slice(0, 2));
+    return `${h}h–${h + 1}h`;
+  }
+  async function rendreJeux(el) {
+    const box = el.querySelector("#listeJeux");
+    if (!box) return;
+    if (!semaine) { box.innerHTML = ""; return; }
+    let j;
+    try { j = await C().rpc("commando_jeux_etat", { _semaine_id: semaine.id }) || {}; } catch (e) { box.innerHTML = ""; return; }
+    const actifs = j.actifs || {};
+    const c = j.creneau || {};
+    const me = C().me().id;
+    if (!actifs.premier_rdv && !actifs.pronostic && !(j.recompenses || []).length) { box.innerHTML = ""; return; }
+    const blocs = [];
+    if (actifs.premier_rdv) {
+      const p = c.premier_rdv;
+      blocs.push(`<div class="cmd-jeu">
+        <div class="cmd-jeu__titre">🥇 Premier RDV de l'heure</div>
+        ${p ? `<div>${p.commercial_id === me ? `<b>C'est vous !</b> RDV à ${esc(heureCourte(p.a))} : vos fiches premium sont dans « Mes fiches gagnées ».` : `<b>${esc(C().prenomDe(p.commercial_id))}</b> à ${esc(heureCourte(p.a))}. Chaque RDV suivant vaut encore une fiche.`}</div>`
+            : `<div class="muted">Personne encore sur ce créneau : le premier RDV rapporte 5 fiches premium du secteur libre, les suivants 1 fiche chacun.</div>`}
+      </div>`);
+    }
+    if (actifs.pronostic) {
+      const pr = c.pronostic;
+      let corps;
+      if (pr) {
+        corps = `<div>Votre pronostic : <b>${esc(pr.annonce)} RDV</b> · pris sur le créneau : <b>${esc(c.mes_rdv || 0)}</b>${pr.resolu ? (pr.reussi ? ` · <span class="cmd-badge cmd-badge--ok">✔︎ tenu, fiche mystère débloquée</span>` : ` · <span class="cmd-badge cmd-badge--gris">manqué, ça ira mieux au prochain créneau</span>`) : ` · <span class="muted">résultat à la fin du créneau</span>`}</div>`;
+      } else if (c.peut_pronostiquer) {
+        corps = `<div class="cmd-row">Combien de RDV sur ce créneau ?
+          <select id="jeuProno" class="cmd-sem">${[1, 2, 3, 4, 5].map(v => `<option value="${v}">${v}</option>`).join("")}</select>
+          <button id="jeuPronoBtn" class="btn btn--primary btn--sm">Je m'engage</button>
+          <span class="muted">Tenir son pronostic débloque une fiche mystère.</span></div>`;
+      } else {
+        corps = `<div class="muted">Pronostic fermé pour ce créneau : il se fait dans les ${esc(c.delai_min || 20)} premières minutes, avant votre premier RDV.</div>`;
+      }
+      const passes = (j.pronostics_jour || []).filter(p => p.resolu);
+      blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">🎲 Pronostic du créneau ${esc(creneauCourt(c.debut))}</div>${corps}
+        ${passes.length ? `<div class="muted" style="margin-top:6px">Aujourd'hui : ${passes.map(p => `${esc(creneauCourt(p.creneau))} ${esc(p.annonce)} annoncé${p.annonce > 1 ? "s" : ""} / ${esc(p.rdv_realises)} pris ${p.reussi ? "✔︎" : "✕"}`).join(" · ")}</div>` : ""}</div>`);
+    }
+    const rec = j.recompenses || [];
+    blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">🎁 Mes fiches gagnées <span class="muted">(${rec.length} · ${esc(j.nb_recompenses_semaine || 0)}/${esc(j.max_fiches_semaine || 15)} cette semaine)</span></div>
+      ${rec.length ? `<div id="jeuRecompenses"></div>` : `<div class="muted">Aucune pour le moment. Les fiches gagnées viennent du secteur libre et vous sont réservées.</div>`}</div>`);
+    box.innerHTML = `<div class="cmd-card cmd-card--jeux"><h3>🎮 Jeux de l'heure · créneau ${esc(creneauCourt(c.debut))}</h3>${blocs.join("")}</div>`;
+    const btn = box.querySelector("#jeuPronoBtn");
+    if (btn) btn.addEventListener("click", async () => {
+      try {
+        await C().rpc("commando_pronostic", { _semaine_id: semaine.id, _annonce: Number(box.querySelector("#jeuProno").value) });
+        C().toast("Pronostic enregistré, bonne chance !");
+        rendreJeux(el);
+      } catch (e) { C().toast(C().erreur(e)); }
+    });
+    const wrap = box.querySelector("#jeuRecompenses");
+    if (wrap) {
+      wrap.innerHTML = rec.map(carte).join("");
+      $$(".cmd-item", wrap).forEach(b => b.addEventListener("click", () => ouvrirFiche(rec.find(r => r.siret === b.dataset.siret))));
+    }
+  }
+
   // RDV dont la date est passée et qui attendent une confirmation (les miens).
   async function rendreConfirmations(el) {
     const box = el.querySelector("#listeRdv");

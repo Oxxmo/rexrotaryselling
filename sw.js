@@ -1,5 +1,5 @@
 /* Rex Seller — service worker (mode hors-ligne) */
-const CACHE = "rexseller-v26";
+const CACHE = "rexseller-v27";
 const ASSETS = [
   "./",
   "./index.html",
@@ -17,6 +17,7 @@ const ASSETS = [
   "./js/commando.js",
   "./js/commando-console.js",
   "./js/commando-dashboard.js",
+  "./js/commando-ligue.js",
   "./css/commando.css",
   "./js/supa.js",
   "./manifest.webmanifest",

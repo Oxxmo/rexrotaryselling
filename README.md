@@ -51,6 +51,18 @@ Petit onglet **🎯 Commando** dans la barre du haut, visible uniquement par les
 `commando_membres` (la restriction est appliquée par les policies RLS, pas seulement par
 l'interface). Chaque lundi matin :
 
+**Jeux du commando** (onglet 🏆 Ligue, carte « Jeux de l'heure » dans Ma liste, réglables
+dans Paramètres) : récompenses en fiches d'entreprises du secteur libre, jamais en argent.
+- *Premier RDV de l'heure* : le premier RDV d'un créneau d'une heure rapporte 5 fiches
+  premium (dirigeant connu, effectif élevé), chaque RDV suivant 1 fiche. Un RDV annulé
+  reprend sa récompense.
+- *Pronostic* : dans les 20 premières minutes du créneau, chacun annonce 1 à 5 RDV ;
+  tenir son pronostic débloque une fiche mystère.
+- *Ligue* : classement en direct (rafraîchi toutes les 10 s, son facultatif) et badges
+  Ouvreur, Marathonien, Sniper, Fidèle. Le Fidèle a le plus de RDV honorés **validés par
+  le responsable** (bloc « RDV à valider » de l'onglet Semaine) sur les 4 semaines
+  précédentes ; il reçoit 10 fiches à la publication de la semaine.
+
 1. le responsable lance la **veille IA** (Edge Function `commando-veille`, API Claude avec
    recherche web) qui propose 5 thématiques d'actualité reliées aux offres Rex-Rotary,
    avec sources datées et vérifiées, analyse de la concurrence, règles de ciblage et

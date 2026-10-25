@@ -390,6 +390,18 @@
         <label>Site public Rex-Rotary<input type="url" name="site_rex" /></label>
         <div class="wide"><b>Familles de métiers pour la veille</b> <span class="muted">— « privilégier » : la majorité des propositions s'y rattachent ; « exclure » : aucune proposition.</span>
           <div class="cmd-checks" id="famillesChamps">${Object.entries(FAMILLES).map(([k, v]) => `<label>${esc(v)} <select name="famille_${k}"><option value="neutre">neutre</option><option value="privilegier">privilégier</option><option value="exclure">exclure</option></select></label>`).join("")}</div></div>
+        <div class="wide"><b>Jeux du commando</b> <span class="muted">— récompenses en fiches du secteur libre, jamais en argent. Un RDV annulé reprend sa récompense.</span>
+          <div class="cmd-checks">
+            <label><input type="checkbox" name="jeu_premier_rdv" /> Premier RDV de l'heure (et 1 fiche par RDV suivant)</label>
+            <label><input type="checkbox" name="jeu_pronostic" /> Pronostic du créneau (fiche mystère)</label>
+            <label><input type="checkbox" name="jeu_ligue" /> Ligue et badges (le Fidèle reçoit ses fiches à la publication)</label>
+          </div></div>
+        <label>Fiches pour le premier RDV de l'heure<input type="number" name="jeu_fiches_premier_rdv" min="1" max="20" /></label>
+        <label>Fiches par RDV suivant<input type="number" name="jeu_fiches_rdv" min="0" max="5" /></label>
+        <label>Fiches du Fidèle (à la publication)<input type="number" name="jeu_fiches_fidele" min="0" max="30" /></label>
+        <label>Plafond de fiches par commercial et par semaine<input type="number" name="jeu_max_fiches_semaine" min="1" max="100" /></label>
+        <label>Fenêtre du Fidèle (semaines de RDV validés)<input type="number" name="jeu_semaines_fidele" min="1" max="12" /></label>
+        <label>Délai pour pronostiquer (minutes après le début du créneau)<input type="number" name="jeu_delai_pronostic_min" min="1" max="60" /></label>
         <label class="wide">Concurrents à surveiller (un par ligne)<textarea name="concurrents" rows="4"></textarea></label>
         <label class="wide">Consignes commerciales (injectées dans chaque veille)<textarea name="consignes" rows="6"></textarea></label>
         <label class="wide">Fiche Rex-Rotary validée (offres, services, offre d'entrée) <span id="ficheEtat" class="muted"></span><textarea name="fiche_rex" rows="10" placeholder="Rédigée par la veille au premier lancement, puis corrigée et validée ici."></textarea></label>
@@ -413,6 +425,10 @@
     ["delai_rappel_refus_semaines", "delai_rappel_injoignable_semaines", "objectif_rdv_semaine", "seuil_echantillon", "limite_generations_semaine", "modele", "site_rex", "secteur_libre_visible_par", "consignes"].forEach(k => { f[k].value = p[k] ?? ""; });
     f.concurrents.value = (p.concurrents || []).join("\n");
     Object.keys(FAMILLES).forEach(k => { f["famille_" + k].value = (p.familles || {})[k] || "neutre"; });
+    const jx = p.jeux || {};
+    f.jeu_premier_rdv.checked = jx.premier_rdv !== false; f.jeu_pronostic.checked = jx.pronostic !== false; f.jeu_ligue.checked = jx.ligue !== false;
+    f.jeu_fiches_premier_rdv.value = jx.fiches_premier_rdv ?? 5; f.jeu_fiches_rdv.value = jx.fiches_rdv ?? 1; f.jeu_fiches_fidele.value = jx.fiches_fidele ?? 10;
+    f.jeu_max_fiches_semaine.value = jx.max_fiches_semaine ?? 15; f.jeu_semaines_fidele.value = jx.semaines_fidele ?? 4; f.jeu_delai_pronostic_min.value = jx.delai_pronostic_min ?? 20;
     f.fiche_rex.value = p.fiche_rex || p.fiche_rex_brouillon || "";
     $("#ficheEtat", el).textContent = p.fiche_rex_validee_le ? `(validée le ${C().fmtDateTime(p.fiche_rex_validee_le)})` : (p.fiche_rex_brouillon ? "(brouillon de la veille, non validé)" : "(non renseignée)");
   }
@@ -432,6 +448,12 @@
       secteur_libre_visible_par: f.secteur_libre_visible_par.value,
       concurrents: f.concurrents.value.split(/\n/).map(s => s.trim()).filter(Boolean),
       familles: Object.fromEntries(Object.keys(FAMILLES).map(k => [k, f["famille_" + k].value])),
+      jeux: {
+        premier_rdv: f.jeu_premier_rdv.checked, pronostic: f.jeu_pronostic.checked, ligue: f.jeu_ligue.checked,
+        fiches_premier_rdv: Number(f.jeu_fiches_premier_rdv.value) || 5, fiches_rdv: Number(f.jeu_fiches_rdv.value) || 0,
+        fiches_fidele: Number(f.jeu_fiches_fidele.value) || 0, max_fiches_semaine: Number(f.jeu_max_fiches_semaine.value) || 15,
+        semaines_fidele: Number(f.jeu_semaines_fidele.value) || 4, delai_pronostic_min: Number(f.jeu_delai_pronostic_min.value) || 20,
+      },
       consignes: f.consignes.value,
       updated_by: C().me().id
     };

@@ -49,11 +49,12 @@
 
   /* ---------- Rendu principal ---------- */
   async function render(el) {
-    el.innerHTML = `<div id="semHead"></div><div id="semVeille"></div><div id="semProps"></div><div id="semPub"></div><div id="semSuivi"></div>`;
+    el.innerHTML = `<div id="semHead"></div><div id="semValider"></div><div id="semVeille"></div><div id="semProps"></div><div id="semPub"></div><div id="semSuivi"></div>`;
   }
   async function show(el) {
     await charger();
     rendreTete(el);
+    rendreValidation(el);
     rendreVeille(el);
     rendrePropositions(el);
     rendrePublication(el);
@@ -330,6 +331,37 @@
         await charger(); rendreTete(el); rendrePublication(el); $("#pubMsg", el).innerHTML = msg.innerHTML;
       } catch (e) { msg.innerHTML = `<div class="cmd-err">${esc(C().erreur(e))}</div>`; }
     });
+  }
+
+  /* ---------- RDV passés à valider (toutes semaines) ---------- */
+  // Seuls les RDV honorés validés ici comptent pour le badge Fidèle et les
+  // fiches du Fidèle : les RDV ont souvent lieu une ou deux semaines après l'appel.
+  async function rendreValidation(el) {
+    const box = $("#semValider", el);
+    const { data } = await sb().from("commando_appels").select("id, siret, commercial_id, date_rdv, rdv_statut, note")
+      .eq("statut", "rdv").is("rdv_valide_le", null).neq("rdv_statut", "annule").lt("date_rdv", new Date().toISOString()).order("date_rdv").limit(50);
+    const list = data || [];
+    if (!list.length) { box.innerHTML = ""; return; }
+    const { data: ents } = await sb().from("commando_entreprises").select("siret, raison_sociale").in("siret", list.map(a => a.siret));
+    const nom = {}; (ents || []).forEach(e => { nom[e.siret] = e.raison_sociale; });
+    const RDV = { prevu: "prévu", honore: "honoré (déclaré)", reporte: "reporté" };
+    box.innerHTML = `<div class="cmd-bandeau">
+      <b>✔︎ ${list.length} RDV passé${list.length > 1 ? "s" : ""} à valider</b> — votre validation alimente le badge Fidèle et les fiches du Fidèle.
+      ${list.map(a => `<div class="cmd-bandeau__item" data-id="${a.id}">
+        <span><b>${esc(nom[a.siret] || a.siret)}</b> · ${esc(C().nomDe(a.commercial_id))} · ${esc(C().fmtDateTime(a.date_rdv))} · <span class="muted">${esc(RDV[a.rdv_statut] || a.rdv_statut || "")}${a.note ? " · " + esc(a.note) : ""}</span></span>
+        <span class="cmd-bandeau__btns">
+          <button class="btn btn--sm" data-valider="honore">✔︎ Honoré</button>
+          <button class="btn btn--sm btn--danger" data-valider="annule">✕ Annulé</button>
+        </span></div>`).join("")}
+    </div>`;
+    $$("[data-valider]", box).forEach(b => b.addEventListener("click", async () => {
+      const id = b.closest(".cmd-bandeau__item").dataset.id;
+      try {
+        await C().rpc("commando_rdv_valider", { _appel_id: id, _statut: b.dataset.valider });
+        C().toast(b.dataset.valider === "honore" ? "RDV validé comme honoré" : "RDV marqué annulé");
+        rendreValidation(el);
+      } catch (e) { C().toast(C().erreur(e)); }
+    }));
   }
 
   /* ---------- Suivi : nouvelles entreprises, RDV ---------- */

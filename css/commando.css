@@ -222,3 +222,11 @@ body.cmd-mode #btnCommando{background:#fff;color:var(--rex, #c8102e);border-colo
 .dash-obj{margin:8px 0 12px}
 .dash-obj__head{display:flex;justify-content:space-between;gap:8px;font-size:.88rem;margin-bottom:4px}
 .dash-obj__head span{color:var(--muted);font-weight:600}
+
+/* ---------- Jeux du commando ---------- */
+.cmd-card--jeux{border-color:#fcd34d;background:linear-gradient(180deg,#fffbeb,#fff)}
+.cmd-jeu{padding:10px 0;border-top:1px solid #fde68a;font-size:.9rem}
+.cmd-jeu:first-of-type{border-top:0}
+.cmd-jeu__titre{font-weight:800;margin-bottom:4px}
+.cmd-jeu .cmd-row{margin:4px 0}
+.cmd-ligue__moi td{background:#fef3c7}
