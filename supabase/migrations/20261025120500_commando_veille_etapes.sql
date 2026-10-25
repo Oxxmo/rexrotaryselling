@@ -97,3 +97,15 @@ begin
     perform cron.schedule('commando_veille_relance', '20 seconds', 'select public.commando_veille_relancer()');
   end if;
 end $$;
+
+-- Le job toutes les 20 s remplit cron.job_run_details : purge quotidienne
+-- des exécutions de plus de 7 jours.
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.unschedule('commando_nettoyage_cron')
+      where exists (select 1 from cron.job where jobname = 'commando_nettoyage_cron');
+    perform cron.schedule('commando_nettoyage_cron', '0 3 * * *',
+      $job$delete from cron.job_run_details where end_time < now() - interval '7 days'$job$);
+  end if;
+end $$;
