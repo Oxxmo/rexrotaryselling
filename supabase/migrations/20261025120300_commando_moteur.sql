@@ -66,7 +66,6 @@ begin
   return null;
 end $$;
 
-alter table public.commando_thematiques drop constraint if exists commando_thematiques_regles_valides;
 alter table public.commando_thematiques
   add constraint commando_thematiques_regles_valides check (public.commando_valider_regles(regles) is null);
 
@@ -196,25 +195,33 @@ begin
     raise exception 'Semaine déjà publiée et % appel(s) enregistré(s) : l''instantané ne peut plus être recalculé', v_appels;
   end if;
 
-  delete from public.commando_ciblages where semaine_id = _semaine_id;
+  -- Instantané recalculé par insertion/mise à jour (clé thématique + siret).
+  -- Les lignes d'une thématique qui ne serait plus retenue restent en base
+  -- mais sont ignorées : toutes les lectures joignent sur statut = 'retenue'.
   insert into public.commando_ciblages (thematique_id, siret, semaine_id, couleur, regle_index, raison, secteur_code)
   select t.id, v.siret, _semaine_id, c->>'couleur', (c->>'regle_index')::int, c->>'raison', v.secteur_code
     from public.commando_thematiques t
     cross join public.commando_entreprises_v v
     cross join lateral (select public.commando_couleur(t.regles, v.naf_code, v.tranche_effectif, v.anciennete) as c) x
-   where t.semaine_id = _semaine_id and t.statut = 'retenue' and v.eligible;
+   where t.semaine_id = _semaine_id and t.statut = 'retenue' and v.eligible
+  on conflict (thematique_id, siret) do update set
+    couleur = excluded.couleur, regle_index = excluded.regle_index,
+    raison = excluded.raison, secteur_code = excluded.secteur_code;
 
   update public.commando_semaines
      set statut = 'publiee', publiee_le = now(), publiee_par = auth.uid()
    where id = _semaine_id;
 
   select jsonb_build_object(
-    'entreprises', count(distinct siret),
-    'vert', count(*) filter (where couleur = 'vert'),
-    'orange', count(*) filter (where couleur = 'orange'),
-    'rouge', count(*) filter (where couleur = 'rouge'),
-    'non_classee', count(*) filter (where couleur is null))
-  into v_res from public.commando_ciblages where semaine_id = _semaine_id;
+    'entreprises', count(distinct ci.siret),
+    'vert', count(*) filter (where ci.couleur = 'vert'),
+    'orange', count(*) filter (where ci.couleur = 'orange'),
+    'rouge', count(*) filter (where ci.couleur = 'rouge'),
+    'non_classee', count(*) filter (where ci.couleur is null))
+  into v_res
+  from public.commando_ciblages ci
+  join public.commando_thematiques t on t.id = ci.thematique_id and t.statut = 'retenue'
+  where ci.semaine_id = _semaine_id;
   return v_res;
 end $$;
 revoke all on function public.commando_publier(uuid) from public, anon;
