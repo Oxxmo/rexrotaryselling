@@ -35,7 +35,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
-import { PROMPT_VEILLE, PROMPT_VERSION, PROMPT_FICHE } from "../_shared/prompt_veille.ts";
+import { PROMPT_VEILLE, PROMPT_VERSION, PROMPT_FICHE, FORMAT_THEMATIQUE } from "../_shared/prompt_veille.ts";
 import {
   extraireJson, validerSortie, validerPropositions, collecterUrls, verifierSources, alertes, estimerCout, cumulerUsage,
   remplirPrompt, alleger, type Usage, type ThematiqueT, type PropositionT,
@@ -232,7 +232,7 @@ Chaque proposition doit contenir au moins 2 faits, chacun avec une URL réelleme
   async function etapeRedaction(gen: any, semaine: any, etat: any, budgetMs: number) {
     const vars = await contexte(semaine);
     const system = remplirPrompt(PROMPT_VEILLE, vars);
-    const i: number = (etat.ecrites || []).length;
+    const i: number = (etat.ecrites || []).length + (etat.echecs || []).length;
     const prop: PropositionT = etat.propositions[i];
     if (!prop) throw new Error("Aucune proposition à rédiger.");
     const deja = (etat.ecrites || []).map((e: any) => "« " + e.titre + " »").join(", ") || "aucune";
@@ -242,7 +242,8 @@ ${JSON.stringify(prop)}
 Thématiques déjà rédigées cette semaine (ne pas les reprendre) : ${deja}.
 
 Rédige maintenant UNIQUEMENT la thématique « ${prop.titre} » (id « ${prop.id} »), complète : offre_rex, pourquoi_maintenant, sources (reprends les URL des faits ci-dessus, uniquement celles-là), concurrence, règles de couleur (champs autorisés seulement, cohérentes avec les données de la base), trames vert / orange / rouge, 4 objections avec réponse, hypotheses.
-Réponds uniquement par l'objet JSON du format demandé ({"semaine":"${semaine.semaine}","genere_le":"…","thematiques":[ … ]}) dont le tableau « thematiques » contient exactement 1 élément.`;
+Réponds uniquement par un objet JSON (sans texte autour) qui suit EXACTEMENT ce squelette, avec "semaine" = "${semaine.semaine}" et un seul élément dans "thematiques" :
+${FORMAT_THEMATIQUE}`;
     const messages: any[] = [{ role: "user", content: consigne }];
     const debut = Date.now();
     let usage: Usage = {};
@@ -262,7 +263,13 @@ Réponds uniquement par l'objet JSON du format demandé ({"semaine":"${semaine.s
         messages.push({ role: "user", content: "Ta réponse n'est pas conforme au format demandé :\n- " + erreurs.join("\n- ") + "\nRenvoie uniquement l'objet JSON corrigé (sans texte autour), avec exactement 1 thématique." });
       } else break;
     }
-    if (!data) throw Object.assign(new Error(`Thématique « ${prop.titre} » invalide : ` + erreurs.join(" | ")), { usage, brut });
+    if (!data) {
+      // Thématique irrécupérable : écartée, la veille continue avec les suivantes
+      // (sauf régénération : une seule thématique attendue).
+      const raison = `Thématique « ${prop.titre} » non rédigée (format invalide après deux essais) : ` + erreurs.join(" | ");
+      if (gen.type === "regeneration") throw Object.assign(new Error(raison), { usage, brut });
+      return { echec: { titre: prop.titre, cle: prop.id, raison }, usage, brut };
+    }
 
     // Vérification des sources (URL réellement vues en étape 1), alertes, enregistrement immédiat.
     const urls = new Set<string>(etat.urls || []);
@@ -285,7 +292,7 @@ Réponds uniquement par l'objet JSON du format demandé ({"semaine":"${semaine.s
       });
       if (error) throw new Error("Enregistrement : " + error.message);
     }
-    return { ecrite: { titre: t.titre, cle: t.id, sources_verifiees: t.sources.filter((s: any) => s.verifiee).length, sources_total: t.sources.length }, usage, brut };
+    return { ecrite: { titre: t.titre, cle: t.id, sources_verifiees: t.sources.filter((s: any) => s.verifiee).length, sources_total: t.sources.length }, echec: null as any, usage, brut };
   }
 
   // ============================================================
@@ -322,11 +329,11 @@ Réponds uniquement par l'objet JSON du format demandé ({"semaine":"${semaine.s
       await admin.from("commando_generations").update({ etat: { ...etat, ...e } }).eq("id", genId);
       Object.assign(etat, e);
     };
-    const finir = async (extraComplet: any, erreur: string | null) => {
+    const finir = async (extraComplet: any, erreur: string | null, statut?: "terminee" | "erreur") => {
       const { reponse_brute, ...extra } = extraComplet || {};
       const u: Usage = etat.usage || {};
       await admin.from("commando_generations").update({
-        statut: erreur ? "erreur" : "terminee", terminee_le: new Date().toISOString(),
+        statut: statut || (erreur ? "erreur" : "terminee"), terminee_le: new Date().toISOString(),
         duree_ms: Date.now() - new Date(gen.lancee_le).getTime(), erreur,
         urls_recherche: etat.urls || [],
         jetons_entree: (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0), jetons_sortie: u.output_tokens || 0,
@@ -352,25 +359,28 @@ Réponds uniquement par l'objet JSON du format demandé ({"semaine":"${semaine.s
         });
       } else if (etat.phase === "redaction") {
         const r = await etapeRedaction(gen, semaine, etat, budget);
-        const ecrites = [...(etat.ecrites || []), r.ecrite];
+        const ecrites = r.ecrite ? [...(etat.ecrites || []), r.ecrite] : [...(etat.ecrites || [])];
+        const echecs = r.echec ? [...(etat.echecs || []), r.echec] : [...(etat.echecs || [])];
+        const traitees = ecrites.length + echecs.length;
         const usage = cumulerUsage(etat.usage || {}, r.usage);
         const durees = [...(etat.duree_etapes_ms || []), Date.now() - debut];
-        if (ecrites.length >= (etat.propositions || []).length) {
-          Object.assign(etat, { ecrites, usage, duree_etapes_ms: durees, libelle: "Terminée" });
+        if (traitees >= (etat.propositions || []).length) {
+          const bilan = echecs.length ? `${echecs.length} thématique(s) non rédigée(s) sur ${traitees} : ` + echecs.map((e: any) => e.raison).join(" ; ") : null;
+          Object.assign(etat, { ecrites, echecs, usage, duree_etapes_ms: durees, libelle: "Terminée" });
           await finir({
-            ecrites, usage, duree_etapes_ms: durees, libelle: "Terminée", propositions: null,
+            ecrites, echecs, usage, duree_etapes_ms: durees, libelle: "Terminée", propositions: null,
             reponse_brute: { stop_reason: r.brut?.stop_reason, content: alleger(r.brut?.content), resume: {
-              thematiques: ecrites.length,
+              thematiques: ecrites.length, non_redigees: echecs.length,
               sources_verifiees: ecrites.reduce((a: number, e: any) => a + e.sources_verifiees, 0),
               sources_total: ecrites.reduce((a: number, e: any) => a + e.sources_total, 0),
             } },
-          }, null);
+          }, bilan, ecrites.length ? "terminee" : "erreur");
         } else {
-          const suivante = etat.propositions[ecrites.length];
+          const suivante = etat.propositions[traitees];
           await patchEtat({
-            ecrites, usage, etape: ecrites.length + 2, tentatives: 0, en_vol: false,
-            relance_apres: dansSecondes(DELAI_RELANCE_S), duree_etapes_ms: durees, note: null,
-            libelle: `Rédaction de la thématique ${ecrites.length + 1}/${etat.propositions.length} : ${suivante.titre}`,
+            ecrites, echecs, usage, etape: traitees + 2, tentatives: 0, en_vol: false,
+            relance_apres: dansSecondes(DELAI_RELANCE_S), duree_etapes_ms: durees, note: r.echec ? "une thématique écartée (format invalide)" : null,
+            libelle: `Rédaction de la thématique ${traitees + 1}/${etat.propositions.length} : ${suivante.titre}`,
           });
         }
       } else if (etat.phase === "fiche") {

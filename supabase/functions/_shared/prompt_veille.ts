@@ -7,7 +7,7 @@
 //  Les {{variables}} sont remplies par la fonction commando-veille.
 // ============================================================
 
-export const PROMPT_VERSION = 1;
+export const PROMPT_VERSION = 2;
 
 export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agence Rex-Rotary de Poitiers. Chaque lundi matin, le responsable commercial lance la veille. Tu lui proposes **5 thématiques d'appel** pour le commando téléphonique de la semaine. Il en retiendra 3. Ses commerciaux appelleront ensuite des TPE et PME de la Vienne (86) pour obtenir des rendez-vous.
 
@@ -53,6 +53,37 @@ export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agenc
 
 Réponds **uniquement** par un objet JSON valide, sans texte avant ni après, conforme au format de \`thematiques_exemple.json\` : \`semaine\`, \`genere_le\`, et un tableau \`thematiques\` de 5 éléments. Chaque élément contient \`id\`, \`titre\`, \`offre_rex\`, \`pourquoi_maintenant\`, \`sources\`, \`concurrence\` (\`constat\`, \`angle_rex\`, \`sources\`), \`regles\`, \`trames\` (\`vert\`, \`orange\`, \`rouge\`), \`objections\` et \`hypotheses\`.
 `;
+
+// Squelette exact d'une thématique (le modèle ne dispose pas du fichier
+// thematiques_exemple.json cité dans le prompt) : fourni à chaque étape de
+// rédaction. Chaque règle porte obligatoirement un objet « si ».
+export const FORMAT_THEMATIQUE = `{
+  "semaine": "AAAA-Www",
+  "genere_le": "AAAA-MM-JJ",
+  "thematiques": [
+    {
+      "id": "identifiant-court",
+      "titre": "Titre de la thématique",
+      "offre_rex": "Offre de la fiche Rex concernée",
+      "pourquoi_maintenant": "Pourquoi appeler cette semaine (faits sourcés)",
+      "sources": [{"url": "https://…", "titre": "Titre de la page", "date": "AAAA-MM-JJ"}],
+      "concurrence": {"constat": "…", "angle_rex": "…", "sources": [{"url": "https://…", "titre": "…", "date": "AAAA-MM-JJ"}]},
+      "regles": [
+        {"couleur": "vert",   "si": {"naf_prefixes": ["62", "69"], "tranches": ["03", "11", "12"], "anciennete": ["plus_5"]}, "raison": "Pourquoi ces entreprises sont les plus réceptives"},
+        {"couleur": "orange", "si": {"tranches": ["03", "11", "12"], "naf_exclus": ["84"]}, "raison": "…"},
+        {"couleur": "rouge",  "si": {"tranches": ["02"]}, "raison": "…"}
+      ],
+      "trames": {
+        "vert":   {"accroche": "3 phrases au plus", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"},
+        "orange": {"accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"},
+        "rouge":  {"accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"}
+      },
+      "objections": [{"objection": "…", "reponse": "…"}],
+      "hypotheses": ["Supposition non sourcée, le cas échéant"]
+    }
+  ]
+}
+Règles : « si » est un objet obligatoire dont les seules clés autorisées sont naf_prefixes, naf_exclus, tranches (parmi 02, 03, 11, 12, 21) et anciennete (parmi moins_3, 3_5, plus_5) ; toute autre clé est refusée. Une règle sans condition ({"si": {}}) ne peut être que la dernière.`;
 
 // Régénération d'une seule proposition : même prompt système, consigne
 // utilisateur différente (voir commando-veille/index.ts).
