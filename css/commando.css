@@ -12,6 +12,8 @@ body.cmd-mode #rdvChip,
 body.cmd-mode .progress-ring,
 body.cmd-mode #saveStatus{display:none !important}
 body.cmd-mode{padding-bottom:24px}
+/* Onglet de la barre du haut : état « actif » quand le commando est ouvert */
+body.cmd-mode #btnCommando{background:#fff;color:var(--rex, #c8102e);border-color:#fff}
 
 .cmd{max-width:1080px;margin:0 auto;padding:14px 18px 40px;animation:fadeIn .25s ease both}
 .cmd__bar{

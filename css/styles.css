@@ -178,6 +178,13 @@ a:hover{color:var(--rex-dark)}
   font-size:1.15rem;padding:8px 13px;border-radius:var(--radius-sm);
 }
 .appbar__menu:hover{background:rgba(255,255,255,.28)}
+/* Petit onglet « Commando » dans la barre du haut (membres du commando) */
+.appbar__tab{
+  border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.14);color:#fff;
+  font:inherit;font-weight:700;font-size:.78rem;letter-spacing:.01em;white-space:nowrap;
+  padding:7px 12px;border-radius:999px;cursor:pointer;transition:background .15s,transform .15s;
+}
+.appbar__tab:hover{background:rgba(255,255,255,.28);transform:translateY(-1px)}
 
 /* ============================================================
    Panneau « rendez-vous » (feuille modale)
@@ -745,6 +752,7 @@ body.booting .topbar,body.booting .page,body.booting .dock-wrap{display:none !im
   .save-status{font-size:.64rem;padding:4px 9px}
   .sync-badge{font-size:.64rem;padding:4px 9px}
   .appbar__menu{font-size:1.05rem;padding:7px 11px}
+  .appbar__tab{font-size:.72rem;padding:6px 9px}
   .page{margin-top:16px;padding:0 12px}
   .hero{margin-bottom:14px}
   .hero__title{font-size:1.25rem}

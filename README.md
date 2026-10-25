@@ -47,7 +47,7 @@ situées sous lui** dans l'organigramme (RRO → CA → RO → commercial).
 
 ## Rex Commando (agence de Poitiers)
 
-Onglet **☰ → 🎯 Commando**, visible uniquement par les membres listés dans
+Petit onglet **🎯 Commando** dans la barre du haut, visible uniquement par les membres listés dans
 `commando_membres` (la restriction est appliquée par les policies RLS, pas seulement par
 l'interface). Chaque lundi matin :
 

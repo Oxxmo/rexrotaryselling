@@ -280,8 +280,9 @@ rempli et ce calcul actualisé avant le premier appel réel (point d'arrêt du b
 ## 6. Front : l'onglet « Commando »
 
 - **Accès** : au démarrage, `supa.js` lit `commando_membres` pour l'utilisateur (zéro ligne pour
-  un non-membre). `RexDB.commando()` expose `{ membre, role }`. Un bouton « 🎯 Commando » apparaît
-  dans le panneau ☰ (et une pastille dans la barre rouge) uniquement pour les membres.
+  un non-membre). `RexDB.commando()` expose `{ membre, role }`. Un petit onglet « 🎯 Commando »
+  apparaît dans la barre du haut (à gauche du ☰) uniquement pour les membres ; rien n'est
+  affiché aux autres, ni dans le menu ☰ ni dans les « Nouveautés ».
 - **Une vue plein écran** (`<section id="commandoView">`) qui remplace le livret, avec un bouton
   « ← Livret » pour revenir. Sous-onglets :
   1. **Ma liste** (commerciaux et responsable) ;
