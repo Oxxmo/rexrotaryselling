@@ -198,3 +198,20 @@ body.cmd-mode{padding-bottom:24px}
   .cmd-sem{margin-left:0;width:100%}
   .cmd-filtres select{flex:1 1 45%}
 }
+
+/* ============================================================
+   Console de la semaine : propositions
+   ============================================================ */
+.cmd-prop{border-left:6px solid var(--line)}
+.cmd-prop--retenue{border-left-color:#16a34a}
+.cmd-prop--ecartee{border-left-color:#a8a29e;opacity:.7}
+.cmd-prop--proposee{border-left-color:#3b82f6}
+.cmd-prop__head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.cmd-prop h3{font-size:1.08rem;color:var(--rex-dark)}
+.cmd-prop h4{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cmd-prop details{margin:10px 0;font-size:.9rem}
+.cmd-prop summary{cursor:pointer;font-weight:800;color:var(--ink-soft)}
+.cmd-sources{margin:4px 0 8px;padding-left:18px;font-size:.86rem;line-height:1.55}
+.cmd-regles{margin:4px 0 8px;padding-left:18px;font-size:.88rem;line-height:1.6}
+.cmd-apercu{margin:8px 0}
+.cmd-form textarea.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45}

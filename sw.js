@@ -13,6 +13,7 @@ const ASSETS = [
   "./js/tickets.js",
   "./js/pilotage.js",
   "./js/commando-core.js",
+  "./js/commando-semaine.js",
   "./js/commando.js",
   "./js/commando-console.js",
   "./css/commando.css",
