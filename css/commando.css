@@ -1,0 +1,123 @@
+/* ============================================================
+   Rex Commando — styles de l'onglet (vue plein écran)
+   ------------------------------------------------------------
+   S'appuie sur les variables et composants de styles.css
+   (.btn, .grid, .tbl-scroll, .pilot-card, .admin-grid, .tab).
+   ============================================================ */
+
+/* En mode commando, le livret et son dock s'effacent ; la barre rouge reste. */
+body.cmd-mode .page,
+body.cmd-mode .dock-wrap,
+body.cmd-mode #rdvChip,
+body.cmd-mode .progress-ring,
+body.cmd-mode #saveStatus{display:none !important}
+body.cmd-mode{padding-bottom:24px}
+
+.cmd{max-width:1080px;margin:0 auto;padding:14px 18px 40px;animation:fadeIn .25s ease both}
+.cmd__bar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;
+}
+.cmd__title{display:flex;align-items:baseline;gap:10px;font-weight:800;font-size:1.15rem;letter-spacing:-.01em}
+.cmd__title small{font-size:.74rem;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.cmd__tabs{
+  display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px;
+  margin-left:auto;max-width:100%;
+}
+.cmd__tabs::-webkit-scrollbar{display:none}
+.cmd__tabs .tab{background:#fff;border:1px solid var(--line-2)}
+.cmd__tabs .tab--active,.cmd__tabs .tab--active:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
+.cmd__body{min-height:200px}
+.cmd__pane{display:none;animation:fadeIn .25s ease both}
+.cmd__pane--active{display:block}
+
+/* Cartes et sections */
+.cmd-card{
+  background:var(--card);border:1px solid var(--line-soft);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;margin-bottom:16px;
+}
+.cmd-card h3{font-size:1rem;font-weight:800;margin-bottom:4px}
+.cmd-card h4{font-size:.86rem;font-weight:800;margin:14px 0 6px;color:var(--ink-soft)}
+.cmd-card .muted{margin-bottom:10px}
+.cmd-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.cmd-row .grow{flex:1 1 200px}
+.cmd-note{
+  font-size:.8rem;color:var(--muted);background:var(--rex-soft);padding:9px 11px;border-radius:10px;margin:8px 0;
+}
+.cmd-err{
+  background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-line);
+  padding:10px 12px;border-radius:10px;font-size:.85rem;margin:8px 0;
+}
+.cmd-ok{background:var(--ok-bg);color:var(--ok-fg);padding:10px 12px;border-radius:10px;font-size:.85rem;margin:8px 0}
+.cmd-empty{color:var(--muted);font-size:.9rem;padding:20px;text-align:center}
+
+/* Tableaux : cellules de saisie compactes */
+.cmd table.grid{min-width:0}
+.cmd table.grid td{padding:7px 10px;font-size:.85rem;vertical-align:middle}
+.cmd table.grid td.num{text-align:right;font-variant-numeric:tabular-nums}
+.cmd table.grid td select,.cmd table.grid td input{
+  width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;
+  font-size:.86rem;font-family:inherit;background:#fff;color:var(--ink);
+}
+.cmd table.grid td input[type=text]{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:.86rem}
+.cmd table.grid tr.total td{font-weight:800;background:var(--tile)}
+.cmd table.grid th.num{text-align:right}
+
+/* Pastilles de couleur et de statut */
+.cmd-badge{
+  display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;
+  font-size:.72rem;font-weight:800;white-space:nowrap;background:var(--tile);color:var(--ink-dim);
+}
+.cmd-badge--vert{background:#dcfce7;color:#166534}
+.cmd-badge--orange{background:#ffedd5;color:#9a3412}
+.cmd-badge--rouge{background:#fee2e2;color:#991b1b}
+.cmd-badge--gris{background:#e7e5e4;color:#44403c}
+.cmd-badge--ok{background:var(--ok-bg);color:var(--ok-fg)}
+.cmd-badge--err{background:var(--danger-bg);color:var(--danger)}
+.cmd-badge--warn{background:#fef3c7;color:#92400e}
+.cmd-badge--info{background:#dbeafe;color:#1e40af}
+
+/* Formulaires (paramètres) */
+.cmd-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cmd-form label{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:.8rem;color:var(--ink-soft)}
+.cmd-form label.wide{grid-column:1 / -1}
+.cmd-form input,.cmd-form select,.cmd-form textarea{
+  padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  font-size:.95rem;font-weight:400;font-family:inherit;background:var(--field);color:var(--ink);
+}
+.cmd-form textarea{resize:vertical;min-height:80px;line-height:1.45}
+.cmd-form input:focus,.cmd-form select:focus,.cmd-form textarea:focus{
+  outline:none;border-color:var(--rex);background:#fff;box-shadow:0 0 0 3px var(--rex-light);
+}
+.cmd-checks{display:flex;gap:12px;flex-wrap:wrap;font-weight:600;font-size:.86rem}
+.cmd-checks label{display:flex;flex-direction:row;align-items:center;gap:6px;font-weight:600;font-size:.86rem}
+
+/* Cartes d'indicateurs */
+.cmd-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:10px 0 14px}
+.cmd-cards .pilot-card{padding:12px 14px}
+.cmd-cards .pilot-card__val{font-size:1.3rem}
+
+/* Liste des imports */
+.cmd-imports .import-line{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line-soft);
+}
+.cmd-imports .import-line:last-child{border-bottom:0}
+.import-line__when{font-weight:800;font-size:.86rem;min-width:140px}
+.import-line__sum{color:var(--muted);font-size:.8rem;flex:1 1 200px}
+.import-detail{margin-top:10px}
+.import-detail pre{
+  font-size:.74rem;background:var(--field);border:1px solid var(--line);border-radius:10px;
+  padding:10px;overflow:auto;max-height:260px;
+}
+
+/* Spinner léger */
+.cmd-spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--rex);border-radius:50%;animation:cmdspin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes cmdspin{to{transform:rotate(360deg)}}
+
+@media (max-width:640px){
+  .cmd{padding:10px 12px 30px}
+  .cmd__bar{gap:8px}
+  .cmd__tabs{margin-left:0;width:100%}
+  .cmd-form{grid-template-columns:1fr}
+  .cmd-card{padding:14px;border-radius:16px}
+  .import-line__when{min-width:0}
+}
