@@ -121,3 +121,80 @@ body.cmd-mode{padding-bottom:24px}
   .cmd-card{padding:14px;border-radius:16px}
   .import-line__when{min-width:0}
 }
+
+/* ============================================================
+   Écran commercial : listes, cartes, fiche, résultat d'appel
+   ============================================================ */
+.cmd-h{font-size:1.05rem;font-weight:800}
+.cmd-sem{padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:.86rem;font-weight:700;background:#fff;color:var(--ink);margin-left:auto}
+.cmd-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 2px 0 6px;vertical-align:1px}
+.cmd-dot--vert{background:#16a34a}.cmd-dot--orange{background:#ea580c}.cmd-dot--rouge{background:#dc2626}
+.cmd-dot:first-child{margin-left:0}
+.pilot-card--obj .pilot-card__val small{font-size:.9rem;color:var(--muted)}
+.cmd-progress{height:6px;background:var(--line-soft);border-radius:999px;margin-top:8px;overflow:hidden}
+.cmd-progress span{display:block;height:100%;background:var(--rex-grad);border-radius:999px;transition:width .4s var(--ease)}
+
+.cmd-filtres{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 12px}
+.cmd-filtres select{padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:.82rem;font-weight:600;background:#fff;color:var(--ink);max-width:100%}
+.cmd-check{display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600}
+.cmd-subtabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:4px 0 10px;padding:2px}
+.cmd-subtabs .tab{background:#fff;border:1px solid var(--line-2)}
+.cmd-subtabs .tab--active,.cmd-subtabs .tab--active:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
+.cmd-card--theme h3{color:var(--rex-dark)}
+
+/* Carte entreprise */
+.cmd-item{
+  display:block;width:100%;text-align:left;cursor:pointer;font-family:inherit;color:var(--ink);
+  background:var(--card);border:1px solid var(--line-soft);border-left:6px solid var(--line);
+  border-radius:14px;padding:12px 14px;margin-bottom:8px;box-shadow:0 1px 3px rgba(33,20,20,.04);
+  transition:transform .12s,box-shadow .15s;
+}
+.cmd-item:hover{transform:translateY(-1px);box-shadow:var(--shadow-hover)}
+.cmd-item--vert{border-left-color:#16a34a}.cmd-item--orange{border-left-color:#ea580c}.cmd-item--rouge{border-left-color:#dc2626}.cmd-item--non{border-left-color:#a8a29e}
+.cmd-item--bloque{opacity:.62}
+.cmd-item__top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.cmd-item__nom{font-weight:800;font-size:.98rem}
+.cmd-item__nom small{font-weight:600;color:var(--muted)}
+.cmd-item__badges{display:flex;gap:6px;flex-wrap:wrap}
+.cmd-item__meta{font-size:.8rem;color:var(--muted);margin-top:4px}
+.cmd-item__theme{font-size:.78rem;color:var(--ink-dim);font-weight:700;margin-top:4px}
+.cmd-item__warn{font-size:.76rem;color:#92400e;background:#fef3c7;border-radius:8px;padding:5px 8px;margin-top:7px;font-weight:600}
+.cmd-item__hist{font-size:.76rem;color:var(--muted);margin-top:5px}
+
+/* Bandeau de confirmation des RDV */
+.cmd-bandeau{background:#fef3c7;border:1px solid #fcd34d;border-radius:14px;padding:12px 14px;margin:0 0 14px;font-size:.88rem}
+.cmd-bandeau__item{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid #fde68a;margin-top:8px}
+.cmd-bandeau__btns{display:flex;gap:6px;flex-wrap:wrap}
+
+/* Fiche entreprise */
+.cmd-fiche__sub{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;font-size:.8rem}
+.cmd-fiche__grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;font-size:.9rem}
+.cmd-fiche__grid > div{display:flex;flex-direction:column;gap:2px}
+.cmd-fiche__grid small{font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cmd-fiche__grid .wide{grid-column:1 / -1}
+.cmd-fiche__grid input{padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:.95rem;background:var(--field)}
+.cmd-fiche__grid input:focus{outline:none;border-color:var(--rex);background:#fff;box-shadow:0 0 0 3px var(--rex-light)}
+.cmd-regle{font-size:.9rem;font-weight:600;background:var(--tile);padding:9px 12px;border-radius:10px;margin:0 0 6px}
+.cmd-trame{border-radius:14px;padding:4px 14px 10px;border:1px solid var(--line-soft);background:#fff;border-left-width:6px}
+.cmd-trame--vert{border-left-color:#16a34a}.cmd-trame--orange{border-left-color:#ea580c}.cmd-trame--rouge{border-left-color:#dc2626}
+.cmd-trame__bloc{margin:10px 0}
+.cmd-trame__bloc b{display:block;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.cmd-trame__bloc p{margin:0;font-size:.98rem;line-height:1.5}
+.cmd-trame__bloc ol{margin:0;padding-left:20px;font-size:.95rem;line-height:1.5}
+.cmd-obj{margin:12px 0;font-size:.9rem}
+.cmd-obj summary{cursor:pointer;font-weight:800;color:var(--rex-dark)}
+.cmd-obj__item{margin:10px 0 0;padding:8px 10px;background:var(--tile);border-radius:10px}
+.cmd-obj__item p{margin:4px 0 0;color:var(--ink-dim)}
+.cmd-resultat__btns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cmd-resultat__extra{margin-top:12px;display:flex;flex-direction:column;gap:10px}
+.cmd-resultat__extra label{display:flex;flex-direction:column;gap:5px;font-weight:700;font-size:.8rem;color:var(--ink-soft)}
+.cmd-resultat__extra input,.cmd-resultat__extra textarea{padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:.95rem;background:var(--field)}
+.cmd-hist{margin:0;padding-left:18px;font-size:.86rem;line-height:1.5}
+.cmd-hist li{margin-bottom:6px}
+
+@media (max-width:640px){
+  .cmd-fiche__grid{grid-template-columns:1fr}
+  .cmd-resultat__btns{grid-template-columns:1fr 1fr}
+  .cmd-sem{margin-left:0;width:100%}
+  .cmd-filtres select{flex:1 1 45%}
+}
