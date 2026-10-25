@@ -13,8 +13,9 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
   /* ---- Nouveautés affichées après une mise à jour (à incrémenter à chaque release) ---- */
-  const APP_VERSION = "2026-10-06";
+  const APP_VERSION = "2026-10-26";
   const WHATS_NEW = [
+    "Nouvel onglet « 🎯 Commando » (☰ → Commando) pour l'équipe de Poitiers : chaque lundi, 3 thématiques d'actualité, des entreprises classées vert / orange / rouge, la trame d'appel adaptée dans chaque fiche, et le résultat de l'appel en un clic (RDV pris, rappeler, refus, injoignable).",
     "Nouveau design : barre du haut avec anneau de progression, sections qui s'ouvrent en douceur et navigation regroupée dans une barre flottante en bas de l'écran (secteurs, Affaire, Synthèse).",
     "Le rendez-vous en cours est rappelé en haut de page et dans la barre rouge : société, date et interlocuteur toujours sous les yeux.",
     "Chaque section affiche sa progression (par ex. 3/8) et passe au vert dès qu'elle est complète.",
@@ -1433,6 +1434,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     if (window.RexAdmin && window.RexAdmin.onBoot) window.RexAdmin.onBoot();
     if (window.RexTickets && window.RexTickets.onBoot) window.RexTickets.onBoot();
     if (window.RexPilotage && window.RexPilotage.onBoot) window.RexPilotage.onBoot();
+    if (window.RexCommando && window.RexCommando.onBoot) window.RexCommando.onBoot();
     // Resynchronise les saisies hors-ligne éventuelles dès qu'on est en ligne.
     if (navigator.onLine) window.RexOffline.flush().then(updateSyncIndicator);
     // Message « Nouveautés » après une mise à jour (une fois par appareil).
