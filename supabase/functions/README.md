@@ -4,7 +4,7 @@
 |---|---|---|---|
 | `manage-users` | Gestion des comptes depuis la console d'administration | oui | aucun (clés Supabase injectées) |
 | `commando-import` | Mise à jour de la base d'entreprises du commando (API Recherche d'entreprises) | **non** (appel du job pg_cron par secret ; JWT vérifié dans le code pour l'appel manuel) | aucun obligatoire (secret partagé lu dans **Vault**) |
-| `commando-veille` | Veille IA hebdomadaire (API Claude + recherche web) | oui (et rôle « responsable » revérifié dans le code) | `ANTHROPIC_API_KEY` |
+| `commando-veille` | Veille IA hebdomadaire (API Claude + recherche web), en étapes | **non** (JWT + rôle « responsable » vérifiés dans le code ; relances internes par le secret Vault) | `ANTHROPIC_API_KEY` |
 
 Toutes s'exécutent côté serveur avec la clé `service_role`, **jamais** exposée au
 navigateur. Les droits sont revérifiés dans le code, pas seulement dans l'interface.
@@ -54,6 +54,13 @@ appeler le modèle** (point d'arrêt avant le premier appel réel).
 - Chaque génération est tracée dans `commando_generations` (modèle, version du prompt,
   prompt envoyé, jetons, recherches, coût estimé, durée, erreurs, réponse allégée).
 - Limite de générations par semaine (paramètre, 5 par défaut).
+- **Exécution en étapes courtes** (les Edge Functions sont coupées à 150 s sur l'offre
+  gratuite, 400 s sur les offres payantes) : étape 1 « recherche » (veille web, propositions
+  documentées), puis une étape « rédaction » par thématique (sans recherche, à partir des
+  notes), chaque thématique étant enregistrée dès qu'elle est validée. L'état est dans
+  `commando_generations.etat` ; le job pg_cron `commando_veille_relance` (toutes les 20 s)
+  enchaîne les étapes et relance une étape interrompue (une fois). Comptez 8 à 12 minutes
+  pour une veille complète, 3 à 4 pour une régénération, 1 pour la fiche Rex.
 
 Tests : `deno test --allow-read supabase/functions/_shared/validation_test.ts`.
 
@@ -75,7 +82,7 @@ supabase link --project-ref chryjpudxhfboutymyvf
 
 supabase functions deploy manage-users
 supabase functions deploy commando-import --no-verify-jwt
-supabase functions deploy commando-veille
+supabase functions deploy commando-veille --no-verify-jwt
 ```
 
 ### Secrets (une fois)

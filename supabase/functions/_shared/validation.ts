@@ -75,6 +75,57 @@ export const SortieVeille = z.object({
 
 export type SortieVeilleT = z.infer<typeof SortieVeille>;
 
+// ---------- Étape « recherche » : notes de veille avant rédaction ----------
+// La veille est découpée en étapes courtes (limite de durée des Edge
+// Functions) : l'étape 1 produit des propositions documentées, les étapes
+// suivantes rédigent une thématique complète à la fois.
+const Fait = z.object({
+  fait: z.string().min(1),
+  url: z.string().min(1),
+  titre: z.string().default(""),
+  date: z.string().nullable().optional(),
+}).passthrough();
+
+export const Proposition = z.object({
+  id: z.string().min(1),
+  titre: z.string().min(1),
+  sujet: z.string().default(""),
+  offre_rex: z.string().default(""),
+  pourquoi_maintenant: z.string().default(""),
+  faits: z.array(Fait).default([]),
+  concurrence: z.object({
+    constat: z.string().default(""),
+    angle_rex: z.string().default(""),
+    sources: z.array(Source).default([]),
+  }).default({ constat: "", angle_rex: "", sources: [] }),
+  pistes_regles: z.string().default(""),
+}).passthrough();
+export type PropositionT = z.infer<typeof Proposition>;
+
+export const SortieRecherche = z.object({
+  propositions: z.array(Proposition),
+}).passthrough();
+
+/** Validation des notes de veille. `attendu` = nombre de propositions demandé ; `minimum` = nombre accepté. */
+export function validerPropositions(obj: unknown, attendu: number, minimum: number = Math.min(3, attendu)):
+  { ok: true; data: PropositionT[] } | { ok: false; erreurs: string[] } {
+  if (obj === null || typeof obj !== "object") return { ok: false, erreurs: ["La réponse n'est pas un objet JSON."] };
+  const res = SortieRecherche.safeParse(obj);
+  if (!res.success) {
+    return { ok: false, erreurs: res.error.issues.slice(0, 12).map(i => (i.path.length ? i.path.join(".") + " : " : "") + i.message) };
+  }
+  const erreurs: string[] = [];
+  const props = res.data.propositions.slice(0, attendu);
+  if (props.length < minimum) erreurs.push(`${props.length} proposition(s) reçue(s), au moins ${minimum} attendue(s) (${attendu} demandées).`);
+  const ids = new Set<string>();
+  props.forEach((p, i) => {
+    if (ids.has(p.id)) erreurs.push(`Proposition ${i + 1} : identifiant « ${p.id} » en double.`);
+    ids.add(p.id);
+    if (!p.faits.length) erreurs.push(`Proposition ${i + 1} (« ${p.titre} ») : aucun fait sourcé.`);
+  });
+  return erreurs.length ? { ok: false, erreurs } : { ok: true, data: props };
+}
+
 /** Isole l'objet JSON dans la réponse (texte, éventuellement entouré de ``` ou de phrases). */
 export function extraireJson(texte: string): unknown | null {
   if (!texte) return null;

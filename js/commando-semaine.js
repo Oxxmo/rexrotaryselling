@@ -102,10 +102,10 @@
         <button id="veilleManuelle" class="btn btn--ghost btn--sm">✍️ Ajouter une thématique à la main</button>
       </div>
       ${generations.length ? `<div class="tbl-scroll" style="margin-top:10px"><table class="grid"><thead><tr><th>Lancée</th><th>Type</th><th>État</th><th>Modèle</th><th class="num">Jetons</th><th class="num">Recherches</th><th class="num">Coût</th><th class="num">Durée</th><th>Erreur</th></tr></thead><tbody>
-        ${generations.map(g => `<tr><td>${esc(C().fmtDateTime(g.lancee_le))}</td><td>${esc(g.type)}</td><td>${g.statut === "en_cours" ? `<span class="cmd-badge cmd-badge--info"><span class="cmd-spin"></span>en cours</span>` : g.statut === "erreur" ? `<span class="cmd-badge cmd-badge--err">erreur</span>` : `<span class="cmd-badge cmd-badge--ok">terminée</span>`}</td><td>${esc(g.modele || "")} v${esc(g.prompt_version || "")}</td><td class="num">${Number(g.jetons_entree || 0) + Number(g.jetons_sortie || 0) || "—"}</td><td class="num">${g.nb_recherches ?? "—"}</td><td class="num">${g.cout_estime != null ? Number(g.cout_estime).toFixed(2) + " $" : "—"}</td><td class="num">${g.duree_ms ? Math.round(g.duree_ms / 1000) + " s" : "—"}</td><td class="muted">${esc(g.erreur || "")}</td></tr>`).join("")}
+        ${generations.map(g => `<tr><td>${esc(C().fmtDateTime(g.lancee_le))}</td><td>${esc(g.type)}</td><td>${g.statut === "en_cours" ? `<span class="cmd-badge cmd-badge--info"><span class="cmd-spin"></span>en cours${g.etat && g.etat.total ? ` · étape ${esc(g.etat.etape || 1)}/${esc(g.etat.total)}` : ""}</span>${g.etat && g.etat.libelle ? `<div class="muted" style="font-size:.78rem;margin-top:3px">${esc(g.etat.libelle)}${g.etat.note ? " · " + esc(g.etat.note) : ""}</div>` : ""}` : g.statut === "erreur" ? `<span class="cmd-badge cmd-badge--err">erreur</span>` : `<span class="cmd-badge cmd-badge--ok">terminée</span>`}</td><td>${esc(g.modele || "")} v${esc(g.prompt_version || "")}</td><td class="num">${Number(g.jetons_entree || 0) + Number(g.jetons_sortie || 0) || "—"}</td><td class="num">${g.nb_recherches ?? "—"}</td><td class="num">${g.cout_estime != null ? Number(g.cout_estime).toFixed(2) + " $" : "—"}</td><td class="num">${g.duree_ms ? Math.round(g.duree_ms / 1000) + " s" : "—"}</td><td class="muted">${esc(g.erreur || "")}</td></tr>`).join("")}
       </tbody></table></div><p class="muted" style="margin-top:6px">Coût du mois (toutes semaines chargées) : ${coutMois().toFixed(2)} $.</p>` : ""}
     </div>`;
-    $("#veilleLancer", el).addEventListener("click", () => lancerVeille(el, { type: "veille" }, "Veille lancée : 2 à 5 minutes. La page se met à jour toute seule."));
+    $("#veilleLancer", el).addEventListener("click", () => lancerVeille(el, { type: "veille" }, "Veille lancée en 6 étapes (recherche, puis une thématique à la fois) : comptez 8 à 12 minutes. Les propositions apparaissent au fur et à mesure, la page se met à jour toute seule."));
     $("#veilleFiche", el).addEventListener("click", () => {
       if (!confirm("Rédiger un brouillon de fiche Rex-Rotary à partir du site public ? Vous le corrigerez ensuite dans Paramètres.")) return;
       lancerVeille(el, { type: "fiche_rex" }, "Rédaction du brouillon en cours (1 à 2 minutes).");
@@ -226,7 +226,7 @@
       const rg = $("[data-regen]", card);
       if (rg) rg.addEventListener("click", () => {
         if (!confirm("Régénérer uniquement cette proposition par la veille IA ? L'actuelle sera remplacée.")) return;
-        lancerVeille(el, { type: "regeneration", thematique_id: id }, "Régénération en cours…");
+        lancerVeille(el, { type: "regeneration", thematique_id: id }, "Régénération en 2 étapes (recherche, puis rédaction) : 3 à 4 minutes.");
       });
       $("[data-apercu]", card).addEventListener("click", async () => {
         const b = $("[data-apercu-box]", card);

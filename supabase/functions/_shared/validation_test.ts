@@ -118,3 +118,35 @@ Deno.test("alléger retire les contenus chiffrés", () => {
   assertEquals(a[0].encrypted_content, undefined);
   assertEquals(a[0].url, "u");
 });
+
+// ---------- Étape « recherche » ----------
+import { validerPropositions } from "./validation.ts";
+
+Deno.test("validerPropositions : 5 propositions documentées acceptées, extra ignoré", () => {
+  const props = Array.from({ length: 6 }, (_, i) => ({
+    id: "p" + i, titre: "Sujet " + i, faits: [{ fait: "un fait", url: "https://ex.fr/" + i, date: "2026-10-20" }],
+  }));
+  const v = validerPropositions({ propositions: props }, 5);
+  assert(v.ok);
+  if (v.ok) assertEquals(v.data.length, 5);
+});
+
+Deno.test("validerPropositions : refuse une proposition sans fait sourcé et les doublons d'id", () => {
+  const v = validerPropositions({ propositions: [
+    { id: "a", titre: "A", faits: [] },
+    { id: "a", titre: "B", faits: [{ fait: "x", url: "https://ex.fr" }] },
+    { id: "c", titre: "C", faits: [{ fait: "x", url: "https://ex.fr" }] },
+  ] }, 5);
+  assertFalse(v.ok);
+  if (!v.ok) assertEquals(v.erreurs.length, 2);
+});
+
+Deno.test("validerPropositions : régénération = 1 proposition suffit ; 2 sur 5 insuffisant", () => {
+  const ok = validerPropositions({ propositions: [{ id: "a", titre: "A", faits: [{ fait: "x", url: "https://ex.fr" }] }] }, 1);
+  assert(ok.ok);
+  const ko = validerPropositions({ propositions: [
+    { id: "a", titre: "A", faits: [{ fait: "x", url: "https://ex.fr" }] },
+    { id: "b", titre: "B", faits: [{ fait: "x", url: "https://ex.fr" }] },
+  ] }, 5);
+  assertFalse(ko.ok);
+});
