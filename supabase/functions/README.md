@@ -54,6 +54,12 @@ appeler le modèle** (point d'arrêt avant le premier appel réel).
 - Chaque génération est tracée dans `commando_generations` (modèle, version du prompt,
   prompt envoyé, jetons, recherches, coût estimé, durée, erreurs, réponse allégée).
 - Limite de générations par semaine (paramètre, 5 par défaut).
+- **Mémoire** : toutes les thématiques des 8 dernières semaines (retenues, non retenues,
+  écartées) sont transmises à la veille, et une proposition dont le titre est trop proche
+  d'un titre déjà vu (indice de Jaccard sur les mots-clés ≥ 0,5) est refusée.
+- **Familles d'offres** (paramètre `familles` : impression, ged, cyber, telephonie,
+  informatique → privilégier / neutre / exclure) : la majorité des propositions se
+  rattachent aux familles privilégiées, aucune à une famille exclue (refus automatique).
 - **Exécution en étapes courtes** (les Edge Functions sont coupées à 150 s sur l'offre
   gratuite, 400 s sur les offres payantes) : étape 1 « recherche » (veille web, propositions
   documentées), puis une étape « rédaction » par thématique (sans recherche, à partir des

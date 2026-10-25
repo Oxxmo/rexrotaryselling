@@ -15,6 +15,7 @@
   const sb = () => C().sb();
 
   const TRANCHES = { "02": "3 à 5", "03": "6 à 9", "11": "10 à 19", "12": "20 à 49", "21": "50 à 99" };
+  const FAMILLES = { impression: "Impression et copieurs", ged: "Gestion documentaire et dématérialisation", cyber: "Cybersécurité et réseau", telephonie: "Téléphonie", informatique: "Informatique (serveurs, sauvegarde, postes)" };
   const EXCLUSIONS = {
     ferme: "établissement fermé", diffusion_partielle: "diffusion partielle (non publiable)",
     effectif_non_renseigne: "effectif non renseigné", tranche_hors_perimetre: "tranche hors périmètre"
@@ -387,6 +388,8 @@
         <label>Limite de générations IA par semaine<input type="number" name="limite_generations_semaine" min="1" max="50" /></label>
         <label>Modèle Claude<input type="text" name="modele" /></label>
         <label>Site public Rex-Rotary<input type="url" name="site_rex" /></label>
+        <div class="wide"><b>Familles de métiers pour la veille</b> <span class="muted">— « privilégier » : la majorité des propositions s'y rattachent ; « exclure » : aucune proposition.</span>
+          <div class="cmd-checks" id="famillesChamps">${Object.entries(FAMILLES).map(([k, v]) => `<label>${esc(v)} <select name="famille_${k}"><option value="neutre">neutre</option><option value="privilegier">privilégier</option><option value="exclure">exclure</option></select></label>`).join("")}</div></div>
         <label class="wide">Concurrents à surveiller (un par ligne)<textarea name="concurrents" rows="4"></textarea></label>
         <label class="wide">Consignes commerciales (injectées dans chaque veille)<textarea name="consignes" rows="6"></textarea></label>
         <label class="wide">Fiche Rex-Rotary validée (offres, services, offre d'entrée) <span id="ficheEtat" class="muted"></span><textarea name="fiche_rex" rows="10" placeholder="Rédigée par la veille au premier lancement, puis corrigée et validée ici."></textarea></label>
@@ -409,6 +412,7 @@
     f.b_plus.value = (p.bornes_anciennete || {}).plus_5 ?? 5;
     ["delai_rappel_refus_semaines", "delai_rappel_injoignable_semaines", "objectif_rdv_semaine", "seuil_echantillon", "limite_generations_semaine", "modele", "site_rex", "secteur_libre_visible_par", "consignes"].forEach(k => { f[k].value = p[k] ?? ""; });
     f.concurrents.value = (p.concurrents || []).join("\n");
+    Object.keys(FAMILLES).forEach(k => { f["famille_" + k].value = (p.familles || {})[k] || "neutre"; });
     f.fiche_rex.value = p.fiche_rex || p.fiche_rex_brouillon || "";
     $("#ficheEtat", el).textContent = p.fiche_rex_validee_le ? `(validée le ${C().fmtDateTime(p.fiche_rex_validee_le)})` : (p.fiche_rex_brouillon ? "(brouillon de la veille, non validé)" : "(non renseignée)");
   }
@@ -427,6 +431,7 @@
       site_rex: f.site_rex.value.trim(),
       secteur_libre_visible_par: f.secteur_libre_visible_par.value,
       concurrents: f.concurrents.value.split(/\n/).map(s => s.trim()).filter(Boolean),
+      familles: Object.fromEntries(Object.keys(FAMILLES).map(k => [k, f["famille_" + k].value])),
       consignes: f.consignes.value,
       updated_by: C().me().id
     };

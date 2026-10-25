@@ -22,6 +22,7 @@
 
   const COULEURS = ["vert", "orange", "rouge"];
   const TRANCHES = { "02": "3 à 5", "03": "6 à 9", "11": "10 à 19", "12": "20 à 49", "21": "50 à 99" };
+  const FAMILLES = { impression: "Impression et copieurs", ged: "Gestion documentaire", cyber: "Cybersécurité et réseau", telephonie: "Téléphonie", informatique: "Informatique" };
   const ANC = { moins_3: "moins de 3 ans", "3_5": "3 à 5 ans", plus_5: "plus de 5 ans" };
   const STATUT_LABEL = { proposee: "proposée", retenue: "retenue", ecartee: "écartée" };
 
@@ -178,6 +179,7 @@
         <div>
           <span class="cmd-badge ${t.statut === "retenue" ? "cmd-badge--ok" : t.statut === "ecartee" ? "cmd-badge--gris" : "cmd-badge--info"}">${esc(STATUT_LABEL[t.statut] || t.statut)}</span>
           <span class="cmd-badge">${t.origine === "ia" ? "IA" : "manuelle"}</span>
+          ${t.famille ? `<span class="cmd-badge cmd-badge--info">${esc(FAMILLES[t.famille] || t.famille)}</span>` : ""}
           ${t.modifiee_le ? `<span class="cmd-badge">modifiée le ${esc(C().fmtDate(t.modifiee_le))}</span>` : ""}
         </div>
         <div class="admin-actions">

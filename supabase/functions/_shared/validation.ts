@@ -18,6 +18,8 @@ import { z } from "npm:zod@3";
 export const COULEURS = ["vert", "orange", "rouge"] as const;
 export const TRANCHES_OK = ["00", "01", "02", "03", "11", "12", "21", "22", "31", "32", "41", "42", "51", "52", "53"] as const;
 export const ANCIENNETE_OK = ["moins_3", "3_5", "plus_5"] as const;
+export const FAMILLES = ["impression", "ged", "cyber", "telephonie", "informatique"] as const;
+export type FamilleT = typeof FAMILLES[number];
 const NAF_PREFIXE = /^[0-9]{2}(\.?[0-9]{1,2}[A-Z]?)?$/;
 
 const Source = z.object({
@@ -60,6 +62,7 @@ export const Thematique = z.object({
     angle_rex: z.string().default(""),
     sources: z.array(Source).default([]),
   }).default({ constat: "", angle_rex: "", sources: [] }),
+  famille: z.enum(FAMILLES).optional(),
   regles: z.array(Regle).min(1, "au moins une règle"),
   trames: z.object({ vert: Trame, orange: Trame, rouge: Trame }),
   objections: z.array(Objection).default([]),
@@ -90,6 +93,7 @@ export const Proposition = z.object({
   id: z.string().min(1),
   titre: z.string().min(1),
   sujet: z.string().default(""),
+  famille: z.enum(FAMILLES).optional(),
   offre_rex: z.string().default(""),
   pourquoi_maintenant: z.string().default(""),
   faits: z.array(Fait).default([]),
@@ -106,8 +110,25 @@ export const SortieRecherche = z.object({
   propositions: z.array(Proposition),
 }).passthrough();
 
-/** Validation des notes de veille. `attendu` = nombre de propositions demandé ; `minimum` = nombre accepté. */
-export function validerPropositions(obj: unknown, attendu: number, minimum: number = Math.min(3, attendu)):
+const MOTS_VIDES = new Set(["le", "la", "les", "un", "une", "des", "de", "du", "d", "l", "et", "ou", "en", "a", "au", "aux", "pour", "sur", "dans", "sans", "avec", "se", "sa", "son", "ses", "vos", "votre", "nos", "notre", "est", "qui", "que", "ne", "pas", "plus", "ce", "ces", "cette", "par", "the", "to", "of"]);
+function motsCles(titre: string): Set<string> {
+  return new Set(String(titre).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/).filter(m => m.length > 2 && !MOTS_VIDES.has(m)));
+}
+/** Vrai si deux titres partagent l'essentiel de leurs mots-clés (indice de Jaccard ≥ seuil). */
+export function tropProche(a: string, b: string, seuil = 0.5): boolean {
+  const A = motsCles(a), B = motsCles(b);
+  if (!A.size || !B.size) return false;
+  let commun = 0;
+  for (const m of A) if (B.has(m)) commun++;
+  return commun / (A.size + B.size - commun) >= seuil;
+}
+
+export type OptionsPropositions = { exclues?: string[]; anciens?: string[] };
+
+/** Validation des notes de veille. `attendu` = nombre de propositions demandé ; `minimum` = nombre accepté ;
+ *  `options.exclues` = familles interdites ; `options.anciens` = titres déjà vus (refusés s'ils sont trop proches). */
+export function validerPropositions(obj: unknown, attendu: number, minimum: number = Math.min(3, attendu), options: OptionsPropositions = {}):
   { ok: true; data: PropositionT[] } | { ok: false; erreurs: string[] } {
   if (obj === null || typeof obj !== "object") return { ok: false, erreurs: ["La réponse n'est pas un objet JSON."] };
   const res = SortieRecherche.safeParse(obj);
@@ -122,6 +143,10 @@ export function validerPropositions(obj: unknown, attendu: number, minimum: numb
     if (ids.has(p.id)) erreurs.push(`Proposition ${i + 1} : identifiant « ${p.id} » en double.`);
     ids.add(p.id);
     if (!p.faits.length) erreurs.push(`Proposition ${i + 1} (« ${p.titre} ») : aucun fait sourcé.`);
+    if (p.famille && (options.exclues || []).includes(p.famille)) erreurs.push(`Proposition ${i + 1} (« ${p.titre} ») : famille « ${p.famille} » exclue par le responsable.`);
+    const proche = (options.anciens || []).find(a => tropProche(p.titre, a));
+    if (proche) erreurs.push(`Proposition ${i + 1} (« ${p.titre} ») : trop proche d'une thématique déjà vue (« ${proche} »).`);
+    props.slice(0, i).forEach(q => { if (tropProche(p.titre, q.titre)) erreurs.push(`Proposition ${i + 1} (« ${p.titre} ») : doublon de « ${q.titre} » dans la même veille.`); });
   });
   return erreurs.length ? { ok: false, erreurs } : { ok: true, data: props };
 }

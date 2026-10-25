@@ -35,10 +35,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
-import { PROMPT_VEILLE, PROMPT_VERSION, PROMPT_FICHE, FORMAT_THEMATIQUE } from "../_shared/prompt_veille.ts";
+import { PROMPT_VEILLE, PROMPT_VERSION, PROMPT_FICHE, FORMAT_THEMATIQUE, FAMILLES_LIBELLES } from "../_shared/prompt_veille.ts";
 import {
   extraireJson, validerSortie, validerPropositions, collecterUrls, verifierSources, alertes, estimerCout, cumulerUsage,
-  remplirPrompt, alleger, type Usage, type ThematiqueT, type PropositionT,
+  remplirPrompt, alleger, FAMILLES, type Usage, type ThematiqueT, type PropositionT,
 } from "../_shared/validation.ts";
 
 const CORS = {
@@ -146,16 +146,34 @@ Deno.serve(async (req: Request) => {
     return { texte, urls, usage, message: dernier };
   }
 
+  // Familles d'offres : privilégiées / exclues (paramètre « familles »).
+  function familles() {
+    const f: Record<string, string> = params.familles || {};
+    const priv = FAMILLES.filter(k => f[k] === "privilegier");
+    const excl = FAMILLES.filter(k => f[k] === "exclure");
+    const lib = (ks: string[]) => ks.map(k => `${FAMILLES_LIBELLES[k]} (${k})`).join(", ");
+    return { privilegiees: priv, exclues: excl, texte_privilegiees: priv.length ? lib(priv) : "aucune préférence", texte_exclues: excl.length ? lib(excl) : "aucune" };
+  }
+  // Thématiques déjà vues (8 dernières semaines, tous statuts) : titres pour le contrôle de ressemblance.
+  async function dejaVues(semaine: any) {
+    const depuis = new Date(Date.now() - 8 * 7 * 86400000).toISOString();
+    const { data } = await admin.from("commando_thematiques").select("titre, offre_rex, statut, famille, created_at, commando_semaines!inner(semaine)")
+      .neq("semaine_id", semaine.id).gte("created_at", depuis).order("created_at", { ascending: false }).limit(80);
+    return (data || []) as any[];
+  }
   /** Variables du prompt système (contexte de la semaine). */
   async function contexte(semaine: any) {
     const [stats, repartition, recents] = await Promise.all([
       Promise.resolve(admin.rpc("commando_stats", { _depuis: null, _jusqua: null })).then(r => r.data).catch(() => null),
       Promise.resolve(admin.rpc("commando_repartition_base")).then(r => r.data).catch(() => null),
-      admin.from("commando_thematiques").select("titre, offre_rex, statut, commando_semaines!inner(semaine)")
-        .eq("statut", "retenue").neq("semaine_id", semaine.id).order("created_at", { ascending: false }).limit(40).then(r => r.data || []),
+      dejaVues(semaine),
     ]);
-    const themes = (recents as any[]).map(t => `- ${t.commando_semaines?.semaine || "?"} : ${t.titre} (offre : ${t.offre_rex || "—"})`);
+    const STATUT: Record<string, string> = { retenue: "retenue, déjà appelée", proposee: "proposée, non retenue", ecartee: "écartée par le responsable" };
+    const themes = recents.map(t => `- ${t.commando_semaines?.semaine || "?"} : ${t.titre} [${STATUT[t.statut] || t.statut}${t.famille ? ", " + t.famille : ""}] (offre : ${t.offre_rex || "—"})`);
+    const fam = familles();
     return {
+      familles_privilegiees: fam.texte_privilegiees,
+      familles_exclues: fam.texte_exclues,
       date_du_jour: dateParisLongue(),
       semaine: semaine.semaine,
       fiche_rex: params.fiche_rex,
@@ -191,14 +209,19 @@ Deno.serve(async (req: Request) => {
     const attendu: number = etat.attendu || 5;
     const tentative = Number(etat.tentatives || 0);
     const maxUses = tentative === 0 ? 8 : 4;   // seconde tentative : moins de recherches, plus court
+    const fam = familles();
+    const anciens = (await dejaVues(semaine)).map(t => t.titre);
+    const consigneFamilles = (fam.privilegiees.length ? `Familles à privilégier : ${fam.texte_privilegiees} (au moins ${Math.min(attendu, Math.ceil(attendu * 0.6))} proposition(s) sur ${attendu} doivent s'y rattacher). ` : "")
+      + (fam.exclues.length ? `Familles EXCLUES, aucune proposition ne doit s'y rattacher : ${fam.texte_exclues}. ` : "")
+      + (anciens.length ? `Thématiques déjà vues (à ne pas reprendre, ni sous un autre titre) : ${anciens.map(t => "« " + t + " »").join(", ")}. ` : "");
     let consigne: string;
     const format = `Réponds uniquement par un objet JSON (sans texte autour) de la forme :
-{"propositions":[{"id":"identifiant-court","titre":"…","sujet":"résumé de l'actualité en 3 phrases","offre_rex":"offre de la fiche Rex concernée","pourquoi_maintenant":"…","faits":[{"fait":"fait daté ou chiffre","url":"URL exacte issue de tes recherches","titre":"titre de la page","date":"AAAA-MM-JJ"}],"concurrence":{"constat":"ce que font les concurrents listés","angle_rex":"angle qui différencie Rex-Rotary","sources":[{"url":"…","titre":"…","date":"AAAA-MM-JJ"}]},"pistes_regles":"en une phrase : quels NAF, tranches, anciennetés cibler et pourquoi"}]}
+{"propositions":[{"id":"identifiant-court","titre":"…","sujet":"résumé de l'actualité en 3 phrases","famille":"impression | ged | cyber | telephonie | informatique","offre_rex":"offre de la fiche Rex concernée","pourquoi_maintenant":"…","faits":[{"fait":"fait daté ou chiffre","url":"URL exacte issue de tes recherches","titre":"titre de la page","date":"AAAA-MM-JJ"}],"concurrence":{"constat":"ce que font les concurrents listés","angle_rex":"angle qui différencie Rex-Rotary","sources":[{"url":"…","titre":"…","date":"AAAA-MM-JJ"}]},"pistes_regles":"en une phrase : quels NAF, tranches, anciennetés cibler et pourquoi"}]}
 Chaque proposition doit contenir au moins 2 faits, chacun avec une URL réellement renvoyée par tes recherches. Pas d'URL inventée.`;
     if (gen.type === "regeneration") {
-      consigne = `ÉTAPE 1 — RECHERCHE (${maxUses} recherches au plus). Ne rédige pas encore de trame. Trouve UNE nouvelle thématique d'actualité, différente de celles déjà proposées cette semaine : ${etat.autres_titres || "aucune"}. ${format}\nLe tableau « propositions » contient exactement 1 élément.`;
+      consigne = `ÉTAPE 1 — RECHERCHE (${maxUses} recherches au plus). Ne rédige pas encore de trame. Trouve UNE nouvelle thématique d'actualité, différente de celles déjà proposées cette semaine : ${etat.autres_titres || "aucune"}. ${consigneFamilles}${format}\nLe tableau « propositions » contient exactement 1 élément.`;
     } else {
-      consigne = `ÉTAPE 1 — RECHERCHE (${maxUses} recherches au plus). Ne rédige pas encore les trames : fais d'abord la veille d'actualité et la veille concurrentielle, puis propose exactement ${attendu} thématiques distinctes, chacune rattachée à une offre présente dans la fiche Rex. ${format}`;
+      consigne = `ÉTAPE 1 — RECHERCHE (${maxUses} recherches au plus). Ne rédige pas encore les trames : fais d'abord la veille d'actualité et la veille concurrentielle, puis propose exactement ${attendu} thématiques distinctes, chacune rattachée à une offre présente dans la fiche Rex. ${consigneFamilles}${format}`;
     }
     const messages: any[] = [{ role: "user", content: consigne }];
     const debut = Date.now();
@@ -213,7 +236,7 @@ Chaque proposition doit contenir au moins 2 faits, chacun avec une URL réelleme
       r.urls.forEach(u => urls.add(u));
       brut = r.message;
       const obj = extraireJson(r.texte);
-      const v = obj === null ? { ok: false as const, erreurs: ["Aucun objet JSON trouvé dans la réponse."] } : validerPropositions(obj, attendu, attendu === 1 ? 1 : 3);
+      const v = obj === null ? { ok: false as const, erreurs: ["Aucun objet JSON trouvé dans la réponse."] } : validerPropositions(obj, attendu, attendu === 1 ? 1 : 3, { exclues: fam.exclues, anciens });
       if (v.ok) { data = v.data; erreurs = []; break; }
       erreurs = v.erreurs;
       // Une seule correction, dans la même conversation, sans nouvelle recherche, si le temps le permet.
@@ -275,7 +298,7 @@ ${FORMAT_THEMATIQUE}`;
     const urls = new Set<string>(etat.urls || []);
     const t = verifierSources(data.thematiques[0] as ThematiqueT, urls);
     const ligne: any = {
-      cle: t.id, titre: t.titre, offre_rex: t.offre_rex, pourquoi_maintenant: t.pourquoi_maintenant,
+      cle: t.id, titre: t.titre, famille: t.famille || prop.famille || null, offre_rex: t.offre_rex, pourquoi_maintenant: t.pourquoi_maintenant,
       sources: t.sources, concurrence: t.concurrence, regles: t.regles, trames: t.trames,
       objections: t.objections, hypotheses: t.hypotheses, alertes: alertes(t, new Date()),
     };

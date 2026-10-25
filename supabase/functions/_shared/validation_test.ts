@@ -124,7 +124,7 @@ import { validerPropositions } from "./validation.ts";
 
 Deno.test("validerPropositions : 5 propositions documentées acceptées, extra ignoré", () => {
   const props = Array.from({ length: 6 }, (_, i) => ({
-    id: "p" + i, titre: "Sujet " + i, faits: [{ fait: "un fait", url: "https://ex.fr/" + i, date: "2026-10-20" }],
+    id: "p" + i, titre: ["Cybermois réseau", "Copieurs sécurisés", "Fibre standard", "GED devis", "Serveurs sauvegarde", "Formation bureautique"][i], faits: [{ fait: "un fait", url: "https://ex.fr/" + i, date: "2026-10-20" }],
   }));
   const v = validerPropositions({ propositions: props }, 5);
   assert(v.ok);
@@ -149,4 +149,25 @@ Deno.test("validerPropositions : régénération = 1 proposition suffit ; 2 sur 
     { id: "b", titre: "B", faits: [{ fait: "x", url: "https://ex.fr" }] },
   ] }, 5);
   assertFalse(ko.ok);
+});
+
+// ---------- Mémoire des thématiques et familles ----------
+import { tropProche } from "./validation.ts";
+
+Deno.test("tropProche : même sujet sous un autre titre détecté, sujets différents acceptés", () => {
+  assert(tropProche("Facture électronique : être prêt à recevoir les factures fournisseurs", "Facture électronique : recevoir les factures des fournisseurs"));
+  assertFalse(tropProche("Fin du cuivre dans la Vienne : anticiper le standard téléphonique", "Cybermois : un réseau de TPE mieux protégé"));
+});
+
+Deno.test("validerPropositions : famille exclue et titre déjà vu refusés", () => {
+  const props = [
+    { id: "a", titre: "Téléphonie : préparer la fin du cuivre", famille: "telephonie", faits: [{ fait: "x", url: "https://ex.fr" }] },
+    { id: "b", titre: "Cybermois : un réseau de TPE et PME mieux protégé", famille: "cyber", faits: [{ fait: "x", url: "https://ex.fr" }] },
+    { id: "c", titre: "GED : classer les devis", famille: "ged", faits: [{ fait: "x", url: "https://ex.fr" }] },
+  ];
+  const v = validerPropositions({ propositions: props }, 3, 3, { exclues: ["telephonie"], anciens: ["Cybermois : un réseau de TPE/PME mieux protégé en 30 minutes"] });
+  assertFalse(v.ok);
+  if (!v.ok) assertEquals(v.erreurs.length, 2);
+  const ok = validerPropositions({ propositions: props }, 3, 3, {});
+  assert(ok.ok);
 });
