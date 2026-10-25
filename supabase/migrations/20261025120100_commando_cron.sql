@@ -3,8 +3,9 @@
 -- ------------------------------------------------------------
 --  Chaque dimanche soir, pg_cron appelle l'Edge Function
 --  « commando-import » via pg_net, avec un secret partagé lu dans
---  Vault. Le même secret est fourni à la fonction par
---  `supabase secrets set COMMANDO_CRON_SECRET=…`.
+--  Vault. L'Edge Function vérifie ce secret via
+--  commando_cron_secret_ok() (le secret de fonction COMMANDO_CRON_SECRET
+--  reste accepté s'il est posé, mais n'est plus nécessaire).
 --
 --  Mise en place du secret (une fois, dans l'éditeur SQL) :
 --    select vault.create_secret('<valeur aléatoire>', 'commando_cron_secret',
@@ -35,6 +36,19 @@ exception when others then
   raise warning 'commando_cron_import : %', sqlerrm;
 end $$;
 revoke all on function public.commando_cron_import() from public, anon, authenticated;
+
+-- Vérification du secret par l'Edge Function (clé service_role uniquement) :
+-- Vault est la source unique, aucun secret de fonction n'est nécessaire.
+create or replace function public.commando_cron_secret_ok(_secret text)
+returns boolean
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_secret text := (select decrypted_secret from vault.decrypted_secrets where name = 'commando_cron_secret' limit 1);
+begin
+  return v_secret is not null and _secret is not null and length(_secret) = length(v_secret) and _secret = v_secret;
+end $$;
+revoke all on function public.commando_cron_secret_ok(text) from public, anon, authenticated;
+grant execute on function public.commando_cron_secret_ok(text) to service_role;
 
 -- Dimanche 20 h UTC (21 h en hiver, 22 h en été, heure de Paris).
 do $$

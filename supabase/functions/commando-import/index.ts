@@ -6,7 +6,8 @@
 //
 //  Déclencheurs :
 //    * pg_cron (dimanche soir) : en-tête « x-commando-secret » égal au
-//      secret COMMANDO_CRON_SECRET ;
+//      secret Vault « commando_cron_secret » (ou au secret de fonction
+//      COMMANDO_CRON_SECRET, facultatif) ;
 //    * la console (responsable) : JWT Supabase, rôle vérifié en base.
 //
 //  Corps (JSON, tous facultatifs) :
@@ -136,7 +137,13 @@ Deno.serve(async (req: Request) => {
   let declencheur: "cron" | "manuel";
   let lancePar: string | null = null;
   const secret = req.headers.get("x-commando-secret") || "";
-  if (secret && CRON_SECRET && memeSecret(secret, CRON_SECRET)) {
+  let secretOk = Boolean(secret && CRON_SECRET && memeSecret(secret, CRON_SECRET));
+  if (secret && !secretOk) {
+    // Secret partagé lu dans Vault (source unique, pas de secret de fonction à poser).
+    const { data } = await admin.rpc("commando_cron_secret_ok", { _secret: secret });
+    secretOk = data === true;
+  }
+  if (secretOk) {
     declencheur = "cron";
   } else {
     const jwt = (req.headers.get("Authorization") || "").replace("Bearer ", "").trim();
