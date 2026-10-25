@@ -3,7 +3,7 @@
 | Fonction | Rôle | JWT vérifié par la passerelle | Secrets |
 |---|---|---|---|
 | `manage-users` | Gestion des comptes depuis la console d'administration | oui | aucun (clés Supabase injectées) |
-| `commando-import` | Mise à jour de la base d'entreprises du commando (API Recherche d'entreprises) | **non** (appel du job pg_cron par secret ; JWT vérifié dans le code pour l'appel manuel) | `COMMANDO_CRON_SECRET` |
+| `commando-import` | Mise à jour de la base d'entreprises du commando (API Recherche d'entreprises) | **non** (appel du job pg_cron par secret ; JWT vérifié dans le code pour l'appel manuel) | aucun obligatoire (secret partagé lu dans **Vault**) |
 | `commando-veille` | Veille IA hebdomadaire (API Claude + recherche web) | oui (et rôle « responsable » revérifié dans le code) | `ANTHROPIC_API_KEY` |
 
 Toutes s'exécutent côté serveur avec la clé `service_role`, **jamais** exposée au
@@ -35,7 +35,9 @@ ligne `commando_imports`.
 
 Appel automatique : job pg_cron `commando_import_hebdo` (dimanche 20 h UTC) →
 `public.commando_cron_import()` → `net.http_post` avec l'en-tête `x-commando-secret`,
-dont la valeur est lue dans **Vault** (`commando_cron_secret`).
+dont la valeur est lue dans **Vault** (`commando_cron_secret`). La fonction vérifie
+l'en-tête reçu via `public.commando_cron_secret_ok()` (exécutable par `service_role`
+seulement) : Vault est la source unique, aucun secret de fonction à poser.
 
 ## `commando-veille`
 
@@ -78,19 +80,22 @@ supabase functions deploy commando-veille
 
 ### Secrets (une fois)
 
-```bash
-# Clé API Anthropic (console.anthropic.com) : jamais dans le code ni le navigateur
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-…
+**Clé API Anthropic** (console.anthropic.com), jamais dans le code ni le navigateur :
+Dashboard → **Edge Functions** → **Secrets** → `ANTHROPIC_API_KEY`, ou
 
-# Secret partagé pg_cron → commando-import (valeur aléatoire, ex. openssl rand -hex 32)
-supabase secrets set COMMANDO_CRON_SECRET=…
+```bash
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-…
 ```
 
-Puis, dans l'éditeur SQL, la **même valeur** dans Vault :
+**Secret partagé pg_cron → commando-import** : une seule valeur, dans Vault
+(éditeur SQL ; valeur aléatoire, ex. `openssl rand -hex 32`) :
 
 ```sql
-select vault.create_secret('<la même valeur>', 'commando_cron_secret',
+select vault.create_secret('<valeur aléatoire>', 'commando_cron_secret',
                            'Secret partagé pg_cron → commando-import');
 ```
+
+Rien d'autre à poser : la fonction compare l'en-tête reçu à ce secret Vault.
+(Un secret de fonction `COMMANDO_CRON_SECRET` de même valeur reste accepté s'il existe.)
 
 `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` sont injectées automatiquement.

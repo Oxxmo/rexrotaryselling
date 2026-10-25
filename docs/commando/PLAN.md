@@ -267,8 +267,8 @@ rempli et ce calcul actualisé avant le premier appel réel (point d'arrêt du b
 
 ### 5.3 Secrets et déploiement
 
-- `ANTHROPIC_API_KEY` et `COMMANDO_CRON_SECRET` : `supabase secrets set`.
-- Le même `COMMANDO_CRON_SECRET` est stocké dans **Vault** (`vault.create_secret`) et lu par
+- `ANTHROPIC_API_KEY` : secret de fonction (Dashboard → Edge Functions → Secrets).
+- Le secret du job est stocké dans **Vault** (`commando_cron_secret`, `vault.create_secret`) et lu par
   `commando_cron_import()`.
 - `commando-import` : `verify_jwt = false` (appel cron) mais exige soit le secret, soit un JWT
   de responsable. `commando-veille` : `verify_jwt = true`.
