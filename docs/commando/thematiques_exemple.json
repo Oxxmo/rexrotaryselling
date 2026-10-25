@@ -1,0 +1,94 @@
+{
+  "_commentaire": "Fichier de test au format de sortie de la veille IA. Une vraie génération contient 5 propositions. Contenu à valider par Scott avant tout usage réel.",
+  "semaine": "2026-W44",
+  "genere_le": "2026-10-26T07:30:00+01:00",
+  "thematiques": [
+    {
+      "id": "facturation-electronique",
+      "titre": "Facturation électronique : se préparer à l'émission de septembre 2027",
+      "offre_rex": "GED / dématérialisation",
+      "pourquoi_maintenant": "La réception des factures électroniques est obligatoire pour toutes les entreprises assujetties à la TVA depuis le 1er septembre 2026. L'émission le devient au 1er septembre 2027 pour les PME, TPE et micro-entreprises.",
+      "sources": [
+        {
+          "url": "https://www.previssima.fr/actualite/facturation-electronique-ce-qui-change-pour-les-entreprises-des-le-1er-septembre-2026.html",
+          "titre": "Facturation électronique : ce qui change pour les entreprises dès le 1er septembre 2026",
+          "date": "2026-09-01"
+        }
+      ],
+      "concurrence": {
+        "constat": "Exemple de test : à remplacer par la veille concurrentielle réelle.",
+        "angle_rex": "Exemple de test : à remplacer par l'angle différenciant proposé par la veille.",
+        "sources": []
+      },
+      "regles": [
+        {
+          "couleur": "rouge",
+          "si": { "tranches": ["21"] },
+          "raison": "Structure plus grande, souvent dotée d'un service comptable interne"
+        },
+        {
+          "couleur": "orange",
+          "si": { "naf_prefixes": ["62", "63"] },
+          "raison": "Activité numérique, souvent déjà outillée"
+        },
+        {
+          "couleur": "vert",
+          "si": { "tranches": ["02", "03"] },
+          "raison": "Petite structure, peu de temps à consacrer à l'administratif"
+        },
+        {
+          "couleur": "vert",
+          "si": { "tranches": ["11"], "naf_prefixes": ["41", "42", "43", "45"] },
+          "raison": "Activité artisanale et opérationnelle de 10 à 19 salariés"
+        },
+        {
+          "couleur": "orange",
+          "si": { "tranches": ["11", "12"] },
+          "raison": "Structure intermédiaire, niveau de préparation variable"
+        }
+      ],
+      "trames": {
+        "vert": {
+          "accroche": "Bonjour, {commercial} de Rex-Rotary à Poitiers. Depuis le 1er septembre, {raison_sociale} doit pouvoir recevoir des factures électroniques, et l'émission deviendra obligatoire en septembre 2027.",
+          "questions_decouverte": [
+            "Aujourd'hui, comment recevez-vous et classez-vous vos factures fournisseurs ?",
+            "Qui s'en occupe chez vous, et combien de temps cela prend-il par mois ?",
+            "Votre expert-comptable vous a-t-il déjà parlé de la plateforme que vous utiliserez ?"
+          ],
+          "argument": "Nous aidons les structures de votre taille à mettre de l'ordre dans ce circuit, sans changer leurs habitudes du jour au lendemain.",
+          "conclusion": "Je vous propose 30 minutes pour faire le point : plutôt mardi matin ou jeudi après-midi ?"
+        },
+        "orange": {
+          "accroche": "Bonjour, {commercial} de Rex-Rotary à Poitiers. Pour une structure de {tranche} salariés comme {raison_sociale}, la question est surtout de savoir si votre circuit de factures fournisseurs est prêt.",
+          "questions_decouverte": [
+            "Vos factures fournisseurs arrivent-elles déjà au format électronique ?",
+            "Où sont-elles archivées aujourd'hui ?"
+          ],
+          "argument": "Nous vérifions avec vous ce qui est en place et ce qui manque avant l'échéance de 2027.",
+          "conclusion": "Je vous propose 30 minutes pour en parler : plutôt mardi matin ou jeudi après-midi ?"
+        },
+        "rouge": {
+          "accroche": "Bonjour, {commercial} de Rex-Rotary à Poitiers. Vous êtes sans doute déjà organisés pour la facturation électronique.",
+          "questions_decouverte": [
+            "La réception et l'archivage de vos factures sont-ils entièrement en place ?"
+          ],
+          "argument": "Un regard extérieur permet souvent de repérer ce qui peut encore être simplifié.",
+          "conclusion": "Je vous propose 30 minutes pour le vérifier ensemble : plutôt mardi matin ou jeudi après-midi ?"
+        }
+      },
+      "objections": [
+        {
+          "objection": "C'est mon expert-comptable qui gère ça.",
+          "reponse": "C'est très bien. Notre rôle est complémentaire : nous regardons comment les factures circulent chez vous avant d'arriver chez lui."
+        },
+        {
+          "objection": "On a jusqu'en 2027, on verra plus tard.",
+          "reponse": "Pour l'émission, oui. Mais la réception est déjà obligatoire depuis septembre : c'est le bon moment pour vérifier que tout fonctionne."
+        }
+      ],
+      "hypotheses": [
+        "Les petites structures artisanales seraient moins préparées que les autres : à confirmer par les taux de RDV."
+      ]
+    }
+  ]
+}
