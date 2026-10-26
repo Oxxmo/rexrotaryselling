@@ -253,6 +253,15 @@
         </div>
         <div id="impRapport" class="import-detail"></div>
       </div>
+      <div class="cmd-card">
+        <h3>☎︎ Téléphones (OpenStreetMap, gratuit)</h3>
+        <p class="muted">La base Sirene ne contient aucun numéro. Cette recherche rapproche nos entreprises des lieux d'OpenStreetMap qui portent un téléphone (nom et numéro de voie), code postal par code postal. Seules les fiches sans téléphone saisi sont remplies. Données © les contributeurs OpenStreetMap.</p>
+        <div class="cmd-row">
+          <button id="telTest" class="btn btn--sm">🔎 Chercher sur 86000</button>
+          <button id="telFull" class="btn btn--primary btn--sm">☎︎ Chercher sur les 51 codes postaux (2 à 4 minutes)</button>
+        </div>
+        <div id="telMsg"></div>
+      </div>
       <div class="cmd-card cmd-imports">
         <h3>Historique des imports</h3>
         <div id="impList"></div>
@@ -339,7 +348,30 @@
       <div class="tbl-scroll"><table class="grid"><thead><tr><th>Secteur</th><th class="num">Vus</th><th class="num">Retenus</th><th class="num">Ajoutés</th><th class="num">Réactivés</th><th class="num">Mis à jour</th><th class="num">Archivés</th><th class="num">Clients</th><th class="num">Eff. inconnu</th><th>Exclusions</th></tr></thead><tbody>${sect}</tbody></table></div>
       ${anomalies}${imp.erreur ? `<div class="cmd-err">${esc(imp.erreur)}</div>` : ""}`;
   }
+  async function chercherTelephones(el, codes) {
+    const msg = $("#telMsg", el);
+    const lots = [];
+    for (let i = 0; i < codes.length; i += 8) lots.push(codes.slice(i, i + 8));
+    let trouves = 0, pois = 0, erreurs = [];
+    for (let i = 0; i < lots.length; i++) {
+      msg.innerHTML = `<p class="muted"><span class="cmd-spin"></span>Lot ${i + 1}/${lots.length} (${esc(lots[i].join(", "))})… ${trouves} téléphone${trouves > 1 ? "s" : ""} trouvé${trouves > 1 ? "s" : ""} pour le moment.</p>`;
+      try {
+        const r = await C().fn("commando-telephones", { codes_postaux: lots[i] });
+        trouves += Number(r.trouves || 0); pois += Number(r.pois_osm || 0);
+        Object.entries(r.par_code_postal || {}).forEach(([cp, v]) => { if (v.erreur) erreurs.push(cp + " : " + v.erreur); });
+      } catch (e) { erreurs.push(lots[i].join(", ") + " : " + C().erreur(e)); }
+    }
+    msg.innerHTML = `<div class="cmd-note">✔︎ ${trouves} téléphone${trouves > 1 ? "s" : ""} ajouté${trouves > 1 ? "s" : ""} (${pois} lieux OpenStreetMap avec téléphone examinés sur ${codes.length} code${codes.length > 1 ? "s" : ""} postal${codes.length > 1 ? "aux" : ""}).${erreurs.length ? `<br>Erreurs : ${esc(erreurs.join(" · "))}` : ""}</div>`;
+  }
   async function showImports(el) {
+    if (!el.dataset.telWired) {
+      el.dataset.telWired = "1";
+      $("#telTest", el).addEventListener("click", () => chercherTelephones(el, ["86000"]));
+      $("#telFull", el).addEventListener("click", async () => {
+        const { data } = await sb().from("commando_codes_postaux").select("code_postal").order("code_postal");
+        chercherTelephones(el, (data || []).map(c => c.code_postal));
+      });
+    }
     const { data } = await sb().from("commando_imports").select("*").order("lance_le", { ascending: false }).limit(15);
     const list = data || [];
     const wrap = $("#impList", el);

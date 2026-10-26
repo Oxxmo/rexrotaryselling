@@ -378,7 +378,8 @@
             <div><small>Téléphone</small><input id="ficheTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></div>
             <div><small>E-mail</small><input id="ficheMail" type="email" value="${esc(r.email || "")}" placeholder="contact@…" /></div>
           </div>
-          <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button><button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
+          <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button>${r.telephone ? "" : `<button id="ficheTelOsm" class="btn btn--ghost btn--sm" title="Recherche gratuite dans OpenStreetMap">🔎 Chercher le téléphone</button>`}<button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
+          <div id="ficheTelSource" class="muted" style="font-size:.78rem"></div>
           ${r.deja_appelee ? `<div class="cmd-item__warn">☎︎ Déjà appelée : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}. Rappel possible à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}.</div>` : ""}
           <h3 class="output-title">Pourquoi cette couleur</h3>
           <p class="cmd-regle">${regleTxt}</p>
@@ -408,9 +409,28 @@
     document.body.style.overflow = "hidden";
     $$("[data-fiche-close]", ficheEl).forEach(x => x.addEventListener("click", fermerFiche));
 
+    // Source du téléphone (attribution OpenStreetMap)
+    sb().from("commando_contacts").select("source, source_detail, site_web").eq("siret", r.siret).maybeSingle().then(({ data }) => {
+      const s = $("#ficheTelSource", ficheEl); if (!s || !data) return;
+      if (data.source === "osm") s.textContent = "Téléphone trouvé dans OpenStreetMap (© les contributeurs OpenStreetMap)" + (data.site_web ? " · site : " + data.site_web : "") + " — à confirmer au premier appel.";
+    });
+    const telOsm = $("#ficheTelOsm", ficheEl);
+    if (telOsm) telOsm.addEventListener("click", async () => {
+      telOsm.disabled = true; telOsm.textContent = "Recherche…";
+      try {
+        const res = await C().fn("commando-telephones", { siret: r.siret });
+        const c = res && res.contact;
+        if (c && c.telephone) {
+          $("#ficheTel", ficheEl).value = c.telephone; r.telephone = c.telephone;
+          $("#ficheTelSource", ficheEl).textContent = "Téléphone trouvé dans OpenStreetMap (© les contributeurs OpenStreetMap)" + (c.site_web ? " · site : " + c.site_web : "") + " — à confirmer au premier appel.";
+          telOsm.remove(); C().toast("Téléphone trouvé");
+        } else { telOsm.textContent = "Introuvable dans OpenStreetMap"; }
+      } catch (e) { telOsm.disabled = false; telOsm.textContent = "🔎 Chercher le téléphone"; C().toast(C().erreur(e)); }
+    });
+
     // Coordonnées
     $("#ficheSaveContact", ficheEl).addEventListener("click", async () => {
-      const row = { siret: r.siret, telephone: $("#ficheTel", ficheEl).value.trim() || null, email: $("#ficheMail", ficheEl).value.trim() || null, updated_by: me.id };
+      const row = { siret: r.siret, telephone: $("#ficheTel", ficheEl).value.trim() || null, email: $("#ficheMail", ficheEl).value.trim() || null, updated_by: me.id, source: "manuel" };
       const { error } = await sb().from("commando_contacts").upsert(row, { onConflict: "siret" });
       if (error) { C().toast("Échec : " + error.message); return; }
       r.telephone = row.telephone; r.email = row.email;

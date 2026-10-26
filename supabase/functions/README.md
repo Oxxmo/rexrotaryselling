@@ -4,6 +4,7 @@
 |---|---|---|---|
 | `manage-users` | Gestion des comptes depuis la console d'administration | oui | aucun (clés Supabase injectées) |
 | `commando-import` | Mise à jour de la base d'entreprises du commando (API Recherche d'entreprises) | **non** (appel du job pg_cron par secret ; JWT vérifié dans le code pour l'appel manuel) | aucun obligatoire (secret partagé lu dans **Vault**) |
+| `commando-telephones` | Téléphones gratuits via OpenStreetMap (Overpass), rapprochement par nom et numéro de voie | **non** (JWT membre pour une fiche, responsable pour les lots ; secret Vault) | aucun |
 | `commando-veille` | Veille IA hebdomadaire (API Claude + recherche web), en étapes | **non** (JWT + rôle « responsable » vérifiés dans le code ; relances internes par le secret Vault) | `ANTHROPIC_API_KEY` |
 
 Toutes s'exécutent côté serveur avec la clé `service_role`, **jamais** exposée au
@@ -70,6 +71,18 @@ appeler le modèle** (point d'arrêt avant le premier appel réel).
 
 Tests : `deno test --allow-read supabase/functions/_shared/validation_test.ts`.
 
+## `commando-telephones`
+
+La base Sirene n'a pas de téléphone. Pour un code postal, la fonction interroge Overpass
+(`addr:postcode` + `phone` ou `contact:phone`), normalise les noms (formes juridiques,
+accents), rapproche par similarité de mots (≥ 0,6, ou égalité, ou même numéro de voie) et
+remplit `commando_contacts` (`source = 'osm'`, `site_web`, `source_detail`) uniquement pour
+les fiches sans téléphone saisi. Au plus 10 codes postaux par appel, 1 requête Overpass par
+seconde. Données © les contributeurs OpenStreetMap (ODbL) : l'attribution est affichée dans
+la fiche. Corps : `{"codes_postaux": ["86000"]}` ou `{"siret": "…"}`.
+
+Tests : `deno test --allow-read supabase/functions/commando-telephones/index_test.ts`.
+
 ## Déploiement
 
 ### Option A : interface Supabase
@@ -89,6 +102,7 @@ supabase link --project-ref chryjpudxhfboutymyvf
 supabase functions deploy manage-users
 supabase functions deploy commando-import --no-verify-jwt
 supabase functions deploy commando-veille --no-verify-jwt
+supabase functions deploy commando-telephones --no-verify-jwt
 ```
 
 ### Secrets (une fois)
