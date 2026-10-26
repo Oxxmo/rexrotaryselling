@@ -5,12 +5,13 @@
 //  les cherche GRATUITEMENT dans OpenStreetMap, en deux temps :
 //
 //   1. « rafraichir » : UNE requête Overpass pour toute la Vienne (tous les
-//      lieux portant un téléphone « phone » ou « contact:phone »), stockée
-//      dans commando_osm_lieux. Les serveurs publics Overpass sont souvent
-//      saturés : on essaie trois serveurs en relais, et on ne refait cet
-//      appel qu'une fois par semaine (pg_cron) ou à la demande. Les deux
-//      tiers des lieux n'ont pas de code postal dans OSM : il est déduit de
-//      leurs coordonnées par la Base Adresse Nationale (gratuite, « geocoder »).
+//      lieux portant un téléphone « phone » ou « contact:phone »), émise par
+//      la base via pg_net (overpass-api.de refuse le User-Agent des Edge
+//      Functions) et importée en SQL dans commando_osm_lieux. Le serveur
+//      public est souvent saturé : on réessaie, et on ne refait cet appel
+//      qu'une fois par semaine (pg_cron) ou à la demande. Les deux tiers des
+//      lieux n'ont pas de code postal dans OSM : il est déduit de leurs
+//      coordonnées par la Base Adresse Nationale (gratuite, « geocoder »).
 //   2. « rapprocher » : rapprochement de nos entreprises avec ces lieux, par
 //      nom (raison sociale ou enseigne, formes juridiques retirées) et numéro
 //      de voie, sans aucun appel externe. Seules les fiches SANS téléphone
@@ -31,19 +32,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { normaliser, similarite, formaterTel, numeroVoie } from "../_shared/telephones.ts";
 
-const ENDPOINTS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.private.coffee/api/interpreter",
-];
-// Emprise de la Vienne (86), un peu large : sud, ouest, nord, est.
-const BBOX = "46.0,-0.2,47.2,1.25";
-// En-tête ASCII uniquement : un caractère accentué fait refuser la requête (HTTP 406).
 const USER_AGENT = "RexSeller-Commando/1.0 (Rex-Rotary Poitiers; github.com/Oxxmo/rexrotaryselling)";
 const BAN = "https://api-adresse.data.gouv.fr/reverse/csv/";
 const BUDGET_MS = 120_000;        // limite d'exécution Supabase : 150 s ; on rend la main avant
 const PAGE = 1000;                // plafond de lignes par réponse PostgREST
-const ESSAI_MS = 40_000;          // par serveur
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-commando-secret",
@@ -54,52 +46,36 @@ function json(body: unknown, status = 200): Response {
 }
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// ---------- 1. Overpass : tous les lieux de la Vienne avec téléphone ----------
+// ---------- 1. Overpass, via la base (pg_net) ----------
+//  overpass-api.de refuse (406) le User-Agent que le runtime Supabase
+//  ajoute aux requêtes des Edge Functions ; la base, elle, passe. On lui
+//  demande la requête, on attend la réponse, puis elle l'importe en SQL.
+//  Les miroirs publics (kumi, private.coffee) restent muets sur cette
+//  requête : ils ne sont plus utilisés.
 type Lieu = { id: string; nom: string; telephone: string; site_web: string | null; numero: string | null; code_postal: string | null; commune: string | null; lat: number | null; lon: number | null; cp_source: string | null };
-async function lieuxVienne(echeance: number): Promise<Lieu[]> {
-  const q = `[out:json][timeout:60][bbox:${BBOX}];(nwr["phone"];nwr["contact:phone"];);out center;`;
+async function rafraichirLieux(admin: any, echeance: number): Promise<{ lieux: number; avec_code_postal: number; maj_le: string }> {
   let derniere = "";
-  for (let essai = 0; essai < ENDPOINTS.length * 2; essai++) {
-    const reste = echeance - Date.now();
-    if (reste < 8000) break;
-    const base = ENDPOINTS[essai % ENDPOINTS.length];
-    const hote = new URL(base).hostname;
-    try {
-      // Pas d'en-tête Accept explicite : overpass-api.de répond 406 à « application/json ».
-      const res = await fetch(base + "?data=" + encodeURIComponent(q), {
-        headers: { "User-Agent": USER_AGENT },
-        signal: AbortSignal.timeout(Math.min(ESSAI_MS, reste - 3000)),
-      });
-      console.log(`[telephones] Overpass ${hote} → HTTP ${res.status}`);
-      if (res.ok) {
-        const data = await res.json();
-        return (data.elements || []).map((e: any) => {
-          const t = e.tags || {};
-          const c = e.center || e;              // nœud : lat/lon ; chemin ou relation : center
-          const cp = t["addr:postcode"] ? String(t["addr:postcode"]).trim() : null;
-          return {
-            id: `${e.type}/${e.id}`,
-            nom: String(t.name || t.brand || t.operator || "").trim(),
-            telephone: String(t.phone || t["contact:phone"] || "").trim(),
-            site_web: t.website || t["contact:website"] || null,
-            numero: t["addr:housenumber"] ? String(t["addr:housenumber"]).toLowerCase() : null,
-            code_postal: cp,
-            commune: t["addr:city"] || null,
-            lat: typeof c.lat === "number" ? c.lat : null,
-            lon: typeof c.lon === "number" ? c.lon : null,
-            cp_source: cp ? "osm" : null,
-          } as Lieu;
-        }).filter((l: Lieu) => l.nom && l.telephone);
-      }
-      await res.text();
-      derniere = `HTTP ${res.status} sur ${hote}`;
-      if (res.status === 400) throw new Error("Requête Overpass refusée : " + derniere);
-    } catch (e) {
-      if (e instanceof Error && e.message.startsWith("Requête Overpass")) throw e;
-      derniere = `${(e as Error).name === "TimeoutError" ? "délai dépassé" : (e as Error).message} sur ${hote}`;
-      console.log(`[telephones] Overpass ${derniere}`);
+  for (let essai = 1; essai <= 3; essai++) {
+    if (echeance - Date.now() < 20_000) break;
+    const { data: id, error: dErr } = await admin.rpc("commando_osm_demander");
+    if (dErr || !id) throw new Error("Lancement de la requête Overpass : " + (dErr?.message || "pas d'identifiant"));
+    console.log(`[telephones] Overpass via pg_net, requête ${id} (essai ${essai})`);
+    let rep: any = { pret: false };
+    while (!rep.pret && echeance - Date.now() > 8000) {
+      await dormir(3000);
+      const { data } = await admin.rpc("commando_osm_reponse", { _id: id });
+      rep = data || { pret: false };
     }
-    await dormir(1000);
+    if (!rep.pret) { derniere = "pas de réponse dans le délai"; break; }
+    console.log(`[telephones] Overpass → HTTP ${rep.status ?? "—"} ${rep.erreur || ""} (${rep.taille ?? 0} octets)`);
+    if (rep.status === 200) {
+      const { data, error } = await admin.rpc("commando_osm_importer", { _id: id });
+      if (error) throw new Error("Import des lieux : " + error.message);
+      return data;
+    }
+    derniere = rep.erreur ? String(rep.erreur).slice(0, 80) : `HTTP ${rep.status}`;
+    if (rep.status === 400) throw new Error("Requête Overpass refusée : " + String(rep.apercu || "").slice(0, 200));
+    await dormir(5000 * essai);   // saturation (429, 502, 504) : on réessaie
   }
   throw new Error("Serveurs OpenStreetMap (Overpass) saturés pour le moment, réessayez plus tard : " + derniere);
 }
@@ -203,28 +179,12 @@ Deno.serve(async (req: Request) => {
   // --- 1. Rafraîchir le cache des lieux ---
   if (body?.rafraichir === true) {
     if (role === "commercial") return json({ error: "Réservé au responsable." }, 403);
-    let lieux: Lieu[];
-    try { lieux = await lieuxVienne(echeance); }
+    let r: { lieux: number; avec_code_postal: number; maj_le: string };
+    try { r = await rafraichirLieux(admin, echeance); }
     catch (e) { return json({ error: (e as Error).message }, 503); }
-    const maj = new Date().toISOString();
-    // Les codes postaux déjà déduits par la BAN sont conservés (pas de nouvel appel).
-    const connus = new Map<string, { code_postal: string; commune: string | null }>();
-    for (let depuis = 0; ; depuis += PAGE) {
-      const { data } = await admin.from("commando_osm_lieux").select("id, code_postal, commune").eq("cp_source", "ban").range(depuis, depuis + PAGE - 1);
-      (data || []).forEach((r: any) => connus.set(r.id, { code_postal: r.code_postal, commune: r.commune }));
-      if (!data || data.length < PAGE) break;
-    }
-    for (const l of lieux) {
-      const k = !l.code_postal && connus.get(l.id);
-      if (k) { l.code_postal = k.code_postal; l.commune = l.commune || k.commune; l.cp_source = "ban"; }
-    }
-    for (let i = 0; i < lieux.length; i += 500) {
-      const { error } = await admin.from("commando_osm_lieux").upsert(lieux.slice(i, i + 500).map(l => ({ ...l, maj_le: maj })), { onConflict: "id" });
-      if (error) return json({ error: "Enregistrement des lieux : " + error.message }, 500);
-    }
     // Les lieux disparus d'OpenStreetMap sont retirés du cache.
-    await admin.from("commando_osm_lieux").delete().lt("maj_le", maj);
-    sortie.rafraichi = { lieux: lieux.length, avec_code_postal: lieux.filter(l => l.code_postal).length, maj_le: maj };
+    await admin.from("commando_osm_lieux").delete().lt("maj_le", r.maj_le);
+    sortie.rafraichi = r;
   }
 
   // --- 1 bis. Codes postaux manquants déduits des coordonnées (BAN) ---
@@ -237,10 +197,12 @@ Deno.serve(async (req: Request) => {
       if (!data || data.length < PAGE) break;
     }
     const trouves = await geocoderInverse(points, echeance);
+    const lignes = [...trouves].map(([id, v]) => ({ id, code_postal: v.code_postal, commune: v.commune }));
     let n = 0;
-    for (const [id, v] of trouves) {
-      const { error } = await admin.from("commando_osm_lieux").update({ code_postal: v.code_postal, commune: v.commune, cp_source: "ban" }).eq("id", id);
-      if (!error) n++;
+    for (let i = 0; i < lignes.length; i += 1000) {   // une seule mise à jour SQL par lot
+      const { data, error } = await admin.rpc("commando_osm_geocode_appliquer", { _lignes: lignes.slice(i, i + 1000) });
+      if (error) throw new Error("Application des codes postaux : " + error.message);
+      n += Number(data || 0);
     }
     sortie.geocode = { sans_code_postal: points.length, completes: n };
   }

@@ -78,8 +78,11 @@ la fonction travaille en deux temps :
 
 1. **`{"rafraichir": true}`** (responsable, ou pg_cron `commando_osm_hebdo` le lundi à 2 h UTC) :
    une seule requête Overpass sur l'emprise de la Vienne (`phone` ou `contact:phone`,
-   `out center`), trois serveurs essayés en relais, résultat stocké dans
-   `commando_osm_lieux`. Les deux tiers des lieux n'ont pas de code postal dans OSM : il est
+   `out center`). overpass-api.de refuse (HTTP 406) le User-Agent que le runtime Supabase
+   ajoute aux Edge Functions : la requête est donc émise **par la base** via pg_net
+   (`commando_osm_demander`), la fonction attend la réponse (`commando_osm_reponse`) et la
+   base l'importe elle-même en SQL (`commando_osm_importer`, migration `20261025121100`)
+   dans `commando_osm_lieux`. Les deux tiers des lieux n'ont pas de code postal dans OSM : il est
    déduit des coordonnées par le géocodage inverse en masse de la **Base Adresse Nationale**
    (`api-adresse.data.gouv.fr/reverse/csv/`, gratuit, sans clé) et marqué `cp_source = 'ban'`.
    `{"geocoder": true}` relance ce seul complément.

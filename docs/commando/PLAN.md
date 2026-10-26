@@ -405,8 +405,10 @@ mais compte de facturation obligatoire), le commando utilise deux sources publiq
 
 - **OpenStreetMap** (API Overpass) : une seule requête hebdomadaire sur toute la Vienne pour
   les lieux portant un téléphone, mise en cache dans `commando_osm_lieux` (migration
-  `20261025121000`). Les serveurs publics sont souvent saturés : trois serveurs en relais,
-  job pg_cron `commando_osm_hebdo` le lundi à 2 h UTC, bouton « Mettre à jour » dans Imports.
+  `20261025121000`). Le serveur public refuse le User-Agent des Edge Functions Supabase :
+  la requête part de la base (pg_net, migration `20261025121100`) qui importe la réponse en
+  SQL. Job pg_cron `commando_osm_hebdo` le lundi à 2 h UTC, bouton « Mettre à jour » dans
+  Imports.
 - **Base Adresse Nationale** : géocodage inverse en masse pour attribuer un code postal aux
   deux tiers des lieux qui n'en ont pas dans OSM.
 
