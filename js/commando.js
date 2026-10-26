@@ -32,7 +32,14 @@
   let thematiques = [];       // thématiques retenues de la semaine
   let lignes = [];            // résultat de commando_liste (Ma liste)
   let lignesTheme = {};       // thematique_id → lignes (vue par thématique)
-  let filtres = { couleur: "", thematique: "", tranche: "", anciennete: "", nouvelle: false, appelees: "bas" };
+  let filtres = { couleur: "prio", thematique: "", tranche: "", anciennete: "", nouvelle: false, appelees: "bas" };
+  const PAGE = 60;            // cartes affichées par page (bouton « Afficher plus »)
+  // Liste complète (la passerelle tronque à 1 000 lignes par défaut : on demande explicitement plus).
+  async function listeRpc(semaineId, thematiqueId) {
+    const { data, error } = await sb().rpc("commando_liste", { _semaine_id: semaineId, _thematique_id: thematiqueId }).limit(5000);
+    if (error) throw error;
+    return data || [];
+  }
   let themeActif = null;
 
   function trancheLabel(t, annee) {
@@ -65,21 +72,22 @@
     if (!semaine) { thematiques = []; lignes = []; lignesTheme = {}; return; }
     const [t, l] = await Promise.all([
       sb().from("commando_thematiques").select("id, titre, offre_rex, pourquoi_maintenant, trames, objections, regles, ordre").eq("semaine_id", semaine.id).eq("statut", "retenue").order("ordre").then(r => r.data || []),
-      C().rpc("commando_liste", { _semaine_id: semaine.id, _thematique_id: null })
+      listeRpc(semaine.id, null)
     ]);
     thematiques = t; lignes = l || []; lignesTheme = {};
     if (!themeActif || !thematiques.find(x => x.id === themeActif)) themeActif = (thematiques[0] || {}).id || null;
   }
   async function chargerTheme(id) {
     if (!semaine || !id) return [];
-    if (!lignesTheme[id]) lignesTheme[id] = await C().rpc("commando_liste", { _semaine_id: semaine.id, _thematique_id: id }) || [];
+    if (!lignesTheme[id]) lignesTheme[id] = await listeRpc(semaine.id, id);
     return lignesTheme[id];
   }
 
   /* ---------- Filtres et cartes ---------- */
   function appliquerFiltres(rows) {
     return rows.filter(r => {
-      if (filtres.couleur === "non" ? r.couleur : (filtres.couleur && r.couleur !== filtres.couleur)) return false;
+      if (filtres.couleur === "prio") { if (r.couleur !== "vert" && r.couleur !== "orange") return false; }
+      else if (filtres.couleur === "non" ? r.couleur : (filtres.couleur && r.couleur !== filtres.couleur)) return false;
       if (filtres.thematique && r.thematique_id !== filtres.thematique) return false;
       if (filtres.tranche && r.tranche_effectif !== filtres.tranche) return false;
       if (filtres.anciennete && r.anciennete !== filtres.anciennete) return false;
@@ -92,7 +100,7 @@
   function barreFiltres(avecTheme) {
     const tranches = Object.keys(TRANCHES).filter(k => ["02", "03", "11", "12", "21"].includes(k));
     return `<div class="cmd-filtres">
-      <select data-filtre="couleur"><option value="">Toutes les couleurs</option><option value="vert">Vert</option><option value="orange">Orange</option><option value="rouge">Rouge</option><option value="non">Non classées</option></select>
+      <select data-filtre="couleur"><option value="prio">Vert et orange (à appeler)</option><option value="vert">Vert seulement</option><option value="orange">Orange seulement</option><option value="rouge">Rouge</option><option value="non">Non classées</option><option value="">Toutes les couleurs</option></select>
       ${avecTheme ? `<select data-filtre="thematique"><option value="">Toutes les thématiques</option>${thematiques.map(t => `<option value="${t.id}">${esc(t.titre)}</option>`).join("")}</select>` : ""}
       <select data-filtre="tranche"><option value="">Toutes les tranches</option>${tranches.map(k => `<option value="${k}">${TRANCHES[k]} salariés</option>`).join("")}</select>
       <select data-filtre="anciennete"><option value="">Toute ancienneté</option>${Object.entries(ANCIENNETE).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
@@ -104,6 +112,7 @@
     $$("[data-filtre]", el).forEach(f => {
       const k = f.dataset.filtre;
       if (f.type === "checkbox") f.checked = !!filtres[k]; else f.value = filtres[k] || (k === "appelees" ? "bas" : "");
+      if (k === "couleur" && filtres.couleur === "") f.value = "";
       f.addEventListener("change", () => { filtres[k] = f.type === "checkbox" ? f.checked : f.value; onChange(); });
     });
   }
@@ -121,12 +130,18 @@
       ${bloque}
     </button>`;
   }
-  function rendreListe(wrap, rows, source) {
+  function rendreListe(wrap, rows, source, nb) {
     const visibles = appliquerFiltres(rows);
     if (!rows.length) { wrap.innerHTML = `<p class="cmd-empty">Aucune entreprise dans votre secteur pour cette semaine.</p>`; return; }
-    if (!visibles.length) { wrap.innerHTML = `<p class="cmd-empty">Aucune entreprise ne correspond aux filtres.</p>`; return; }
-    wrap.innerHTML = `<p class="muted">${visibles.length} entreprise${visibles.length > 1 ? "s" : ""}${visibles.length !== rows.length ? ` sur ${rows.length}` : ""}</p>` + visibles.map(carte).join("");
+    if (!visibles.length) { wrap.innerHTML = `<p class="cmd-empty">Aucune entreprise ne correspond aux filtres${filtres.couleur === "prio" ? " : aucune verte ni orange, choisissez « Toutes les couleurs »" : ""}.</p>`; return; }
+    const n = Math.min(visibles.length, nb || PAGE);
+    const reste = visibles.length - n;
+    wrap.innerHTML = `<p class="muted">${visibles.length} entreprise${visibles.length > 1 ? "s" : ""}${visibles.length !== rows.length ? ` sur ${rows.length} (filtre : ${filtres.couleur === "prio" ? "vert et orange" : "voir ci-dessus"})` : ""}${n < visibles.length ? ` · ${n} affichées` : ""}</p>`
+      + visibles.slice(0, n).map(carte).join("")
+      + (reste > 0 ? `<div class="cmd-row" style="justify-content:center"><button class="btn btn--sm" data-plus>Afficher ${Math.min(PAGE, reste)} de plus (${reste} restantes)</button></div>` : "");
     $$(".cmd-item", wrap).forEach(b => b.addEventListener("click", () => ouvrirFiche(source.find(r => r.siret === b.dataset.siret))));
+    const plus = wrap.querySelector("[data-plus]");
+    if (plus) plus.addEventListener("click", () => rendreListe(wrap, rows, source, n + PAGE));
   }
 
   /* ---------- Onglet « Ma liste » ---------- */

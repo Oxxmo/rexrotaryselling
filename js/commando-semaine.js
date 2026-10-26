@@ -209,6 +209,15 @@
       <details><summary>Hypothèses (${(t.hypotheses || []).length}) — à distinguer des faits</summary><ul>${(t.hypotheses || []).map(h => `<li>${esc(h)}</li>`).join("") || "<li class='muted'>Aucune.</li>"}</ul></details>
     </div>`;
   }
+  // Règles trop larges : plus de 40 % de la base en vert ou orange, les listes deviennent ingérables.
+  function alerteLargeur(c) {
+    const t = (c && c.total) || {};
+    const total = Number(t.total || 0), prio = Number(t.vert || 0) + Number(t.orange || 0);
+    if (!total) return "";
+    const part = prio / total;
+    if (part > 0.4) return `<div class="cmd-item__warn">⚠︎ Règles larges : ${Math.round(part * 100)} % de la base en vert ou orange (${prio} entreprises). Visez un cœur de cible précis : resserrez les NAF ou les tranches avec « Modifier », ou régénérez.</div>`;
+    return `<div class="muted" style="font-size:.8rem">Cible vert + orange : ${prio} entreprises (${Math.round(part * 100)} % de la base).</div>`;
+  }
   function rendrePropositions(el) {
     const box = $("#semProps", el);
     if (!semaine) { box.innerHTML = ""; return; }
@@ -216,6 +225,15 @@
     const ordre = { retenue: 0, proposee: 1, ecartee: 2 };
     const tri = thematiques.slice().sort((a, b) => (ordre[a.statut] - ordre[b.statut]) || (a.ordre - b.ordre));
     box.innerHTML = `<h3 class="cmd-h" style="margin:14px 0 8px">Propositions (${thematiques.filter(t => t.statut === "retenue").length} retenue(s) sur 3)</h3>` + tri.map(propositionHtml).join("");
+    // Compteurs par couleur calculés d'office (les règles trop larges se voient tout de suite).
+    tri.filter(t => t.statut !== "ecartee").forEach(async (t) => {
+      const card = box.querySelector(`[data-th="${t.id}"]`); if (!card) return;
+      const b = $("[data-apercu-box]", card); if (!b) return;
+      try {
+        const c = await C().rpc("commando_apercu_compteurs", { _thematique_id: t.id });
+        b.hidden = false; b.innerHTML = apercuHtml(c) + alerteLargeur(c);
+      } catch (e) { /* aperçu facultatif */ }
+    });
     $$(".cmd-prop", box).forEach(card => {
       const id = card.dataset.id; const t = thematiques.find(x => x.id === id);
       $$("[data-statut]", card).forEach(b => b.addEventListener("click", () => changerStatut(el, t, b.dataset.statut)));

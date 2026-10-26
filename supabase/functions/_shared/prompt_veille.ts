@@ -7,7 +7,7 @@
 //  Les {{variables}} sont remplies par la fonction commando-veille.
 // ============================================================
 
-export const PROMPT_VERSION = 3;
+export const PROMPT_VERSION = 4;
 
 // Familles d'offres Rex-Rotary (clé → libellé), paramétrables dans la console
 // (« privilégier », « neutre », « exclure »).
@@ -44,6 +44,7 @@ export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agenc
    - classes d'ancienneté (\`anciennete\`) parmi \`moins_3\`, \`3_5\`, \`plus_5\`.
 
    Les règles sont évaluées dans l'ordre : la première qui correspond l'emporte. Appuie-toi sur la répartition de la base pour que tes règles ciblent des entreprises qui existent vraiment. Chaque règle porte une raison courte, compréhensible par un commercial.
+   **Sélectivité** : un commercial appelle 20 à 30 entreprises par heure. Vert = cœur de cible précis (codes NAF précis et tranche, 30 à 150 entreprises sur toute la base), orange = cible secondaire tout aussi précise, rouge = à éviter (facultatif). Jamais de règle « toutes les autres entreprises » ni de règle fondée sur la seule tranche d'effectif : une entreprise qui ne correspond à aucune règle reste non classée, et c'est normal pour la majorité de la base. Vert + orange ne doivent pas dépasser 25 % de la base.
 5. **Trames d'appel.** Pour chaque couleur (vert, orange, rouge), rédige une trame adaptée à ce type d'entreprise : une accroche de 3 phrases au plus, 2 ou 3 questions de découverte, un argument, et une conclusion. Ajoute 4 objections probables avec leur réponse.
 
 ## Règles impératives
@@ -83,8 +84,8 @@ export const FORMAT_THEMATIQUE = `{
       "concurrence": {"constat": "…", "angle_rex": "…", "sources": [{"url": "https://…", "titre": "…", "date": "AAAA-MM-JJ"}]},
       "regles": [
         {"couleur": "vert",   "si": {"naf_prefixes": ["62", "69"], "tranches": ["03", "11", "12"], "anciennete": ["plus_5"]}, "raison": "Pourquoi ces entreprises sont les plus réceptives"},
-        {"couleur": "orange", "si": {"tranches": ["03", "11", "12"], "naf_exclus": ["84"]}, "raison": "…"},
-        {"couleur": "rouge",  "si": {"tranches": ["02"]}, "raison": "…"}
+        {"couleur": "orange", "si": {"naf_prefixes": ["70", "71", "86"], "tranches": ["03", "11", "12"]}, "raison": "…"},
+        {"couleur": "rouge",  "si": {"naf_prefixes": ["56"], "tranches": ["02"]}, "raison": "…"}
       ],
       "trames": {
         "vert":   {"accroche": "3 phrases au plus", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"},
@@ -96,7 +97,7 @@ export const FORMAT_THEMATIQUE = `{
     }
   ]
 }
-Règles : « si » est un objet obligatoire dont les seules clés autorisées sont naf_prefixes, naf_exclus, tranches (parmi 02, 03, 11, 12, 21) et anciennete (parmi moins_3, 3_5, plus_5) ; toute autre clé est refusée. Une règle sans condition ({"si": {}}) ne peut être que la dernière.`;
+Règles : « si » est un objet obligatoire dont les seules clés autorisées sont naf_prefixes, naf_exclus, tranches (parmi 02, 03, 11, 12, 21) et anciennete (parmi moins_3, 3_5, plus_5) ; toute autre clé est refusée. Chaque règle vert ou orange contient des naf_prefixes précis (jamais seulement une tranche) ; pas de règle « toutes les autres » ; vert + orange ≤ 25 % de la base. Une règle sans condition ({"si": {}}) est interdite.`;
 
 // Régénération d'une seule proposition : même prompt système, consigne
 // utilisateur différente (voir commando-veille/index.ts).
