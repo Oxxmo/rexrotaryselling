@@ -35,10 +35,18 @@
   let filtres = { couleur: "prio", thematique: "", tranche: "", anciennete: "", nouvelle: false, appelees: "bas" };
   const PAGE = 60;            // cartes affichées par page (bouton « Afficher plus »)
   // Liste complète (la passerelle tronque à 1 000 lignes par défaut : on demande explicitement plus).
+  // Supabase plafonne chaque réponse à 1 000 lignes (un secteur peut en
+  // compter 1 600) : on lit la liste par pages jusqu'à la dernière.
+  const PAGE_RPC = 1000;
   async function listeRpc(semaineId, thematiqueId) {
-    const { data, error } = await sb().rpc("commando_liste", { _semaine_id: semaineId, _thematique_id: thematiqueId }).limit(5000);
-    if (error) throw error;
-    return data || [];
+    const rows = [];
+    for (let depuis = 0; depuis < 20000; depuis += PAGE_RPC) {
+      const { data, error } = await sb().rpc("commando_liste", { _semaine_id: semaineId, _thematique_id: thematiqueId }).range(depuis, depuis + PAGE_RPC - 1);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < PAGE_RPC) break;
+    }
+    return rows;
   }
   let themeActif = null;
 

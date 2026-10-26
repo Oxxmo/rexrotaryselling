@@ -397,3 +397,22 @@ en production si vous préférez), jamais directement en production sans votre a
    51 codes, même si l'API les renvoie (sièges hors Vienne). Confirmez-vous ?
 10. **Première semaine** : la semaine 2026-W44 commence demain. Visez-vous un démarrage avec
     l'étape 3 (listes classées depuis `thematiques_exemple.json`) avant la veille IA ?
+
+## Téléphones gratuits (OpenStreetMap + Base Adresse Nationale)
+
+Sirene ne fournit aucun téléphone. Plutôt que Google Places (1 000 appels gratuits par mois
+mais compte de facturation obligatoire), le commando utilise deux sources publiques gratuites :
+
+- **OpenStreetMap** (API Overpass) : une seule requête hebdomadaire sur toute la Vienne pour
+  les lieux portant un téléphone, mise en cache dans `commando_osm_lieux` (migration
+  `20261025121000`). Les serveurs publics sont souvent saturés : trois serveurs en relais,
+  job pg_cron `commando_osm_hebdo` le lundi à 2 h UTC, bouton « Mettre à jour » dans Imports.
+- **Base Adresse Nationale** : géocodage inverse en masse pour attribuer un code postal aux
+  deux tiers des lieux qui n'en ont pas dans OSM.
+
+Le rapprochement (nom normalisé, similarité de mots, numéro de voie) se fait ensuite sans
+appel externe, par code postal, et ne remplit que les fiches sans téléphone saisi
+(`commando_contacts.source = 'osm'`, attribution affichée dans la fiche, « à confirmer au
+premier appel »). Depuis une fiche, « Chercher le téléphone » fait la même chose pour une
+seule entreprise.
+

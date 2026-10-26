@@ -4,7 +4,7 @@
 |---|---|---|---|
 | `manage-users` | Gestion des comptes depuis la console d'administration | oui | aucun (clés Supabase injectées) |
 | `commando-import` | Mise à jour de la base d'entreprises du commando (API Recherche d'entreprises) | **non** (appel du job pg_cron par secret ; JWT vérifié dans le code pour l'appel manuel) | aucun obligatoire (secret partagé lu dans **Vault**) |
-| `commando-telephones` | Téléphones gratuits via OpenStreetMap (Overpass), rapprochement par nom et numéro de voie | **non** (JWT membre pour une fiche, responsable pour les lots ; secret Vault) | aucun |
+| `commando-telephones` | Téléphones gratuits : lieux OpenStreetMap de la Vienne mis en cache (Overpass + Base Adresse Nationale), rapprochement par nom et numéro de voie | **non** (JWT membre pour une fiche, responsable pour les lots ; secret Vault pour le job hebdomadaire) | aucun |
 | `commando-veille` | Veille IA hebdomadaire (API Claude + recherche web), en étapes | **non** (JWT + rôle « responsable » vérifiés dans le code ; relances internes par le secret Vault) | `ANTHROPIC_API_KEY` |
 
 Toutes s'exécutent côté serveur avec la clé `service_role`, **jamais** exposée au
@@ -73,13 +73,25 @@ Tests : `deno test --allow-read supabase/functions/_shared/validation_test.ts`.
 
 ## `commando-telephones`
 
-La base Sirene n'a pas de téléphone. Pour un code postal, la fonction interroge Overpass
-(`addr:postcode` + `phone` ou `contact:phone`), normalise les noms (formes juridiques,
-accents), rapproche par similarité de mots (≥ 0,6, ou égalité, ou même numéro de voie) et
-remplit `commando_contacts` (`source = 'osm'`, `site_web`, `source_detail`) uniquement pour
-les fiches sans téléphone saisi. Au plus 10 codes postaux par appel, 1 requête Overpass par
-seconde. Données © les contributeurs OpenStreetMap (ODbL) : l'attribution est affichée dans
-la fiche. Corps : `{"codes_postaux": ["86000"]}` ou `{"siret": "…"}`.
+La base Sirene n'a pas de téléphone. Les serveurs publics Overpass étant souvent saturés,
+la fonction travaille en deux temps :
+
+1. **`{"rafraichir": true}`** (responsable, ou pg_cron `commando_osm_hebdo` le lundi à 2 h UTC) :
+   une seule requête Overpass sur l'emprise de la Vienne (`phone` ou `contact:phone`,
+   `out center`), trois serveurs essayés en relais, résultat stocké dans
+   `commando_osm_lieux`. Les deux tiers des lieux n'ont pas de code postal dans OSM : il est
+   déduit des coordonnées par le géocodage inverse en masse de la **Base Adresse Nationale**
+   (`api-adresse.data.gouv.fr/reverse/csv/`, gratuit, sans clé) et marqué `cp_source = 'ban'`.
+   `{"geocoder": true}` relance ce seul complément.
+2. **`{"rapprocher": true}`**, **`{"codes_postaux": ["86000"]}`** (responsable) ou
+   **`{"siret": "…"}`** (tout membre, depuis la fiche) : rapprochement sans appel externe.
+   Noms normalisés (formes juridiques, accents), similarité de mots ≥ 0,6, ou égalité, ou même
+   numéro de voie ; `commando_contacts` est rempli (`source = 'osm'`, `site_web`,
+   `source_detail`) uniquement pour les fiches sans téléphone saisi. Les codes postaux non
+   traités dans le budget de 120 s sont renvoyés dans `non_traites` et la console les renvoie.
+
+Lectures paginées par 1 000 lignes (plafond PostgREST). Données © les contributeurs
+OpenStreetMap (ODbL) : l'attribution est affichée dans la fiche.
 
 Tests : `deno test --allow-read supabase/functions/commando-telephones/index_test.ts`.
 

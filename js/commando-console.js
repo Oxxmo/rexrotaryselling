@@ -255,10 +255,12 @@
       </div>
       <div class="cmd-card">
         <h3>☎︎ Téléphones (OpenStreetMap, gratuit)</h3>
-        <p class="muted">La base Sirene ne contient aucun numéro. Cette recherche rapproche nos entreprises des lieux d'OpenStreetMap qui portent un téléphone (nom et numéro de voie), code postal par code postal. Seules les fiches sans téléphone saisi sont remplies. Données © les contributeurs OpenStreetMap.</p>
+        <p class="muted">La base Sirene ne contient aucun numéro. On récupère une fois par semaine tous les lieux de la Vienne qui portent un téléphone dans OpenStreetMap (mise à jour automatique le lundi à 3 h, ou à la demande), puis on les rapproche de nos entreprises par nom et numéro de voie. Seules les fiches sans téléphone saisi sont remplies. Données © les contributeurs OpenStreetMap.</p>
+        <p id="telEtat" class="muted"></p>
         <div class="cmd-row">
-          <button id="telTest" class="btn btn--sm">🔎 Chercher sur 86000</button>
-          <button id="telFull" class="btn btn--primary btn--sm">☎︎ Chercher sur les 51 codes postaux (2 à 4 minutes)</button>
+          <button id="telMaj" class="btn btn--ghost btn--sm" title="Une requête vers OpenStreetMap (serveurs publics, parfois saturés)">↻ Mettre à jour les lieux OpenStreetMap</button>
+          <button id="telTest" class="btn btn--sm">🔎 Rapprocher 86000</button>
+          <button id="telFull" class="btn btn--primary btn--sm">☎︎ Rapprocher les 51 codes postaux</button>
         </div>
         <div id="telMsg"></div>
       </div>
@@ -348,30 +350,60 @@
       <div class="tbl-scroll"><table class="grid"><thead><tr><th>Secteur</th><th class="num">Vus</th><th class="num">Retenus</th><th class="num">Ajoutés</th><th class="num">Réactivés</th><th class="num">Mis à jour</th><th class="num">Archivés</th><th class="num">Clients</th><th class="num">Eff. inconnu</th><th>Exclusions</th></tr></thead><tbody>${sect}</tbody></table></div>
       ${anomalies}${imp.erreur ? `<div class="cmd-err">${esc(imp.erreur)}</div>` : ""}`;
   }
+  async function etatTelephones(el) {
+    const p = $("#telEtat", el); if (!p) return;
+    try {
+      const { data } = await sb().from("commando_osm_lieux").select("maj_le").order("maj_le", { ascending: false }).limit(1);
+      if (!data || !data.length) { p.innerHTML = `Aucun lieu OpenStreetMap en mémoire pour le moment : cliquez sur « Mettre à jour » d'abord.`; return; }
+      const { count } = await sb().from("commando_osm_lieux").select("id", { count: "exact", head: true });
+      p.innerHTML = `${esc(String(count ?? "?"))} lieux avec téléphone en mémoire, mis à jour le ${esc(C().fmtDateTime(data[0].maj_le))}.`;
+    } catch (e) { p.textContent = ""; }
+  }
+  async function majLieux(el) {
+    const msg = $("#telMsg", el), btn = $("#telMaj", el);
+    btn.disabled = true;
+    msg.innerHTML = `<p class="muted"><span class="cmd-spin"></span>Interrogation d'OpenStreetMap pour toute la Vienne (jusqu'à 2 minutes si les serveurs sont chargés)…</p>`;
+    try {
+      const r = await C().fn("commando-telephones", { rafraichir: true });
+      const x = r.rafraichi || {};
+      msg.innerHTML = `<div class="cmd-note">✔︎ ${n(x.lieux)} lieux avec téléphone trouvés dans la Vienne, ${n(x.avec_code_postal)} avec un code postal (utilisables). Lancez maintenant le rapprochement.</div>`;
+    } catch (e) { msg.innerHTML = `<div class="cmd-err">${esc(C().erreur(e))}</div>`; }
+    btn.disabled = false;
+    etatTelephones(el);
+  }
   async function chercherTelephones(el, codes) {
     const msg = $("#telMsg", el);
-    const lots = [];
-    for (let i = 0; i < codes.length; i += 8) lots.push(codes.slice(i, i + 8));
-    let trouves = 0, pois = 0, erreurs = [];
-    for (let i = 0; i < lots.length; i++) {
-      msg.innerHTML = `<p class="muted"><span class="cmd-spin"></span>Lot ${i + 1}/${lots.length} (${esc(lots[i].join(", "))})… ${trouves} téléphone${trouves > 1 ? "s" : ""} trouvé${trouves > 1 ? "s" : ""} pour le moment.</p>`;
+    // Rapprochement sans appel externe : par lots de 10 codes postaux ; la
+    // fonction rend ceux qu'elle n'a pas eu le temps de traiter (« non_traites »).
+    let restants = codes.slice();
+    let trouves = 0, lieux = 0, erreurs = [], lot = 0, tours = 0;
+    while (restants.length && tours < 20) {
+      tours++;
+      const cps = restants.splice(0, 10);
+      msg.innerHTML = `<p class="muted"><span class="cmd-spin"></span>Lot ${++lot} (${esc(cps.join(", "))})… ${trouves} téléphone${trouves > 1 ? "s" : ""} trouvé${trouves > 1 ? "s" : ""} pour le moment, ${restants.length} code${restants.length > 1 ? "s" : ""} postal${restants.length > 1 ? "aux" : ""} encore à faire.</p>`;
       try {
-        const r = await C().fn("commando-telephones", { codes_postaux: lots[i] });
-        trouves += Number(r.trouves || 0); pois += Number(r.pois_osm || 0);
+        const r = await C().fn("commando-telephones", { codes_postaux: cps });
+        trouves += Number(r.trouves || 0); lieux += Number(r.lieux_osm || 0);
         Object.entries(r.par_code_postal || {}).forEach(([cp, v]) => { if (v.erreur) erreurs.push(cp + " : " + v.erreur); });
-      } catch (e) { erreurs.push(lots[i].join(", ") + " : " + C().erreur(e)); }
+        const nonTraites = (r.non_traites || []).filter(cp => cps.includes(cp));
+        if (nonTraites.length === cps.length) erreurs.push(cps.join(", ") + " : non traités, à relancer");
+        else restants = nonTraites.concat(restants);
+      } catch (e) { erreurs.push(cps.join(", ") + " : " + C().erreur(e)); if (/cache|mise à jour/i.test(C().erreur(e))) break; }
     }
-    msg.innerHTML = `<div class="cmd-note">✔︎ ${trouves} téléphone${trouves > 1 ? "s" : ""} ajouté${trouves > 1 ? "s" : ""} (${pois} lieux OpenStreetMap avec téléphone examinés sur ${codes.length} code${codes.length > 1 ? "s" : ""} postal${codes.length > 1 ? "aux" : ""}).${erreurs.length ? `<br>Erreurs : ${esc(erreurs.join(" · "))}` : ""}</div>`;
+    if (restants.length) erreurs.push(restants.join(", ") + " : non traités, à relancer");
+    msg.innerHTML = `<div class="cmd-note">✔︎ ${trouves} téléphone${trouves > 1 ? "s" : ""} ajouté${trouves > 1 ? "s" : ""} (${lieux} lieux OpenStreetMap avec téléphone comparés sur ${codes.length} code${codes.length > 1 ? "s" : ""} postal${codes.length > 1 ? "aux" : ""}).${erreurs.length ? `<br>Erreurs : ${esc(erreurs.join(" · "))}` : ""}</div>`;
   }
   async function showImports(el) {
     if (!el.dataset.telWired) {
       el.dataset.telWired = "1";
+      $("#telMaj", el).addEventListener("click", () => majLieux(el));
       $("#telTest", el).addEventListener("click", () => chercherTelephones(el, ["86000"]));
       $("#telFull", el).addEventListener("click", async () => {
         const { data } = await sb().from("commando_codes_postaux").select("code_postal").order("code_postal");
         chercherTelephones(el, (data || []).map(c => c.code_postal));
       });
     }
+    etatTelephones(el);
     const { data } = await sb().from("commando_imports").select("*").order("lance_le", { ascending: false }).limit(15);
     const list = data || [];
     const wrap = $("#impList", el);
