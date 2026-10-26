@@ -402,6 +402,7 @@
         <label>Plafond de fiches par commercial et par semaine<input type="number" name="jeu_max_fiches_semaine" min="1" max="100" /></label>
         <label>Fenêtre du Fidèle (semaines de RDV validés)<input type="number" name="jeu_semaines_fidele" min="1" max="12" /></label>
         <label>Délai pour pronostiquer (minutes après le début du créneau)<input type="number" name="jeu_delai_pronostic_min" min="1" max="60" /></label>
+        <label>Heures des créneaux de jeu (heure de Paris, séparées par des virgules)<input type="text" name="jeu_heures" placeholder="14, 15, 16" /></label>
         <label class="wide">Concurrents à surveiller (un par ligne)<textarea name="concurrents" rows="4"></textarea></label>
         <label class="wide">Consignes commerciales (injectées dans chaque veille)<textarea name="consignes" rows="6"></textarea></label>
         <label class="wide">Fiche Rex-Rotary validée (offres, services, offre d'entrée) <span id="ficheEtat" class="muted"></span><textarea name="fiche_rex" rows="10" placeholder="Rédigée par la veille au premier lancement, puis corrigée et validée ici."></textarea></label>
@@ -429,6 +430,7 @@
     f.jeu_premier_rdv.checked = jx.premier_rdv !== false; f.jeu_pronostic.checked = jx.pronostic !== false; f.jeu_ligue.checked = jx.ligue !== false;
     f.jeu_fiches_premier_rdv.value = jx.fiches_premier_rdv ?? 5; f.jeu_fiches_rdv.value = jx.fiches_rdv ?? 1; f.jeu_fiches_fidele.value = jx.fiches_fidele ?? 10;
     f.jeu_max_fiches_semaine.value = jx.max_fiches_semaine ?? 15; f.jeu_semaines_fidele.value = jx.semaines_fidele ?? 4; f.jeu_delai_pronostic_min.value = jx.delai_pronostic_min ?? 20;
+    f.jeu_heures.value = (Array.isArray(jx.heures) ? jx.heures : [14, 15, 16]).join(", ");
     f.fiche_rex.value = p.fiche_rex || p.fiche_rex_brouillon || "";
     $("#ficheEtat", el).textContent = p.fiche_rex_validee_le ? `(validée le ${C().fmtDateTime(p.fiche_rex_validee_le)})` : (p.fiche_rex_brouillon ? "(brouillon de la veille, non validé)" : "(non renseignée)");
   }
@@ -453,6 +455,7 @@
         fiches_premier_rdv: Number(f.jeu_fiches_premier_rdv.value) || 5, fiches_rdv: Number(f.jeu_fiches_rdv.value) || 0,
         fiches_fidele: Number(f.jeu_fiches_fidele.value) || 0, max_fiches_semaine: Number(f.jeu_max_fiches_semaine.value) || 15,
         semaines_fidele: Number(f.jeu_semaines_fidele.value) || 4, delai_pronostic_min: Number(f.jeu_delai_pronostic_min.value) || 20,
+        heures: f.jeu_heures.value.split(/[,\s;]+/).map(Number).filter(h => Number.isInteger(h) && h >= 0 && h <= 23),
       },
       consignes: f.consignes.value,
       updated_by: C().me().id

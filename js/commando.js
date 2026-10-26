@@ -202,8 +202,15 @@
     const c = j.creneau || {};
     const me = C().me().id;
     if (!actifs.premier_rdv && !actifs.pronostic && !(j.recompenses || []).length) { box.innerHTML = ""; return; }
+    const heures = Array.isArray(j.heures) ? j.heures.map(Number).sort((a, b) => a - b) : [14, 15, 16];
+    const libelleHeures = heures.map(h => `${h}h–${h + 1}h`).join(", ");
     const blocs = [];
-    if (actifs.premier_rdv) {
+    if (c.en_jeu === false) {
+      const hNow = Number(new Date().toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit" }).slice(0, 2));
+      const prochaine = heures.find(h => h > hNow);
+      blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">⏰ Hors créneau</div><div class="muted">Les jeux se jouent pendant les créneaux du commando : ${esc(libelleHeures)}. ${prochaine != null ? `Prochain créneau à ${prochaine}h.` : "À demain !"} Les RDV pris en dehors comptent pour la ligue, mais ne rapportent pas de fiches.</div></div>`);
+    }
+    if (actifs.premier_rdv && c.en_jeu !== false) {
       const p = c.premier_rdv;
       blocs.push(`<div class="cmd-jeu">
         <div class="cmd-jeu__titre">🥇 Premier RDV de l'heure</div>
@@ -211,7 +218,7 @@
             : `<div class="muted">Personne encore sur ce créneau : le premier RDV rapporte 5 fiches premium du secteur libre, les suivants 1 fiche chacun.</div>`}
       </div>`);
     }
-    if (actifs.pronostic) {
+    if (actifs.pronostic && c.en_jeu !== false) {
       const pr = c.pronostic;
       let corps;
       if (pr) {

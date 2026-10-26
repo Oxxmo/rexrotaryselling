@@ -51,6 +51,9 @@ insert into public.commando_semaines (semaine, statut) values ('2026-W44', 'brou
 insert into public.commando_appels (siret, semaine_id, commercial_id, statut, created_at)
   select '20000000000099', id, '28f7068b-a34b-45a3-a566-96558a8bf6dd', 'refus', now() - interval '10 days' from public.commando_semaines where semaine = '2026-W44';
 
+-- Jeux ouverts à toute heure pour la suite du test (le J0 vérifie la restriction horaire).
+update public.commando_parametres set jeux = jeux || '{"heures": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]}'::jsonb;
+
 -- ------------------------------------------------------------
 -- 1) Premier RDV de l'heure et RDV bonus
 -- ------------------------------------------------------------
@@ -88,6 +91,24 @@ end $$;
 -- ------------------------------------------------------------
 -- Le test ne dépend pas de l'heure : fenêtre de pronostic portée à 60 minutes.
 update public.commando_parametres set jeux = jeux || '{"delai_pronostic_min": 60}'::jsonb;
+-- Un RDV hors créneau de jeu (créneaux = 14, 15, 16 h) ne rapporte rien ; le test force ensuite toutes les heures.
+do $$
+declare v_sem uuid; r jsonb; n int;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2026-W44';
+  update public.commando_parametres set jeux = jeux || '{"heures": [3]}'::jsonb;
+  insert into public.commando_appels (siret, semaine_id, commercial_id, statut, date_rdv, rdv_statut, created_at) values
+    ('20000000000055', v_sem, 'bae7f6a3-2952-4a33-9b96-56f4b38eb8ea', 'rdv', now() + interval '6 days', 'prevu', public.commando_creneau(now() - interval '5 hours') + interval '2 minutes');
+  r := public.commando_jeux_resoudre();
+  select count(*) into n from public.commando_recompenses where commercial_id = 'bae7f6a3-2952-4a33-9b96-56f4b38eb8ea';
+  -- Le créneau (now − 5 h) ne vaut 3 h que dans un cas sur 24 : on vérifie seulement qu'un créneau non listé ne rapporte rien.
+  if extract(hour from ((now() - interval '5 hours') at time zone 'Europe/Paris')) <> 3 then
+    assert n = 0, 'J0 RDV hors créneau de jeu récompensé : ' || n;
+  end if;
+  delete from public.commando_appels where siret = '20000000000055';
+  update public.commando_parametres set jeux = jeux || '{"heures": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]}'::jsonb;
+  raise notice 'OK J0 : un RDV hors créneau de jeu ne rapporte pas de fiches';
+end $$;
 select pg_temp.devenir(:'arthur');
 do $$
 declare v_sem uuid; r jsonb; ok boolean := false;
