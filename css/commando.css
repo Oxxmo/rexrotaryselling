@@ -234,3 +234,11 @@ body.cmd-mode #btnCommando{background:#fff;color:var(--rex, #c8102e);border-colo
 .cmd-jeu__titre{font-weight:800;margin-bottom:4px}
 .cmd-jeu .cmd-row{margin:4px 0}
 .cmd-ligue__moi td{background:#fef3c7}
+.cmd-jeu--points{background:linear-gradient(135deg,#fff8e1,#fff);border:1px solid #f5d76e}
+.cmd-points{display:flex;align-items:baseline;gap:6px 10px;flex-wrap:wrap;margin:4px 0 6px}
+.cmd-points__val{font-size:1.6rem;font-weight:900;color:#7a4b00}
+.cmd-points__lbl{font-size:.82rem;color:var(--muted);margin-right:14px}
+.cmd-points__bareme{font-size:.88rem}.cmd-points__bareme summary{cursor:pointer;font-weight:700}
+.cmd-points__bareme ul{margin:6px 0;padding-left:18px}
+.cmd-releve{margin-top:10px;font-size:.9rem}.cmd-releve summary{cursor:pointer;font-weight:800;color:var(--rex-dark)}
+

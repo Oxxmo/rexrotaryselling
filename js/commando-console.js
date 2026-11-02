@@ -467,6 +467,15 @@
         <label>Fenêtre du Fidèle (semaines de RDV validés)<input type="number" name="jeu_semaines_fidele" min="1" max="12" /></label>
         <label>Délai pour pronostiquer (minutes après le début du créneau)<input type="number" name="jeu_delai_pronostic_min" min="1" max="60" /></label>
         <label>Heures des créneaux de jeu (heure de Paris, séparées par des virgules)<input type="text" name="jeu_heures" placeholder="14, 15, 16" /></label>
+        <label class="wide">Système de points
+          <div class="cmd-checks"><label><input type="checkbox" name="pts_actif" /> Points actifs (cumulés de semaine en semaine, classement de la ligue)</label></div>
+        </label>
+        <label>Points par appel passé<input type="number" name="pts_appel" min="0" max="100" /></label>
+        <label>Points par RDV pris (repris si annulé)<input type="number" name="pts_rdv" min="0" max="1000" /></label>
+        <label>Points par RDV honoré validé<input type="number" name="pts_rdv_honore" min="0" max="1000" /></label>
+        <label>Points pour le premier RDV de l'heure<input type="number" name="pts_premier_rdv" min="0" max="1000" /></label>
+        <label>Points pour un pronostic tenu<input type="number" name="pts_pronostic" min="0" max="1000" /></label>
+        <label>Points par badge de la semaine<input type="number" name="pts_badge" min="0" max="1000" /></label>
         <label class="wide">Concurrents à surveiller (un par ligne)<textarea name="concurrents" rows="4"></textarea></label>
         <label class="wide">Consignes commerciales (injectées dans chaque veille)<textarea name="consignes" rows="6"></textarea></label>
         <label class="wide">Fiche Rex-Rotary validée (offres, services, offre d'entrée) <span id="ficheEtat" class="muted"></span><textarea name="fiche_rex" rows="10" placeholder="Rédigée par la veille au premier lancement, puis corrigée et validée ici."></textarea></label>
@@ -495,6 +504,10 @@
     f.jeu_fiches_premier_rdv.value = jx.fiches_premier_rdv ?? 5; f.jeu_fiches_rdv.value = jx.fiches_rdv ?? 1; f.jeu_fiches_fidele.value = jx.fiches_fidele ?? 10;
     f.jeu_max_fiches_semaine.value = jx.max_fiches_semaine ?? 15; f.jeu_semaines_fidele.value = jx.semaines_fidele ?? 4; f.jeu_delai_pronostic_min.value = jx.delai_pronostic_min ?? 20;
     f.jeu_heures.value = (Array.isArray(jx.heures) ? jx.heures : [14, 15, 16]).join(", ");
+    const px = jx.points || {};
+    f.pts_actif.checked = px.actif !== false;
+    f.pts_appel.value = px.appel ?? 1; f.pts_rdv.value = px.rdv ?? 10; f.pts_rdv_honore.value = px.rdv_honore ?? 25;
+    f.pts_premier_rdv.value = px.premier_rdv ?? 15; f.pts_pronostic.value = px.pronostic ?? 10; f.pts_badge.value = px.badge ?? 20;
     f.fiche_rex.value = p.fiche_rex || p.fiche_rex_brouillon || "";
     $("#ficheEtat", el).textContent = p.fiche_rex_validee_le ? `(validée le ${C().fmtDateTime(p.fiche_rex_validee_le)})` : (p.fiche_rex_brouillon ? "(brouillon de la veille, non validé)" : "(non renseignée)");
   }
@@ -520,6 +533,10 @@
         fiches_fidele: Number(f.jeu_fiches_fidele.value) || 0, max_fiches_semaine: Number(f.jeu_max_fiches_semaine.value) || 15,
         semaines_fidele: Number(f.jeu_semaines_fidele.value) || 4, delai_pronostic_min: Number(f.jeu_delai_pronostic_min.value) || 20,
         heures: f.jeu_heures.value.split(/[,\s;]+/).map(Number).filter(h => Number.isInteger(h) && h >= 0 && h <= 23),
+        points: {
+          actif: f.pts_actif.checked, appel: Number(f.pts_appel.value) || 0, rdv: Number(f.pts_rdv.value) || 0, rdv_honore: Number(f.pts_rdv_honore.value) || 0,
+          premier_rdv: Number(f.pts_premier_rdv.value) || 0, pronostic: Number(f.pts_pronostic.value) || 0, badge: Number(f.pts_badge.value) || 0,
+        },
       },
       consignes: f.consignes.value,
       updated_by: C().me().id

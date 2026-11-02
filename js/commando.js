@@ -209,10 +209,24 @@
     const actifs = j.actifs || {};
     const c = j.creneau || {};
     const me = C().me().id;
-    if (!actifs.premier_rdv && !actifs.pronostic && !(j.recompenses || []).length) { box.innerHTML = ""; return; }
+    const pts = j.points || null;
+    if (!actifs.premier_rdv && !actifs.pronostic && !(j.recompenses || []).length && !pts) { box.innerHTML = ""; return; }
     const heures = Array.isArray(j.heures) ? j.heures.map(Number).sort((a, b) => a - b) : [14, 15, 16];
     const libelleHeures = heures.map(h => `${h}h–${h + 1}h`).join(", ");
     const blocs = [];
+    if (pts && (pts.bareme || {}).actif !== false) {
+      const b = pts.bareme || {};
+      blocs.push(`<div class="cmd-jeu cmd-jeu--points">
+        <div class="cmd-jeu__titre">⭐ Mes points</div>
+        <div class="cmd-points"><span class="cmd-points__val">${esc(Number(pts.semaine || 0))}</span><span class="cmd-points__lbl">cette semaine</span>
+          <span class="cmd-points__val">${esc(Number(pts.total || 0))}</span><span class="cmd-points__lbl">au total</span></div>
+        <details class="cmd-points__bareme"><summary>Comment gagner des points</summary>
+          <ul><li>Appel passé : <b>${esc(b.appel ?? 1)}</b></li><li>RDV pris : <b>${esc(b.rdv ?? 10)}</b> (repris s'il est annulé)</li>
+          <li>RDV honoré, validé par le responsable : <b>${esc(b.rdv_honore ?? 25)}</b></li><li>Premier RDV de l'heure : <b>${esc(b.premier_rdv ?? 15)}</b></li>
+          <li>Pronostic tenu : <b>${esc(b.pronostic ?? 10)}</b></li><li>Badge de la semaine (Ouvreur, Marathonien, Sniper, Fidèle) : <b>${esc(b.badge ?? 20)}</b> chacun, le lundi suivant</li></ul>
+          <div class="muted">Les points se cumulent de semaine en semaine. Le détail est dans l'onglet Ligue.</div></details>
+      </div>`);
+    }
     if (c.en_jeu === false) {
       const hNow = Number(new Date().toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit" }).slice(0, 2));
       const prochaine = heures.find(h => h > hNow);

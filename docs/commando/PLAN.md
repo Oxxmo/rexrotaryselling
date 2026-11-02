@@ -428,3 +428,16 @@ sont entre `**…**` et rendus en gras surligné (fiche d'appel, console, object
 maintenant »). Pour une thématique déjà rédigée, l'action « ✂️ Resserrer les trames »
 (`commando-veille`, type `resserrage`) réécrit les trames en un appel sans rien inventer.
 
+## Système de points (migration `20261102120000`)
+
+Chaque action du commando rapporte des points, cumulés sans limite dans un relevé
+(`commando_points`, une ligne par événement, référence unique par type, attribution idempotente
+rejouée à chaque résolution des jeux). Barème par défaut, modifiable dans Paramètres :
+appel 1 · RDV pris 10 (repris s'il est annulé) · RDV honoré validé par le responsable 25 ·
+premier RDV de l'heure 15 · pronostic tenu 10 · badge de la semaine 20 (Ouvreur, Marathonien,
+Sniper, Fidèle, attribués le lundi suivant). Le responsable peut ajuster à la main (bonus ou
+malus, motif obligatoire, visible par l'équipe). Les mini-jeux (fiches, pronostic, badges)
+restent en place : ils rapportent eux aussi des points. La ligue est classée par points de la
+semaine ; « Ma liste » affiche le solde de la semaine et le total ; le relevé est consultable
+dans la ligue. Le type `depense` est réservé à un usage futur des points.
+

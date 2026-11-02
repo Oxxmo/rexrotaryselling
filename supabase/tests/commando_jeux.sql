@@ -237,4 +237,88 @@ begin
 end $$;
 select pg_temp.redevenir_admin();
 
+
+-- ------------------------------------------------------------
+-- P) Système de points : attribution idempotente, reprise, ajustement, ligue
+-- ------------------------------------------------------------
+select pg_temp.redevenir_admin();
+do $$
+declare r jsonb; n int; m int; v_sem uuid; b jsonb := public.commando_points_bareme();
+begin
+  -- Un RDV de la semaine, honoré et validé par Scott (les RDV honorés des tests J3 sont hors semaine).
+  select id into v_sem from public.commando_semaines where semaine = '2026-W44';
+  insert into public.commando_appels (siret, semaine_id, commercial_id, statut, date_rdv, rdv_statut, rdv_valide_le, rdv_valide_par, created_at)
+  values ('30000000000011', v_sem, '4804912a-1c4e-4be4-8df5-9c3218293c4a', 'rdv', now() - interval '2 days', 'honore', now(), '28f7068b-a34b-45a3-a566-96558a8bf6dd', now() - interval '3 days');
+  r := public.commando_points_crediter();
+  select count(*) into n from public.commando_points where type = 'appel';
+  select count(*) into m from public.commando_appels where semaine_id is not null;
+  assert n = m, 'P1 un point par appel : ' || n || ' / ' || m;
+  select count(*) into n from public.commando_points where type = 'rdv';
+  select count(*) into m from public.commando_appels where statut = 'rdv' and semaine_id is not null;
+  assert n = m, 'P1 points RDV : ' || n || ' / ' || m;
+  select count(*) into n from public.commando_points where type = 'rdv_annule';
+  select count(*) into m from public.commando_appels where statut = 'rdv' and rdv_statut = 'annule' and semaine_id is not null;
+  assert n = m and n >= 1, 'P1 reprise des RDV annulés : ' || n || ' / ' || m;
+  select count(*) into n from public.commando_points where type = 'rdv_honore';
+  select count(*) into m from public.commando_appels where rdv_statut = 'honore' and rdv_valide_le is not null and semaine_id is not null;
+  assert n = m and n >= 1, 'P1 RDV honorés validés : ' || n || ' / ' || m;
+  select count(*) into n from public.commando_points where type = 'pronostic';
+  select count(*) into m from public.commando_pronostics where reussi;
+  assert n = m and n = 1, 'P1 pronostic tenu : ' || n || ' / ' || m;
+  select count(*) into n from public.commando_points where type = 'premier_rdv';
+  assert n >= 1, 'P1 premier RDV de l''heure : ' || n;
+  assert (select points from public.commando_points where type = 'rdv' limit 1) = (b->>'rdv')::int, 'P1 barème RDV';
+  -- Idempotence
+  r := public.commando_points_crediter();
+  assert (r->>'nouvelles_lignes')::int = 0, 'P1 attribution non idempotente : ' || r::text;
+  -- Badges : points attribués seulement une fois la semaine terminée (le lundi suivant).
+  if public.commando_lundi('2026-W44') + 7 <= (now() at time zone 'Europe/Paris')::date then
+    assert exists (select 1 from public.commando_points where type = 'badge' and reference like 'badge:2026-W44:%'), 'P1 badges de la semaine terminée attendus';
+    assert exists (select 1 from public.commando_points where type = 'badge' and reference = 'badge:2026-W44:fidele' and commercial_id = 'd07ac035-2f09-438c-a845-d017fd92462a'), 'P1 badge Fidèle de Teo attendu';
+    assert (select count(*) from public.commando_points where type = 'badge' and reference like 'badge:2026-W44:%') <= 4, 'P1 au plus 4 badges par semaine';
+  else
+    assert not exists (select 1 from public.commando_points where type = 'badge' and reference like 'badge:2026-W44:%'), 'P1 badges attribués trop tôt';
+  end if;
+  raise notice 'OK P1 : attribution des points, reprise sur annulation, idempotence';
+end $$;
+
+-- Ajustement : réservé au responsable, motif obligatoire ; relevé lisible par tout membre.
+select pg_temp.devenir(:'teo');
+do $$
+declare ok boolean := false; n int;
+begin
+  begin
+    perform public.commando_points_ajuster('d07ac035-2f09-438c-a845-d017fd92462a', 50, 'test');
+  exception when others then ok := true; end;
+  assert ok, 'P2 un commercial a pu s''ajuster des points';
+  select count(*) into n from public.commando_points;
+  assert n > 0, 'P2 RLS : un membre doit voir le relevé';
+  raise notice 'OK P2 : ajustement refusé à un commercial, relevé visible';
+end $$;
+select pg_temp.devenir(:'scott');
+do $$
+declare r jsonb; v_sem uuid; avant int; apres int; ok boolean := false; c jsonb;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2026-W44';
+  avant := (public.commando_points_solde('d07ac035-2f09-438c-a845-d017fd92462a', v_sem)->>'total')::int;
+  r := public.commando_points_ajuster('d07ac035-2f09-438c-a845-d017fd92462a', 50, 'Bonus accueil client', v_sem);
+  apres := (r->'solde'->>'total')::int;
+  assert apres = avant + 50, 'P3 ajustement : ' || avant || ' → ' || apres;
+  begin
+    perform public.commando_points_ajuster('d07ac035-2f09-438c-a845-d017fd92462a', 10, '   ');
+  exception when others then ok := true; end;
+  assert ok, 'P3 ajustement sans motif accepté';
+  -- Ligue : points présents et classement par points de la semaine
+  r := public.commando_ligue(v_sem);
+  assert (r->'classement'->0->>'points_semaine')::int >= (r->'classement'->1->>'points_semaine')::int, 'P3 classement par points';
+  select x into c from jsonb_array_elements(r->'classement') x where x->>'commercial_id' = 'd07ac035-2f09-438c-a845-d017fd92462a';
+  assert (c->>'points_total')::int = apres, 'P3 total Teo dans la ligue : ' || c::text;
+  assert (r->>'total_points_semaine')::int > 0 and (r->'bareme'->>'rdv')::int = 10, 'P3 totaux et barème';
+  -- État des jeux : solde renvoyé au commercial
+  r := public.commando_jeux_etat(v_sem);
+  assert (r->'points'->>'total') is not null and (r->'points'->'bareme'->>'appel')::int = 1, 'P3 solde dans l''état des jeux : ' || (r->'points')::text;
+  raise notice 'OK P3 : ajustement par le responsable, ligue et état des jeux avec points';
+end $$;
+select pg_temp.redevenir_admin();
+
 rollback;
