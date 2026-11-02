@@ -380,7 +380,7 @@
   }
   // Mail de suivi : variante selon le dernier appel, aperçu, ouverture dans la messagerie du commercial (mailto).
   function rendreMail(el, t, r) {
-    const box = $("#ficheMail", el); if (!box) return;
+    const box = $("#ficheMailBloc", el); if (!box) return;
     const mails = (t && t.mails) || {};
     if (!mails.rdv && !mails.suite) { box.innerHTML = ""; return; }
     const a = dernierAppelMoi;
@@ -455,7 +455,7 @@
           </div>
           <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button>${r.telephone ? "" : `<button id="ficheTelOsm" class="btn btn--ghost btn--sm" title="Recherche gratuite dans OpenStreetMap">🔎 Chercher le téléphone</button>`}<button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
           <div id="ficheTelSource" class="muted" style="font-size:.78rem"></div>
-          <div id="ficheMail"></div>
+          <div id="ficheMailBloc"></div>
           ${r.deja_appelee ? `<div class="cmd-item__warn">☎︎ Déjà appelée : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}. Rappel possible à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}.</div>` : ""}
           <h3 class="output-title">Pourquoi cette couleur</h3>
           <p class="cmd-regle">${regleTxt}</p>
@@ -563,7 +563,7 @@
         C().toast(statut === "rdv" ? "RDV enregistré, bravo ! Envoyez le mail de confirmation ✉️" : "Appel enregistré. Un mail de suivi est prêt ✉️");
         $("#resExtra", ficheEl).hidden = true;
         rendreMail(ficheEl, t, r);
-        const m = $("#ficheMail", ficheEl); if (m) m.scrollIntoView({ behavior: "smooth", block: "center" });
+        const m = $("#ficheMailBloc", ficheEl); if (m) m.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
       C().toast(statut === "rdv" ? "RDV enregistré, bravo !" : "Appel enregistré");
