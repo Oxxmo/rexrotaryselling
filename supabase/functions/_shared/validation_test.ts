@@ -4,7 +4,7 @@
 // ============================================================
 import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1";
 import {
-  extraireJson, validerSortie, collecterUrls, verifierSources, alertes, estimerCout, normaliserUrl, remplirPrompt, alleger, Resserrage,
+  extraireJson, validerSortie, collecterUrls, verifierSources, alertes, estimerCout, normaliserUrl, remplirPrompt, alleger, Resserrage, SortieMails,
 } from "./validation.ts";
 
 const ici = new URL(".", import.meta.url).pathname;
@@ -178,4 +178,12 @@ Deno.test("resserrage : points_cles facultatifs, 5 au plus, objections validées
   if (ok.data.trames.vert.points_cles.length !== 0) throw new Error("points_cles doit valoir [] par défaut");
   const trop = Resserrage.safeParse({ trames: { vert: { points_cles: ["1", "2", "3", "4", "5", "6"] }, orange: {}, rouge: {} } });
   if (trop.success) throw new Error("6 points clés devraient être refusés");
+});
+
+Deno.test("mails de suivi : deux variantes obligatoires, champs manquants tolérés à vide", () => {
+  const ok = SortieMails.safeParse({ mails: { rdv: { objet: "RDV confirmé", corps: "Bonjour {dirigeant}," }, suite: { objet: "Suite à notre échange" } } });
+  if (!ok.success) throw new Error(JSON.stringify(ok.error.issues));
+  assertEquals(ok.data.mails.suite.corps, "");
+  const ko = SortieMails.safeParse({ mails: { rdv: { objet: "x", corps: "y" } } });
+  assertFalse(ko.success, "la variante suite manque");
 });

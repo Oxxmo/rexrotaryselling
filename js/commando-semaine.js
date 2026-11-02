@@ -99,6 +99,7 @@
       <div class="cmd-row">
         <button id="veilleLancer" class="btn btn--primary btn--sm" ${enCours || !fiche || nbSemaine >= limite ? "disabled" : ""}>🔎 Lancer la veille (5 propositions)</button>
         <button id="veilleResserrer" class="btn btn--ghost btn--sm" title="Trames plus courtes et plus percutantes, arguments clés en gras, pour les thématiques retenues">✂️ Resserrer les trames des retenues</button>
+        <button id="veilleMails" class="btn btn--ghost btn--sm" title="Rédige les mails de suivi des thématiques retenues qui n'en ont pas encore">✉️ Rédiger les mails des retenues</button>
         <button id="veilleFiche" class="btn btn--sm" ${enCours ? "disabled" : ""}>📝 Rédiger la fiche Rex (brouillon)</button>
         <button id="veilleImporter" class="btn btn--ghost btn--sm">⬆️ Importer un fichier de thématiques</button>
         <input type="file" id="veilleFichier" accept="application/json,.json" hidden />
@@ -113,6 +114,14 @@
       if (!retenues.length) { C().toast("Aucune thématique retenue pour cette semaine."); return; }
       if (!confirm(`Resserrer les trames des ${retenues.length} thématique(s) retenue(s) ? Les textes actuels seront remplacés par une version plus courte (rien n'est inventé).`)) return;
       resserrer(el, retenues);
+    });
+    $("#veilleMails", el).addEventListener("click", () => {
+      const retenues = thematiques.filter(t => t.statut === "retenue");
+      if (!retenues.length) { C().toast("Aucune thématique retenue pour cette semaine."); return; }
+      const sans = retenues.filter(t => !(t.mails && (t.mails.rdv || t.mails.suite)));
+      const cibles = sans.length ? sans : retenues;
+      if (!sans.length && !confirm("Toutes les retenues ont déjà leurs mails. Les réécrire ?")) return;
+      redigerMails(el, cibles);
     });
     $("#veilleLancer", el).addEventListener("click", () => lancerVeille(el, { type: "veille" }, "Veille lancée en 6 étapes (recherche, puis une thématique à la fois) : comptez 8 à 12 minutes. Les propositions apparaissent au fur et à mesure, la page se met à jour toute seule."));
     $("#veilleFiche", el).addEventListener("click", () => {
@@ -144,6 +153,18 @@
       catch (e) { msg.innerHTML = `<div class="cmd-err">« ${esc(t.titre)} » : ${esc(C().erreur(e))}</div>`; return; }
     }
     msg.innerHTML = `<div class="cmd-note">✔︎ ${liste.length} thématique${liste.length > 1 ? "s" : ""} resserrée${liste.length > 1 ? "s" : ""} : trames plus courtes, arguments clés en gras.</div>`;
+    await show(el);
+  }
+  async function redigerMails(el, liste) {
+    const msg = $("#veilleMsg", el);
+    let n = 0;
+    for (const t of liste) {
+      n++;
+      msg.innerHTML = `<div class="cmd-note"><span class="cmd-spin"></span>Mails ${n}/${liste.length} : « ${esc(t.titre)} »… (15 à 30 s)</div>`;
+      try { await C().fn("commando-veille", { type: "mails", semaine_id: semaine.id, thematique_id: t.id }); }
+      catch (e) { msg.innerHTML = `<div class="cmd-err">« ${esc(t.titre)} » : ${esc(C().erreur(e))}</div>`; return; }
+    }
+    msg.innerHTML = `<div class="cmd-note">✔︎ Mails de suivi rédigés pour ${liste.length} thématique${liste.length > 1 ? "s" : ""}. Relisez-les dans chaque proposition (« Mails de suivi »).</div>`;
     await show(el);
   }
   async function importerFichier(el, f) {
@@ -193,6 +214,12 @@
       </div>`;
     }).join("");
   }
+  function mailsHtml(t) {
+    const m = t.mails || {};
+    const un = (titre, x) => x ? `<div class="cmd-mail__apercu"><b>${esc(titre)}</b><div class="cmd-mail__objet">Objet : ${esc(x.objet || "")}</div><pre class="cmd-mail__corps">${esc(x.corps || "")}</pre></div>` : "";
+    if (!m.rdv && !m.suite) return `<p class="muted">Aucun mail pour cette thématique : cliquez sur « ✉️ Rédiger les mails ».</p>`;
+    return un("RDV confirmé", m.rdv) + un("Suite à notre échange", m.suite) + `<p class="muted">Variables remplies à l'envoi : {dirigeant}, {raison_sociale}, {commercial}, {date_rdv}, {creneaux}. Le mail part de la messagerie du commercial.</p>`;
+  }
   function propositionHtml(t) {
     const conc = t.concurrence || {};
     const alertes = (t.alertes || []).concat((t.sources || []).every(s => !s.date || (Date.now() - new Date(s.date).getTime()) > 14 * 86400000) ? ["Aucune source datée de moins de 14 jours"] : []);
@@ -211,6 +238,7 @@
           <button class="btn btn--ghost btn--sm" data-edit>✏️ Modifier</button>
           ${t.origine === "ia" ? `<button class="btn btn--ghost btn--sm" data-regen>🔁 Régénérer</button>` : ""}
           <button class="btn btn--ghost btn--sm" data-resserrer title="Trames plus courtes et plus percutantes, arguments clés en gras (sans rien inventer)">✂️ Resserrer les trames</button>
+          <button class="btn btn--ghost btn--sm" data-mails title="Rédige les deux mails de suivi (RDV confirmé, suite à notre échange), sans rien inventer">✉️ Rédiger les mails</button>
           <button class="btn btn--danger btn--sm" data-del>Supprimer</button>
         </div>
       </div>
@@ -228,6 +256,7 @@
       <ol class="cmd-regles">${(t.regles || []).map(regleHtml).join("")}</ol>
       <div class="cmd-apercu" data-apercu-box hidden></div>
       <details><summary>Trames d'appel par couleur</summary>${trameHtml(t)}</details>
+      <details><summary>✉️ Mails de suivi ${(t.mails && (t.mails.rdv || t.mails.suite)) ? "" : "<span class='muted'>(à rédiger)</span>"}</summary>${mailsHtml(t)}</details>
       <details><summary>Objections (${(t.objections || []).length})</summary>${(t.objections || []).map(o => `<div class="cmd-obj__item"><b>« ${esc(o.objection)} »</b><p>${C().gras(o.reponse)}</p></div>`).join("") || "<p class='muted'>Aucune.</p>"}</details>
       <details><summary>Hypothèses (${(t.hypotheses || []).length}) — à distinguer des faits</summary><ul>${(t.hypotheses || []).map(h => `<li>${esc(h)}</li>`).join("") || "<li class='muted'>Aucune.</li>"}</ul></details>
     </div>`;
@@ -268,6 +297,7 @@
         C().toast("Thématique supprimée"); show(el);
       });
       $("[data-resserrer]", card).addEventListener("click", () => resserrer(el, [t]));
+      $("[data-mails]", card).addEventListener("click", () => redigerMails(el, [t]));
       const rg = $("[data-regen]", card);
       if (rg) rg.addEventListener("click", () => {
         if (!confirm("Régénérer uniquement cette proposition par la veille IA ? L'actuelle sera remplacée.")) return;
@@ -315,6 +345,7 @@
           <label class="wide">Règles (JSON, évaluées dans l'ordre ; champs : naf_prefixes, naf_exclus, tranches, anciennete)<textarea name="regles" rows="8" class="mono">${js(v.regles || [])}</textarea></label>
           <label class="wide">Trames (JSON : vert / orange / rouge, chacune accroche, questions_decouverte, argument, conclusion)<textarea name="trames" rows="12" class="mono">${js(v.trames || {})}</textarea></label>
           <label class="wide">Objections (JSON : [{"objection","reponse"}])<textarea name="objections" rows="5" class="mono">${js(v.objections || [])}</textarea></label>
+          <label class="wide">Mails de suivi (JSON : {"rdv": {"objet","corps"}, "suite": {"objet","corps"}})<textarea name="mails" rows="8" class="mono">${js(v.mails || {})}</textarea></label>
           <label class="wide">Hypothèses (une par ligne)<textarea name="hypotheses" rows="3">${esc((v.hypotheses || []).join("\n"))}</textarea></label>
           <div class="wide cmd-row"><button type="submit" class="btn btn--primary">Enregistrer</button><button type="button" class="btn btn--ghost" data-edit-close>Annuler</button></div>
         </form></div></div>`;
@@ -323,16 +354,16 @@
     $("#editForm", editEl).addEventListener("submit", async (e) => {
       e.preventDefault();
       const f = e.target; const err = $("#editErr", editEl);
-      let sources, regles, trames, objections;
+      let sources, regles, trames, objections, mails;
       try {
         sources = JSON.parse(f.sources.value || "[]"); regles = JSON.parse(f.regles.value || "[]");
-        trames = JSON.parse(f.trames.value || "{}"); objections = JSON.parse(f.objections.value || "[]");
+        trames = JSON.parse(f.trames.value || "{}"); objections = JSON.parse(f.objections.value || "[]"); mails = JSON.parse(f.mails.value || "{}");
       } catch (ex) { err.innerHTML = `<div class="cmd-err">JSON invalide : ${esc(ex.message)}</div>`; return; }
       const row = {
         titre: f.titre.value.trim(), offre_rex: f.offre_rex.value.trim(), cle: f.cle.value.trim() || null,
         pourquoi_maintenant: f.pourquoi_maintenant.value.trim(),
         concurrence: Object.assign({}, (t && t.concurrence) || {}, { constat: f.constat.value.trim(), angle_rex: f.angle_rex.value.trim() }),
-        sources: sources.map(s => Object.assign({ verifiee: false }, s)), regles, trames, objections,
+        sources: sources.map(s => Object.assign({ verifiee: false }, s)), regles, trames, objections, mails,
         hypotheses: f.hypotheses.value.split(/\n/).map(s => s.trim()).filter(Boolean),
         modifiee_par: C().me().id, modifiee_le: new Date().toISOString()
       };

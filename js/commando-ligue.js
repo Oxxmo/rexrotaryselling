@@ -30,7 +30,7 @@
   let semaines = [], semaine = null, dernierTotal = null, releveOuvert = false;
   const TYPES = {
     appel: "Appel", rdv: "RDV pris", rdv_annule: "RDV annulé", rdv_honore: "RDV honoré validé", premier_rdv: "Premier RDV de l'heure",
-    pronostic: "Pronostic tenu", badge: "Badge", ajustement: "Ajustement du responsable", depense: "Utilisation",
+    pronostic: "Pronostic tenu", badge: "Badge", mail: "Mail de suivi", ajustement: "Ajustement du responsable", depense: "Utilisation",
   };
   let son = false;
   try { son = localStorage.getItem("rex.ligue.son") === "1"; } catch (e) { /* privé */ }
@@ -57,7 +57,7 @@
   }
 
   function bareme(b) {
-    return `Barème : appel <b>${esc(b.appel ?? 1)}</b> · RDV pris <b>${esc(b.rdv ?? 10)}</b> · RDV honoré validé <b>${esc(b.rdv_honore ?? 25)}</b> · premier RDV de l'heure <b>${esc(b.premier_rdv ?? 15)}</b> · pronostic tenu <b>${esc(b.pronostic ?? 10)}</b> · badge <b>${esc(b.badge ?? 20)}</b>.`;
+    return `Barème : appel <b>${esc(b.appel ?? 1)}</b> · RDV pris <b>${esc(b.rdv ?? 10)}</b> · RDV honoré validé <b>${esc(b.rdv_honore ?? 25)}</b> · premier RDV de l'heure <b>${esc(b.premier_rdv ?? 15)}</b> · mail de suivi <b>${esc(b.mail ?? 5)}</b> · pronostic tenu <b>${esc(b.pronostic ?? 10)}</b> · badge <b>${esc(b.badge ?? 20)}</b>.`;
   }
   async function chargerReleve(el) {
     const box = $("#ligueReleve", el); if (!box || !semaine) return;
@@ -125,6 +125,7 @@
         <div class="pilot-card"><div class="pilot-card__val">⭐ ${n(l.total_points_semaine)}</div><div class="pilot-card__lbl">Points gagnés cette semaine (tous)</div></div>
         <div class="pilot-card"><div class="pilot-card__val">${total}</div><div class="pilot-card__lbl">RDV pris cette semaine</div></div>
         <div class="pilot-card"><div class="pilot-card__val">${n(l.total_appels)}</div><div class="pilot-card__lbl">Appels</div></div>
+        <div class="pilot-card"><div class="pilot-card__val">${n(l.total_mails)}</div><div class="pilot-card__lbl">✉️ Mails de suivi envoyés</div></div>
         <div class="pilot-card"><div class="pilot-card__val">${l.fidele ? esc(C().prenomDe(l.fidele)) : "—"}</div><div class="pilot-card__lbl">💎 Fidèle de la semaine</div></div>
         ${C().isResponsable() ? `<div class="pilot-card"><div class="pilot-card__val">${n(l.a_valider)}</div><div class="pilot-card__lbl">RDV passés à valider (onglet Semaine)</div></div>` : ""}
       </div>`;
@@ -143,16 +144,16 @@
     body.innerHTML = `<div class="cmd-card">
         <h3>Classement de la semaine</h3>
         <p class="muted">Classé par points de la semaine, puis par RDV pris. Les RDV honorés comptent une fois validés par le responsable ; les badges rapportent leurs points le lundi suivant.</p>
-        <div class="tbl-scroll"><table class="grid"><thead><tr><th></th><th>Commercial</th><th class="num">⭐ Semaine</th><th class="num">⭐ Total</th><th class="num">Appels</th><th class="num">RDV</th><th class="num">Taux</th><th class="num">Honorés validés (${esc(l.fenetre_fidele || 4)} sem.)</th><th class="num">🎁 Fiches</th><th>Badges</th>${C().isResponsable() ? "<th></th>" : ""}</tr></thead><tbody>
+        <div class="tbl-scroll"><table class="grid"><thead><tr><th></th><th>Commercial</th><th class="num">⭐ Semaine</th><th class="num">⭐ Total</th><th class="num">Appels</th><th class="num">RDV</th><th class="num">✉️ Mails</th><th class="num">Taux</th><th class="num">Honorés validés (${esc(l.fenetre_fidele || 4)} sem.)</th><th class="num">🎁 Fiches</th><th>Badges</th>${C().isResponsable() ? "<th></th>" : ""}</tr></thead><tbody>
           ${classement.length ? classement.map((c, i) => `<tr class="${c.commercial_id === me ? "cmd-ligue__moi" : ""}">
               <td>${rang(i)}</td><td><b>${esc(C().nomDe(c.commercial_id))}</b>${c.commercial_id === me ? ' <span class="muted">(vous)</span>' : ""}</td>
               <td class="num"><b>${n(c.points_semaine)}</b></td><td class="num">${n(c.points_total)}</td>
-              <td class="num">${n(c.appels)}</td><td class="num">${n(c.rdv)}</td>
+              <td class="num">${n(c.appels)}</td><td class="num">${n(c.rdv)}</td><td class="num">${n(c.mails)}</td>
               <td class="num">${c.taux != null ? Math.round(Number(c.taux) * 100) + " %" : "—"}</td>
               <td class="num">${n(c.honores_valides)}</td><td class="num">${n(c.fiches_gagnees)}</td>
               <td>${(c.badges || []).map(b => BADGES[b] ? `<span class="cmd-badge cmd-badge--warn" title="${esc(BADGES[b].aide)}">${BADGES[b].icone} ${esc(BADGES[b].nom)}</span>` : "").join(" ")}</td>
               ${C().isResponsable() ? `<td><button class="btn btn--ghost btn--sm" data-ajuster="${c.commercial_id}" title="Bonus ou malus, avec un motif">± pts</button></td>` : ""}
-            </tr>`).join("") : `<tr><td colspan="11" class="muted">Aucun membre.</td></tr>`}
+            </tr>`).join("") : `<tr><td colspan="12" class="muted">Aucun membre.</td></tr>`}
         </tbody></table></div>
         <p class="muted" style="margin-top:8px">${bareme(l.bareme || {})}</p>
         <details class="cmd-releve" ${releveOuvert ? "open" : ""}><summary>Relevé de points de la semaine</summary><div id="ligueReleve"><span class="cmd-spin"></span></div></details>

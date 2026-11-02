@@ -52,6 +52,11 @@ const Trame = z.object({
 
 const Objection = z.object({ objection: z.string(), reponse: z.string() });
 
+// Mails de suivi (texte brut, envoyés depuis la messagerie du commercial).
+const Mail = z.object({ objet: z.string().default(""), corps: z.string().default("") });
+export const Mails = z.object({ rdv: Mail.optional(), suite: Mail.optional() }).default({});
+export const SortieMails = z.object({ mails: z.object({ rdv: Mail, suite: Mail }) });
+
 export const Thematique = z.object({
   id: z.string().min(1),
   titre: z.string().min(1),
@@ -67,6 +72,7 @@ export const Thematique = z.object({
   regles: z.array(Regle).min(1, "au moins une règle"),
   trames: z.object({ vert: Trame, orange: Trame, rouge: Trame }),
   objections: z.array(Objection).default([]),
+  mails: Mails,
   hypotheses: z.array(z.string()).default([]),
 });
 export type ThematiqueT = z.infer<typeof Thematique>;

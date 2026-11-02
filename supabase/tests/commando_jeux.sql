@@ -321,4 +321,46 @@ begin
 end $$;
 select pg_temp.redevenir_admin();
 
+
+-- ------------------------------------------------------------
+-- P4) Mails de suivi : traçage sur le dernier appel, points, indicateurs, ligue
+-- ------------------------------------------------------------
+select pg_temp.devenir(:'sarah');
+do $$
+declare r jsonb; ok boolean := false; v_sem uuid; n int;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2026-W44';
+  -- Pas d'appel récent de Sarah sur L6 : refus explicite.
+  begin
+    perform public.commando_mail_preparer('20000000000066', 'suite');
+  exception when others then ok := true; end;
+  assert ok, 'P4 mail sans appel accepté';
+  -- Appel récent de Sarah sur S1 (inséré en P1) : le mail est tracé une fois, variante mise à jour.
+  r := public.commando_mail_preparer('30000000000011', 'rdv');
+  assert (r->>'deja')::boolean = false and r->>'variante' = 'rdv', 'P4 premier mail : ' || r::text;
+  r := public.commando_mail_preparer('30000000000011', 'suite');
+  assert (r->>'deja')::boolean = true, 'P4 second mail : deja attendu';
+  select count(*) into n from public.commando_appels where siret = '30000000000011' and commercial_id = '4804912a-1c4e-4be4-8df5-9c3218293c4a' and mail_prepare_le is not null;
+  assert n = 1, 'P4 un seul appel tracé : ' || n;
+  select count(*) into n from public.commando_points where type = 'mail' and commercial_id = '4804912a-1c4e-4be4-8df5-9c3218293c4a';
+  assert n = 1 and (select points from public.commando_points where type = 'mail' limit 1) = 5, 'P4 points mail : ' || n;
+  r := public.commando_jeux_etat(v_sem);
+  assert (r->'points'->'bareme'->>'mail')::int = 5, 'P4 barème mail dans l''état des jeux';
+  raise notice 'OK P4 : mail de suivi tracé, points et barème';
+end $$;
+select pg_temp.devenir(:'scott');
+do $$
+declare r jsonb; v_sem uuid; c jsonb;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2026-W44';
+  r := public.commando_ligue(v_sem);
+  select x into c from jsonb_array_elements(r->'classement') x where x->>'commercial_id' = '4804912a-1c4e-4be4-8df5-9c3218293c4a';
+  assert (c->>'mails')::int = 1 and (r->>'total_mails')::int = 1, 'P5 mails dans la ligue : ' || c::text;
+  r := public.commando_stats(null, null);
+  assert (r->'total'->>'mails')::int = 1, 'P5 mails dans les indicateurs : ' || (r->'total')::text;
+  assert exists (select 1 from jsonb_array_elements(r->'semaine_courante_par_commercial') x where x ? 'mails'), 'P5 mails par commercial semaine courante';
+  raise notice 'OK P5 : mails dans la ligue et les indicateurs';
+end $$;
+select pg_temp.redevenir_admin();
+
 rollback;

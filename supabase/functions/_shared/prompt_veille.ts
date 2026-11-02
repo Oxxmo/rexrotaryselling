@@ -7,7 +7,7 @@
 //  Les {{variables}} sont remplies par la fonction commando-veille.
 // ============================================================
 
-export const PROMPT_VERSION = 5;
+export const PROMPT_VERSION = 6;
 
 // Familles d'offres Rex-Rotary (clé → libellé), paramétrables dans la console
 // (« privilégier », « neutre », « exclure »).
@@ -28,6 +28,13 @@ export const STYLE_TRAMES = `Un commercial lit la trame pendant qu'il téléphon
    - \`argument\` : 2 phrases au plus, 40 mots au plus, un bénéfice concret pour cette entreprise ;
    - \`conclusion\` : 1 phrase, une proposition de rendez-vous avec deux créneaux au choix, sans date (« mardi matin ou jeudi après-midi »).
    Mets en gras avec des doubles astérisques (**comme ceci**) 1 à 3 groupes de mots par bloc : l'argument clé, le chiffre, le bénéfice. Jamais une phrase entière. Ajoute 4 objections probables, chaque réponse en 25 mots au plus, avec le mot décisif en gras. \`pourquoi_maintenant\` : 2 phrases au plus.`;
+
+// Mails de suivi (v6) : envoyés par le commercial depuis sa messagerie,
+// juste après l'appel. Texte brut (lien mailto), sans aucune mise en forme.
+export const STYLE_MAILS = `Après l'appel, le commercial envoie un mail de suivi depuis sa propre messagerie : ce mail doit se démarquer par sa concision et son concret. Deux variantes dans \`mails\` :
+   - \`rdv\` : le rendez-vous est pris. Objet et corps confirment la date « {date_rdv} », rappellent en une phrase le sujet de l'appel, donnent un fait concret de la thématique (sourcé, sans chiffre inventé), indiquent en une ligne ce que le client peut préparer, et remercient.
+   - \`suite\` : pas encore de rendez-vous. Objet et corps rappellent l'échange, donnent le même fait concret, proposent un point de 30 minutes sur deux créneaux « {creneaux} », et invitent à répondre par simple retour de mail.
+   Format : \`objet\` de 8 mots au plus, sans crochets ; \`corps\` de 70 à 110 mots, texte brut, phrases courtes, un paragraphe par idée séparé par une ligne vide, vouvoiement, pas de gras, pas d'astérisques, pas de liste, pas de lien. Commence par « Bonjour {dirigeant}, » et termine par « Bien cordialement,\n{commercial}\nRex-Rotary Poitiers ». Variables autorisées : {dirigeant}, {raison_sociale}, {commercial}, {date_rdv}, {creneaux}. Rien d'inventé : seules les offres de la fiche Rex et les faits de la thématique.`;
 
 export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agence Rex-Rotary de Poitiers. Chaque lundi matin, le responsable commercial lance la veille. Tu lui proposes **5 thématiques d'appel** pour le commando téléphonique de la semaine. Il en retiendra 3. Ses commerciaux appelleront ensuite des TPE et PME de la Vienne (86) pour obtenir des rendez-vous.
 
@@ -56,6 +63,7 @@ export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agenc
    Les règles sont évaluées dans l'ordre : la première qui correspond l'emporte. Appuie-toi sur la répartition de la base pour que tes règles ciblent des entreprises qui existent vraiment. Chaque règle porte une raison courte, compréhensible par un commercial.
    **Sélectivité** : un commercial appelle 20 à 30 entreprises par heure. Vert = cœur de cible précis (codes NAF précis et tranche, 30 à 150 entreprises sur toute la base), orange = cible secondaire tout aussi précise, rouge = à éviter (facultatif). Jamais de règle « toutes les autres entreprises » ni de règle fondée sur la seule tranche d'effectif : une entreprise qui ne correspond à aucune règle reste non classée, et c'est normal pour la majorité de la base. Vert + orange ne doivent pas dépasser 25 % de la base.
 5. **Trames d'appel.** ${STYLE_TRAMES}
+6. **Mails de suivi.** ${STYLE_MAILS}
 
 ## Règles impératives
 
@@ -74,7 +82,7 @@ export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agenc
 
 ## Format de sortie
 
-Réponds **uniquement** par un objet JSON valide, sans texte avant ni après, conforme au format de \`thematiques_exemple.json\` : \`semaine\`, \`genere_le\`, et un tableau \`thematiques\` de 5 éléments. Chaque élément contient \`id\`, \`titre\`, \`offre_rex\`, \`pourquoi_maintenant\`, \`sources\`, \`concurrence\` (\`constat\`, \`angle_rex\`, \`sources\`), \`regles\`, \`trames\` (\`vert\`, \`orange\`, \`rouge\`, chacune avec \`points_cles\`), \`objections\` et \`hypotheses\`.
+Réponds **uniquement** par un objet JSON valide, sans texte avant ni après, conforme au format de \`thematiques_exemple.json\` : \`semaine\`, \`genere_le\`, et un tableau \`thematiques\` de 5 éléments. Chaque élément contient \`id\`, \`titre\`, \`offre_rex\`, \`pourquoi_maintenant\`, \`sources\`, \`concurrence\` (\`constat\`, \`angle_rex\`, \`sources\`), \`regles\`, \`trames\` (\`vert\`, \`orange\`, \`rouge\`, chacune avec \`points_cles\`), \`mails\` (\`rdv\`, \`suite\`), \`objections\` et \`hypotheses\`.
 `;
 
 // Squelette exact d'une thématique (le modèle ne dispose pas du fichier
@@ -103,6 +111,10 @@ export const FORMAT_THEMATIQUE = `{
         "rouge":  {"points_cles": ["…"], "accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"}
       },
       "objections": [{"objection": "…", "reponse": "25 mots au plus, **mot décisif en gras**"}],
+      "mails": {
+        "rdv":   {"objet": "8 mots au plus", "corps": "Bonjour {dirigeant},\\n\\n… 70 à 110 mots, texte brut …\\n\\nBien cordialement,\\n{commercial}\\nRex-Rotary Poitiers"},
+        "suite": {"objet": "…", "corps": "…"}
+      },
       "hypotheses": ["Supposition non sourcée, le cas échéant"]
     }
   ]
@@ -136,3 +148,15 @@ Style attendu : {{style}}
 Fiche Rex-Rotary (seule source autorisée pour les offres) : {{fiche_rex}}
 
 Réponds uniquement par un objet JSON valide, sans texte autour : {"pourquoi_maintenant": "…", "trames": {"vert": {"points_cles": ["…"], "accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"}, "orange": {…}, "rouge": {…}}, "objections": [{"objection": "…", "reponse": "…"}]}.`;
+
+// Rédaction des mails de suivi d'une thématique déjà rédigée : un seul appel,
+// sans recherche web, rien d'inventé.
+export const PROMPT_MAILS = `Tu es l'assistant de l'agence Rex-Rotary de Poitiers. Rédige les deux mails de suivi d'une thématique d'appel, que le commercial enverra depuis sa messagerie juste après avoir eu le dirigeant au téléphone.
+
+Règles impératives : n'invente rien. Aucun chiffre, fait, date, offre ou promesse qui ne figure pas déjà dans la thématique fournie ou dans la fiche Rex-Rotary ci-dessous. Ton clair et direct, sans faire peur, orienté bénéfice pour le client.
+
+Style attendu : {{style}}
+
+Fiche Rex-Rotary (seule source autorisée pour les offres) : {{fiche_rex}}
+
+Réponds uniquement par un objet JSON valide, sans texte autour : {"mails": {"rdv": {"objet": "…", "corps": "…"}, "suite": {"objet": "…", "corps": "…"}}}.`;

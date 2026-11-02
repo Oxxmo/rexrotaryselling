@@ -10,6 +10,7 @@
 //    * "regeneration" : remplace une seule proposition (thematique_id) ;
 //    * "fiche_rex"    : brouillon de fiche Rex-Rotary depuis le site public ;
 //    * "resserrage"   : trames plus courtes d'une thématique (réponse immédiate).
+//    * "mails"        : mails de suivi (rdv / suite) d'une thématique (réponse immédiate).
 //
 //  Exécution en ÉTAPES COURTES. Les Edge Functions sont limitées à 150 s
 //  (offre gratuite) ou 400 s par processus : une veille complète dépasse
@@ -36,9 +37,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
-import { PROMPT_VEILLE, PROMPT_VERSION, PROMPT_FICHE, FORMAT_THEMATIQUE, FAMILLES_LIBELLES, PROMPT_RESSERRAGE, STYLE_TRAMES } from "../_shared/prompt_veille.ts";
+import { PROMPT_VEILLE, PROMPT_VERSION, PROMPT_FICHE, FORMAT_THEMATIQUE, FAMILLES_LIBELLES, PROMPT_RESSERRAGE, STYLE_TRAMES, PROMPT_MAILS, STYLE_MAILS } from "../_shared/prompt_veille.ts";
 import {
-  extraireJson, validerSortie, validerPropositions, collecterUrls, verifierSources, alertes, estimerCout, cumulerUsage, remplirPrompt, alleger, FAMILLES, type Usage, type ThematiqueT, type PropositionT, Resserrage,
+  extraireJson, validerSortie, validerPropositions, collecterUrls, verifierSources, alertes, estimerCout, cumulerUsage, remplirPrompt, alleger, FAMILLES, type Usage, type ThematiqueT, type PropositionT, Resserrage, SortieMails,
 } from "../_shared/validation.ts";
 
 const CORS = {
@@ -300,7 +301,7 @@ ${FORMAT_THEMATIQUE}`;
     const ligne: any = {
       cle: t.id, titre: t.titre, famille: t.famille || prop.famille || null, offre_rex: t.offre_rex, pourquoi_maintenant: t.pourquoi_maintenant,
       sources: t.sources, concurrence: t.concurrence, regles: t.regles, trames: t.trames,
-      objections: t.objections, hypotheses: t.hypotheses, alertes: alertes(t, new Date()),
+      objections: t.objections, mails: t.mails || {}, hypotheses: t.hypotheses, alertes: alertes(t, new Date()),
     };
     if (gen.type === "regeneration") {
       const { error } = await admin.from("commando_thematiques").update({
@@ -460,6 +461,37 @@ ${FORMAT_THEMATIQUE}`;
     const { error: uErr } = await admin.from("commando_thematiques").update(maj).eq("id", t.id);
     if (uErr) return json({ error: "Enregistrement : " + uErr.message }, 500);
     return json({ thematique_id: t.id, titre: t.titre, usage, cout_estime: estimerCout(modele, usage), duree_ms: Date.now() - debut });
+  }
+
+  // --- Mails de suivi d'une thématique existante : un seul appel, réponse immédiate ---
+  if (body?.type === "mails") {
+    const thId = String(body?.thematique_id || "");
+    const { data: t } = await admin.from("commando_thematiques").select("id, titre, offre_rex, pourquoi_maintenant, sources, trames, objections").eq("id", thId).maybeSingle();
+    if (!t) return json({ error: "Thématique introuvable" }, 400);
+    const system = remplirPrompt(PROMPT_MAILS, { style: STYLE_MAILS, fiche_rex: params.fiche_rex || "(fiche non renseignée)" });
+    const contenu = JSON.stringify({ titre: t.titre, offre_rex: t.offre_rex, pourquoi_maintenant: t.pourquoi_maintenant, faits_sources: t.sources, trame_verte: (t.trames || {}).vert, objections: t.objections }, null, 1);
+    const messages: any[] = [{ role: "user", content: "Thématique :\n" + contenu }];
+    let data: any = null, erreurs: string[] = [], usage: Usage = {};
+    const debut = Date.now();
+    for (let essai = 0; essai < 2 && !data; essai++) {
+      let r: any;
+      try { r = await appeler(system, messages, [], 3000, 110_000 - (Date.now() - debut)); }
+      catch (e: any) { return json({ error: "Modèle : " + (e?.message || String(e)) }, 502); }
+      usage = cumulerUsage(usage, r.usage);
+      const parsed = SortieMails.safeParse(extraireJson(r.texte));
+      if (parsed.success) data = parsed.data;
+      else {
+        erreurs = parsed.error.issues.map((i: any) => i.path.join(".") + " : " + i.message);
+        messages.push({ role: "assistant", content: r.texte }, { role: "user", content: "Ta réponse n'est pas conforme : " + erreurs.join(" ; ") + ". Renvoie uniquement l'objet JSON corrigé." });
+      }
+    }
+    if (!data) return json({ error: "Réponse du modèle non conforme : " + erreurs.join(" | ") }, 502);
+    // Texte brut garanti : les astérisques de mise en forme sont retirés.
+    const nettoyer = (m: any) => ({ objet: String(m.objet || "").replace(/\*\*/g, "").trim(), corps: String(m.corps || "").replace(/\*\*/g, "").trim() });
+    const mails = { rdv: nettoyer(data.mails.rdv), suite: nettoyer(data.mails.suite) };
+    const { error: uErr } = await admin.from("commando_thematiques").update({ mails, modifiee_par: callerId, modifiee_le: new Date().toISOString() }).eq("id", t.id);
+    if (uErr) return json({ error: "Enregistrement : " + uErr.message }, 500);
+    return json({ thematique_id: t.id, titre: t.titre, mails, usage, cout_estime: estimerCout(modele, usage), duree_ms: Date.now() - debut });
   }
 
   // ============================================================

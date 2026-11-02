@@ -50,9 +50,9 @@
 
   function bloc(b) {
     const warn = b.echantillon_insuffisant ? ` <span class="cmd-badge cmd-badge--warn" title="Moins de ${stats.seuil} appels : un taux calculé sur si peu d'appels ne prouve rien">échantillon insuffisant</span>` : "";
-    return `<td class="num">${n(b.appels)}</td><td class="num">${n(b.rdv)}</td><td class="num"><b>${pct(b.taux)}</b>${warn}</td><td class="num">${n(b.honores)}</td>`;
+    return `<td class="num">${n(b.appels)}</td><td class="num">${n(b.rdv)}</td><td class="num"><b>${pct(b.taux)}</b>${warn}</td><td class="num">${n(b.honores)}</td><td class="num">${n(b.mails)}</td>`;
   }
-  const entete = `<th class="num">Appels</th><th class="num">RDV pris</th><th class="num">Taux de RDV</th><th class="num">RDV honorés</th>`;
+  const entete = `<th class="num">Appels</th><th class="num">RDV pris</th><th class="num">Taux de RDV</th><th class="num">RDV honorés</th><th class="num">✉️ Mails</th>`;
   function table(titre, lignes, premiereColonne, intro) {
     return `<div class="cmd-card"><h3>${esc(titre)}</h3>${intro ? `<p class="muted">${intro}</p>` : ""}
       ${lignes.length ? `<div class="tbl-scroll"><table class="grid"><thead><tr>${premiereColonne}${entete}</tr></thead><tbody>${lignes.join("")}</tbody></table></div>` : `<p class="muted">Pas encore de données.</p>`}</div>`;
@@ -63,7 +63,7 @@
     const objectif = n(s.objectif);
     const semaineHtml = (s.semaine_courante_par_commercial || []).map(c => {
       const p = Math.min(100, Math.round(n(c.rdv) / Math.max(1, objectif) * 100));
-      return `<div class="dash-obj"><div class="dash-obj__head"><b>${esc(c.nom || "—")}</b><span>${n(c.rdv)} / ${objectif} RDV · ${n(c.appels)} appels</span></div><div class="cmd-progress"><span style="width:${p}%"></span></div></div>`;
+      return `<div class="dash-obj"><div class="dash-obj__head"><b>${esc(c.nom || "—")}</b><span>${n(c.rdv)} / ${objectif} RDV · ${n(c.appels)} appels · ${n(c.mails)} mails</span></div><div class="cmd-progress"><span style="width:${p}%"></span></div></div>`;
     }).join("");
     const couleurs = (s.par_couleur || []).map(c => `<tr><td>${c.couleur ? `<span class="cmd-badge cmd-badge--${esc(c.couleur)}">${COULEUR[c.couleur]}</span>` : `<span class="cmd-badge cmd-badge--gris">Non classée</span>`}</td>${bloc(c)}</tr>`);
     const themes = (s.par_thematique || []).map(x => `<tr><td>${esc(x.titre || "—")} <span class="muted">${esc(x.semaine || "")}</span></td>${bloc(x)}</tr>`);
@@ -72,7 +72,7 @@
     const semaines = (s.par_semaine || []).map(x => `<tr><td>${esc(C().fmtSemaine(x.semaine))}</td>${bloc(x)}</tr>`);
     const csem = (s.par_commercial_semaine || []).map(x => `<tr><td>${esc(x.semaine)} · ${esc(x.nom || "—")}</td>${bloc(x)}</tr>`);
     return `
-      <div class="cmd-cards">${card(n(t.appels), "Appels")}${card(n(t.rdv), "RDV pris")}${card(pct(t.taux), "Taux de RDV")}${card(n(t.honores), "RDV honorés")}</div>
+      <div class="cmd-cards">${card(n(t.appels), "Appels")}${card(n(t.rdv), "RDV pris")}${card(pct(t.taux), "Taux de RDV")}${card(n(t.honores), "RDV honorés")}${card(n(t.mails), "✉️ Mails de suivi")}</div>
       ${t.echantillon_insuffisant ? `<div class="cmd-note">⚠︎ Moins de ${esc(s.seuil)} appels sur la période : les taux ci-dessous ne prouvent encore rien.</div>` : ""}
       <div class="cmd-card"><h3>Semaine ${esc(s.semaine_courante)} : RDV par commercial face à l'objectif (${objectif})</h3>${semaineHtml || `<p class="muted">Aucun commercial membre.</p>`}</div>
       ${table("Par couleur", couleurs, "<th>Couleur</th>", "La question centrale : les cibles vertes donnent-elles plus de RDV que les orange et les rouges ?")}

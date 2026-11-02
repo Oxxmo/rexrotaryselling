@@ -79,7 +79,7 @@
   async function chargerSemaine() {
     if (!semaine) { thematiques = []; lignes = []; lignesTheme = {}; return; }
     const [t, l] = await Promise.all([
-      sb().from("commando_thematiques").select("id, titre, offre_rex, pourquoi_maintenant, trames, objections, regles, ordre").eq("semaine_id", semaine.id).eq("statut", "retenue").order("ordre").then(r => r.data || []),
+      sb().from("commando_thematiques").select("id, titre, offre_rex, pourquoi_maintenant, trames, objections, mails, regles, ordre").eq("semaine_id", semaine.id).eq("statut", "retenue").order("ordre").then(r => r.data || []),
       listeRpc(semaine.id, null)
     ]);
     thematiques = t; lignes = l || []; lignesTheme = {};
@@ -223,7 +223,7 @@
         <details class="cmd-points__bareme"><summary>Comment gagner des points</summary>
           <ul><li>Appel passé : <b>${esc(b.appel ?? 1)}</b></li><li>RDV pris : <b>${esc(b.rdv ?? 10)}</b> (repris s'il est annulé)</li>
           <li>RDV honoré, validé par le responsable : <b>${esc(b.rdv_honore ?? 25)}</b></li><li>Premier RDV de l'heure : <b>${esc(b.premier_rdv ?? 15)}</b></li>
-          <li>Pronostic tenu : <b>${esc(b.pronostic ?? 10)}</b></li><li>Badge de la semaine (Ouvreur, Marathonien, Sniper, Fidèle) : <b>${esc(b.badge ?? 20)}</b> chacun, le lundi suivant</li></ul>
+          <li>Mail de suivi envoyé après l'appel : <b>${esc(b.mail ?? 5)}</b></li><li>Pronostic tenu : <b>${esc(b.pronostic ?? 10)}</b></li><li>Badge de la semaine (Ouvreur, Marathonien, Sniper, Fidèle) : <b>${esc(b.badge ?? 20)}</b> chacun, le lundi suivant</li></ul>
           <div class="muted">Les points se cumulent de semaine en semaine. Le détail est dans l'onglet Ligue.</div></details>
       </div>`);
     }
@@ -372,6 +372,57 @@
     return `<details class="cmd-obj"><summary>Objections probables (${obj.length})</summary>${obj.map(o => `<div class="cmd-obj__item"><b>« ${esc(o.objection)} »</b><p>${C().gras(o.reponse)}</p></div>`).join("")}</details>`;
   }
   let ficheEl = null;
+  let dernierAppelMoi = null;   // dernier appel du commercial connecté sur l'entreprise ouverte (7 jours)
+  const CRENEAUX_DEFAUT = "mardi matin ou jeudi après-midi";
+  function texteMail(txt, r, extra) {
+    const base = remplir(String(txt || "").replace(/\*\*/g, ""), r);
+    return base.replace(/\{(\w+)\}/g, (m, k) => (k in extra ? extra[k] : m));
+  }
+  // Mail de suivi : variante selon le dernier appel, aperçu, ouverture dans la messagerie du commercial (mailto).
+  function rendreMail(el, t, r) {
+    const box = $("#ficheMail", el); if (!box) return;
+    const mails = (t && t.mails) || {};
+    if (!mails.rdv && !mails.suite) { box.innerHTML = ""; return; }
+    const a = dernierAppelMoi;
+    const rdvPris = !!(a && a.statut === "rdv" && a.date_rdv);
+    let variante = rdvPris && mails.rdv ? "rdv" : (mails.suite ? "suite" : "rdv");
+    const dateRdv = rdvPris ? C().fmtDateTime(a.date_rdv) : "";
+    const dessiner = () => {
+      const m = mails[variante] || {};
+      const extra = { date_rdv: ($("#mailDate", box) || {}).value || dateRdv || "{date_rdv}", creneaux: ($("#mailCreneaux", box) || {}).value || CRENEAUX_DEFAUT };
+      const objet = texteMail(m.objet, r, extra), corps = texteMail(m.corps, r, extra);
+      box.innerHTML = `<div class="cmd-mail">
+        <div class="cmd-row"><b>✉️ Mail de suivi</b>
+          <select id="mailVariante" class="cmd-sem">${mails.rdv ? `<option value="rdv" ${variante === "rdv" ? "selected" : ""}>RDV confirmé</option>` : ""}${mails.suite ? `<option value="suite" ${variante === "suite" ? "selected" : ""}>Suite à notre échange</option>` : ""}</select>
+          ${variante === "rdv" ? `<input id="mailDate" type="text" class="cmd-mail__champ" value="${esc(extra.date_rdv === "{date_rdv}" ? "" : extra.date_rdv)}" placeholder="date et heure du RDV" />` : `<input id="mailCreneaux" type="text" class="cmd-mail__champ" value="${esc(extra.creneaux)}" placeholder="deux créneaux proposés" />`}
+        </div>
+        <div class="cmd-mail__apercu"><div class="cmd-mail__objet">Objet : ${esc(objet)}</div><pre class="cmd-mail__corps">${esc(corps)}</pre></div>
+        <div class="cmd-row">
+          <button id="mailOuvrir" class="btn btn--primary btn--sm" ${r.email ? "" : "disabled"}>✉️ Ouvrir dans ma messagerie</button>
+          <span class="muted">${r.email ? `À : ${esc(r.email)} · le mail part de votre boîte, relisez avant d'envoyer.` : "Saisissez l'e-mail du contact ci-dessus pour activer l'envoi."}</span>
+        </div>
+        ${a && a.mail_prepare_le ? `<div class="muted">✔︎ Mail ${a.mail_variante === "rdv" ? "de confirmation" : "de suivi"} déjà ouvert le ${esc(C().fmtDateTime(a.mail_prepare_le))}.</div>` : ""}
+      </div>`;
+      $("#mailVariante", box).addEventListener("change", (e) => { variante = e.target.value; dessiner(); });
+      const champ = $("#mailDate", box) || $("#mailCreneaux", box);
+      if (champ) champ.addEventListener("change", dessiner);
+      $("#mailOuvrir", box).addEventListener("click", async () => {
+        const email = r.email;
+        const btn = $("#mailOuvrir", box); btn.disabled = true;
+        try {
+          const res = await C().rpc("commando_mail_preparer", { _siret: r.siret, _variante: variante });
+          const pts = res && res.points && res.points.bareme ? Number(res.points.bareme.mail || 0) : 0;
+          if (!res.deja && pts) C().toast(`Mail prêt dans votre messagerie, +${pts} points`); else C().toast("Mail prêt dans votre messagerie");
+          if (a) { a.mail_prepare_le = a.mail_prepare_le || new Date().toISOString(); a.mail_variante = variante; }
+        } catch (e) { btn.disabled = false; C().toast(C().erreur(e)); return; }
+        const href = "mailto:" + encodeURIComponent(email) + "?subject=" + encodeURIComponent(objet) + "&body=" + encodeURIComponent(corps.replace(/\n/g, "\r\n"));
+        window.location.href = href;
+        btn.disabled = false;
+        dessiner();
+      });
+    };
+    dessiner();
+  }
   async function ouvrirFiche(r) {
     if (!r) return;
     const t = thematiques.find(x => x.id === r.thematique_id);
@@ -404,6 +455,7 @@
           </div>
           <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button>${r.telephone ? "" : `<button id="ficheTelOsm" class="btn btn--ghost btn--sm" title="Recherche gratuite dans OpenStreetMap">🔎 Chercher le téléphone</button>`}<button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
           <div id="ficheTelSource" class="muted" style="font-size:.78rem"></div>
+          <div id="ficheMail"></div>
           ${r.deja_appelee ? `<div class="cmd-item__warn">☎︎ Déjà appelée : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}. Rappel possible à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}.</div>` : ""}
           <h3 class="output-title">Pourquoi cette couleur</h3>
           <p class="cmd-regle">${regleTxt}</p>
@@ -421,6 +473,7 @@
             <div id="resExtra" class="cmd-resultat__extra" hidden>
               <label id="resRappelLbl" hidden>Rappeler le<input id="resRappel" type="date" value="${dans7j.toISOString().slice(0, 10)}" /></label>
               <label id="resRdvLbl" hidden>Date et heure du RDV<input id="resRdv" type="datetime-local" /></label>
+              ${r.email ? "" : `<label>E-mail du contact <span class="muted">(pour le mail de suivi, demandez-le en fin d'appel)</span><input id="resMail" type="email" placeholder="prenom.nom@entreprise.fr" /></label>`}
               <label>Note (facultatif)<textarea id="resNote" rows="2" placeholder="Interlocuteur, contexte, prochaine étape…"></textarea></label>
               <div class="cmd-row"><button id="resSave" class="btn btn--primary">Enregistrer</button><span id="resErr" class="cmd-err" hidden></span></div>
             </div>
@@ -459,6 +512,7 @@
       if (error) { C().toast("Échec : " + error.message); return; }
       r.telephone = row.telephone; r.email = row.email;
       C().toast("Coordonnées enregistrées");
+      rendreMail(ficheEl, t, r);
     });
     $("#ficheOppo", ficheEl).addEventListener("click", async () => {
       if (!confirm("Marquer « " + r.raison_sociale + " » en opposition ?\nL'entreprise ne sera plus jamais proposée dans les listes d'appel.")) return;
@@ -493,19 +547,36 @@
         row.date_rdv = new Date(v).toISOString(); row.rdv_statut = "prevu";
       }
       const b = $("#resSave", ficheEl); b.disabled = true;
+      const mailSaisi = ($("#resMail", ficheEl) || {}).value || "";
+      if (mailSaisi.trim()) {
+        const { error: mErr } = await sb().from("commando_contacts").upsert({ siret: r.siret, email: mailSaisi.trim(), updated_by: me.id }, { onConflict: "siret" });
+        if (mErr) { b.disabled = false; err.textContent = "E-mail non enregistré : " + mErr.message; err.hidden = false; return; }
+        r.email = mailSaisi.trim();
+      }
       const { error } = await sb().from("commando_appels").insert(row);
       b.disabled = false;
       if (error) { err.textContent = "Échec : " + error.message; err.hidden = false; return; }
+      dernierAppelMoi = { statut, date_rdv: row.date_rdv || null, created_at: new Date().toISOString() };
+      rafraichir();
+      // Mail de suivi : si la thématique en a un et que l'e-mail est connu, on reste sur la fiche pour l'envoyer.
+      if (t && t.mails && (t.mails.rdv || t.mails.suite) && r.email) {
+        C().toast(statut === "rdv" ? "RDV enregistré, bravo ! Envoyez le mail de confirmation ✉️" : "Appel enregistré. Un mail de suivi est prêt ✉️");
+        $("#resExtra", ficheEl).hidden = true;
+        rendreMail(ficheEl, t, r);
+        const m = $("#ficheMail", ficheEl); if (m) m.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
       C().toast(statut === "rdv" ? "RDV enregistré, bravo !" : "Appel enregistré");
       fermerFiche();
-      rafraichir();
     });
 
     // Historique
     const { data: hist } = await sb().from("commando_appels").select("*").eq("siret", r.siret).order("created_at", { ascending: false }).limit(8);
+    dernierAppelMoi = (hist || []).find(a => a.commercial_id === me.id && (Date.now() - new Date(a.created_at).getTime()) < 7 * 86400000) || null;
+    rendreMail(ficheEl, t, r);
     const h = $("#ficheHist", ficheEl);
     if (!h) return;
-    h.innerHTML = (hist || []).length ? `<ul class="cmd-hist">${hist.map(a => `<li><b>${esc(STATUTS[a.statut] || a.statut)}</b>${a.statut === "rdv" ? ` (${esc(C().fmtDateTime(a.date_rdv))}, ${esc(RDV_STATUTS[a.rdv_statut] || "")})` : ""}${a.statut === "rappeler" && a.date_rappel ? ` (le ${esc(C().fmtDate(a.date_rappel))})` : ""} · ${esc(C().fmtDateTime(a.created_at))} · ${esc(C().prenomDe(a.commercial_id))}${a.couleur_au_moment ? ` · ${esc(COULEUR_LABEL[a.couleur_au_moment])}` : ""}${a.note ? `<br><span class="muted">${esc(a.note)}</span>` : ""}</li>`).join("")}</ul>` : `<p class="muted">Jamais appelée.</p>`;
+    h.innerHTML = (hist || []).length ? `<ul class="cmd-hist">${hist.map(a => `<li><b>${esc(STATUTS[a.statut] || a.statut)}</b>${a.statut === "rdv" ? ` (${esc(C().fmtDateTime(a.date_rdv))}, ${esc(RDV_STATUTS[a.rdv_statut] || "")})` : ""}${a.statut === "rappeler" && a.date_rappel ? ` (le ${esc(C().fmtDate(a.date_rappel))})` : ""} · ${esc(C().fmtDateTime(a.created_at))} · ${esc(C().prenomDe(a.commercial_id))}${a.couleur_au_moment ? ` · ${esc(COULEUR_LABEL[a.couleur_au_moment])}` : ""}${a.mail_prepare_le ? ` · ✉️ mail ${a.mail_variante === "rdv" ? "de confirmation" : "de suivi"}` : ""}${a.note ? `<br><span class="muted">${esc(a.note)}</span>` : ""}</li>`).join("")}</ul>` : `<p class="muted">Jamais appelée.</p>`;
   }
   function fermerFiche() {
     if (ficheEl) ficheEl.hidden = true;

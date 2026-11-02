@@ -474,6 +474,7 @@
         <label>Points par RDV pris (repris si annulé)<input type="number" name="pts_rdv" min="0" max="1000" /></label>
         <label>Points par RDV honoré validé<input type="number" name="pts_rdv_honore" min="0" max="1000" /></label>
         <label>Points pour le premier RDV de l'heure<input type="number" name="pts_premier_rdv" min="0" max="1000" /></label>
+        <label>Points par mail de suivi envoyé<input type="number" name="pts_mail" min="0" max="1000" /></label>
         <label>Points pour un pronostic tenu<input type="number" name="pts_pronostic" min="0" max="1000" /></label>
         <label>Points par badge de la semaine<input type="number" name="pts_badge" min="0" max="1000" /></label>
         <label class="wide">Concurrents à surveiller (un par ligne)<textarea name="concurrents" rows="4"></textarea></label>
@@ -507,7 +508,7 @@
     const px = jx.points || {};
     f.pts_actif.checked = px.actif !== false;
     f.pts_appel.value = px.appel ?? 1; f.pts_rdv.value = px.rdv ?? 10; f.pts_rdv_honore.value = px.rdv_honore ?? 25;
-    f.pts_premier_rdv.value = px.premier_rdv ?? 15; f.pts_pronostic.value = px.pronostic ?? 10; f.pts_badge.value = px.badge ?? 20;
+    f.pts_premier_rdv.value = px.premier_rdv ?? 15; f.pts_pronostic.value = px.pronostic ?? 10; f.pts_badge.value = px.badge ?? 20; f.pts_mail.value = px.mail ?? 5;
     f.fiche_rex.value = p.fiche_rex || p.fiche_rex_brouillon || "";
     $("#ficheEtat", el).textContent = p.fiche_rex_validee_le ? `(validée le ${C().fmtDateTime(p.fiche_rex_validee_le)})` : (p.fiche_rex_brouillon ? "(brouillon de la veille, non validé)" : "(non renseignée)");
   }
@@ -535,7 +536,7 @@
         heures: f.jeu_heures.value.split(/[,\s;]+/).map(Number).filter(h => Number.isInteger(h) && h >= 0 && h <= 23),
         points: {
           actif: f.pts_actif.checked, appel: Number(f.pts_appel.value) || 0, rdv: Number(f.pts_rdv.value) || 0, rdv_honore: Number(f.pts_rdv_honore.value) || 0,
-          premier_rdv: Number(f.pts_premier_rdv.value) || 0, pronostic: Number(f.pts_pronostic.value) || 0, badge: Number(f.pts_badge.value) || 0,
+          premier_rdv: Number(f.pts_premier_rdv.value) || 0, pronostic: Number(f.pts_pronostic.value) || 0, badge: Number(f.pts_badge.value) || 0, mail: Number(f.pts_mail.value) || 0,
         },
       },
       consignes: f.consignes.value,

@@ -241,4 +241,9 @@ body.cmd-mode #btnCommando{background:#fff;color:var(--rex, #c8102e);border-colo
 .cmd-points__bareme{font-size:.88rem}.cmd-points__bareme summary{cursor:pointer;font-weight:700}
 .cmd-points__bareme ul{margin:6px 0;padding-left:18px}
 .cmd-releve{margin-top:10px;font-size:.9rem}.cmd-releve summary{cursor:pointer;font-weight:800;color:var(--rex-dark)}
+.cmd-mail{margin:10px 0 4px;padding:10px 12px;border:1px solid #cfe3ff;background:#f4f8ff;border-radius:12px}
+.cmd-mail__champ{flex:1;min-width:180px;padding:6px 8px;border:1px solid var(--line-soft);border-radius:8px;font:inherit}
+.cmd-mail__apercu{margin:8px 0;padding:8px 10px;background:#fff;border:1px solid var(--line-soft);border-radius:10px}
+.cmd-mail__objet{font-weight:800;margin-bottom:4px}
+.cmd-mail__corps{margin:0;white-space:pre-wrap;font:inherit;font-size:.92rem;line-height:1.45;color:var(--ink)}
 
