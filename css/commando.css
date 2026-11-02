@@ -183,6 +183,10 @@ body.cmd-mode #btnCommando{background:#fff;color:var(--rex, #c8102e);border-colo
 .cmd-trame__bloc b{display:block;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
 .cmd-trame__bloc p{margin:0;font-size:.98rem;line-height:1.5}
 .cmd-trame__bloc ol{margin:0;padding-left:20px;font-size:.95rem;line-height:1.5}
+.cmd-trame strong,.cmd-obj__item strong,.cmd-card--theme strong{font-weight:800;background:#fde68a;color:#1f1300;padding:0 4px;border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.cmd-trame__cles{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px;padding:0}
+.cmd-trame__cles li{background:#fff7d6;border:1px solid #f5d76e;border-radius:999px;padding:4px 12px;font-weight:800;font-size:.88rem;color:#3b2a00}
+.cmd-trame__cles li strong{background:none;padding:0}
 .cmd-obj{margin:12px 0;font-size:.9rem}
 .cmd-obj summary{cursor:pointer;font-weight:800;color:var(--rex-dark)}
 .cmd-obj__item{margin:10px 0 0;padding:8px 10px;background:var(--tile);border-radius:10px}

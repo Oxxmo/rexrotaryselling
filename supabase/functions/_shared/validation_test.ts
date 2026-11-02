@@ -4,7 +4,7 @@
 // ============================================================
 import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1";
 import {
-  extraireJson, validerSortie, collecterUrls, verifierSources, alertes, estimerCout, normaliserUrl, remplirPrompt, alleger,
+  extraireJson, validerSortie, collecterUrls, verifierSources, alertes, estimerCout, normaliserUrl, remplirPrompt, alleger, Resserrage,
 } from "./validation.ts";
 
 const ici = new URL(".", import.meta.url).pathname;
@@ -170,4 +170,12 @@ Deno.test("validerPropositions : famille exclue et titre déjà vu refusés", ()
   if (!v.ok) assertEquals(v.erreurs.length, 2);
   const ok = validerPropositions({ propositions: props }, 3, 3, {});
   assert(ok.ok);
+});
+
+Deno.test("resserrage : points_cles facultatifs, 5 au plus, objections validées", () => {
+  const ok = Resserrage.safeParse({ trames: { vert: { accroche: "a", questions_decouverte: ["q"], argument: "**clé**", conclusion: "c" }, orange: {}, rouge: {} }, objections: [{ objection: "o", reponse: "r" }] });
+  if (!ok.success) throw new Error(JSON.stringify(ok.error.issues));
+  if (ok.data.trames.vert.points_cles.length !== 0) throw new Error("points_cles doit valoir [] par défaut");
+  const trop = Resserrage.safeParse({ trames: { vert: { points_cles: ["1", "2", "3", "4", "5", "6"] }, orange: {}, rouge: {} } });
+  if (trop.success) throw new Error("6 points clés devraient être refusés");
 });

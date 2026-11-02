@@ -418,3 +418,13 @@ appel externe, par code postal, et ne remplit que les fiches sans téléphone sa
 premier appel »). Depuis une fiche, « Chercher le téléphone » fait la même chose pour une
 seule entreprise.
 
+## Trames courtes et percutantes (prompt v5)
+
+Retour terrain : un commercial lit la trame pendant l'appel, un texte long l'embrouille et
+s'entend « lu ». Le prompt v5 impose un style oral et court : 3 **points clés** (6 mots au
+plus) affichés en tête de trame, accroche de 2 phrases, 2 questions, argument de 2 phrases,
+conclusion en 1 phrase avec deux créneaux, 4 objections de 25 mots au plus. Les arguments choc
+sont entre `**…**` et rendus en gras surligné (fiche d'appel, console, objections, « pourquoi
+maintenant »). Pour une thématique déjà rédigée, l'action « ✂️ Resserrer les trames »
+(`commando-veille`, type `resserrage`) réécrit les trames en un appel sans rien inventer.
+

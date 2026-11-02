@@ -7,7 +7,7 @@
 //  Les {{variables}} sont remplies par la fonction commando-veille.
 // ============================================================
 
-export const PROMPT_VERSION = 4;
+export const PROMPT_VERSION = 5;
 
 // Familles d'offres Rex-Rotary (clé → libellé), paramétrables dans la console
 // (« privilégier », « neutre », « exclure »).
@@ -18,6 +18,16 @@ export const FAMILLES_LIBELLES: Record<string, string> = {
   telephonie: "Téléphonie",
   informatique: "Informatique (serveurs, sauvegarde, postes)",
 };
+
+// Style des trames d'appel (v5) : court, oral, percutant, arguments clés en
+// gras. Partagé par la veille et par le resserrage d'une thématique existante.
+export const STYLE_TRAMES = `Un commercial lit la trame pendant qu'il téléphone : elle doit être courte, orale et percutante, jamais un texte à réciter. Pour chaque couleur (vert, orange, rouge) :
+   - \`points_cles\` : 3 arguments choc au plus, 6 mots chacun au plus (par exemple « audit gratuit de 30 minutes »), ce sur quoi appuyer ;
+   - \`accroche\` : 2 phrases au plus, 35 mots au plus : qui appelle, pourquoi aujourd'hui ;
+   - \`questions_decouverte\` : 2 questions, 15 mots chacune au plus ;
+   - \`argument\` : 2 phrases au plus, 40 mots au plus, un bénéfice concret pour cette entreprise ;
+   - \`conclusion\` : 1 phrase, une proposition de rendez-vous avec deux créneaux au choix, sans date (« mardi matin ou jeudi après-midi »).
+   Mets en gras avec des doubles astérisques (**comme ceci**) 1 à 3 groupes de mots par bloc : l'argument clé, le chiffre, le bénéfice. Jamais une phrase entière. Ajoute 4 objections probables, chaque réponse en 25 mots au plus, avec le mot décisif en gras. \`pourquoi_maintenant\` : 2 phrases au plus.`;
 
 export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agence Rex-Rotary de Poitiers. Chaque lundi matin, le responsable commercial lance la veille. Tu lui proposes **5 thématiques d'appel** pour le commando téléphonique de la semaine. Il en retiendra 3. Ses commerciaux appelleront ensuite des TPE et PME de la Vienne (86) pour obtenir des rendez-vous.
 
@@ -45,7 +55,7 @@ export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agenc
 
    Les règles sont évaluées dans l'ordre : la première qui correspond l'emporte. Appuie-toi sur la répartition de la base pour que tes règles ciblent des entreprises qui existent vraiment. Chaque règle porte une raison courte, compréhensible par un commercial.
    **Sélectivité** : un commercial appelle 20 à 30 entreprises par heure. Vert = cœur de cible précis (codes NAF précis et tranche, 30 à 150 entreprises sur toute la base), orange = cible secondaire tout aussi précise, rouge = à éviter (facultatif). Jamais de règle « toutes les autres entreprises » ni de règle fondée sur la seule tranche d'effectif : une entreprise qui ne correspond à aucune règle reste non classée, et c'est normal pour la majorité de la base. Vert + orange ne doivent pas dépasser 25 % de la base.
-5. **Trames d'appel.** Pour chaque couleur (vert, orange, rouge), rédige une trame adaptée à ce type d'entreprise : une accroche de 3 phrases au plus, 2 ou 3 questions de découverte, un argument, et une conclusion. Ajoute 4 objections probables avec leur réponse.
+5. **Trames d'appel.** ${STYLE_TRAMES}
 
 ## Règles impératives
 
@@ -64,7 +74,7 @@ export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agenc
 
 ## Format de sortie
 
-Réponds **uniquement** par un objet JSON valide, sans texte avant ni après, conforme au format de \`thematiques_exemple.json\` : \`semaine\`, \`genere_le\`, et un tableau \`thematiques\` de 5 éléments. Chaque élément contient \`id\`, \`titre\`, \`offre_rex\`, \`pourquoi_maintenant\`, \`sources\`, \`concurrence\` (\`constat\`, \`angle_rex\`, \`sources\`), \`regles\`, \`trames\` (\`vert\`, \`orange\`, \`rouge\`), \`objections\` et \`hypotheses\`.
+Réponds **uniquement** par un objet JSON valide, sans texte avant ni après, conforme au format de \`thematiques_exemple.json\` : \`semaine\`, \`genere_le\`, et un tableau \`thematiques\` de 5 éléments. Chaque élément contient \`id\`, \`titre\`, \`offre_rex\`, \`pourquoi_maintenant\`, \`sources\`, \`concurrence\` (\`constat\`, \`angle_rex\`, \`sources\`), \`regles\`, \`trames\` (\`vert\`, \`orange\`, \`rouge\`, chacune avec \`points_cles\`), \`objections\` et \`hypotheses\`.
 `;
 
 // Squelette exact d'une thématique (le modèle ne dispose pas du fichier
@@ -88,11 +98,11 @@ export const FORMAT_THEMATIQUE = `{
         {"couleur": "rouge",  "si": {"naf_prefixes": ["56"], "tranches": ["02"]}, "raison": "…"}
       ],
       "trames": {
-        "vert":   {"accroche": "3 phrases au plus", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"},
-        "orange": {"accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"},
-        "rouge":  {"accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"}
+        "vert":   {"points_cles": ["3 arguments choc", "6 mots au plus"], "accroche": "2 phrases au plus, **mots clés en gras**", "questions_decouverte": ["…", "…"], "argument": "2 phrases au plus", "conclusion": "1 phrase, deux créneaux au choix"},
+        "orange": {"points_cles": ["…"], "accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"},
+        "rouge":  {"points_cles": ["…"], "accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"}
       },
-      "objections": [{"objection": "…", "reponse": "…"}],
+      "objections": [{"objection": "…", "reponse": "25 mots au plus, **mot décisif en gras**"}],
       "hypotheses": ["Supposition non sourcée, le cas échéant"]
     }
   ]
@@ -114,3 +124,15 @@ La fiche décrit :
 4. Les engagements ou arguments mis en avant par le site (proximité, service, délais…), sans rien ajouter.
 
 Règles : n'invente aucune offre, aucun chiffre, aucune promesse absente du site ; indique entre crochets ce que tu n'as pas trouvé ; cite les pages utilisées à la fin (URL). Longueur : 300 à 600 mots, en texte structuré (titres et listes), sans JSON. Ce brouillon sera corrigé et validé par le responsable avant tout usage.`;
+
+// Resserrage d'une thématique déjà rédigée (trames, objections, pourquoi
+// maintenant) : un seul appel, sans recherche web, rien d'inventé.
+export const PROMPT_RESSERRAGE = `Tu es l'assistant de l'agence Rex-Rotary de Poitiers. Un commercial lit la trame d'appel pendant qu'il téléphone : la version actuelle est trop longue et sonne comme un texte lu. Réécris-la, plus courte et plus percutante, dans un français oral et naturel.
+
+Règles impératives : n'invente rien. Aucun chiffre, fait, date, offre ou promesse qui ne figure pas déjà dans la thématique fournie ou dans la fiche Rex-Rotary ci-dessous. Garde le ton (clair, sans faire peur), les variables {commercial}, {raison_sociale}, {tranche}, {anciennete}, {naf_libelle}, {dirigeant}, et l'adaptation de chaque couleur (vert = cœur de cible, orange = cible secondaire, rouge = à éviter).
+
+Style attendu : {{style}}
+
+Fiche Rex-Rotary (seule source autorisée pour les offres) : {{fiche_rex}}
+
+Réponds uniquement par un objet JSON valide, sans texte autour : {"pourquoi_maintenant": "…", "trames": {"vert": {"points_cles": ["…"], "accroche": "…", "questions_decouverte": ["…", "…"], "argument": "…", "conclusion": "…"}, "orange": {…}, "rouge": {…}}, "objections": [{"objection": "…", "reponse": "…"}]}.`;

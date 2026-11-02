@@ -5,7 +5,7 @@
 | `manage-users` | Gestion des comptes depuis la console d'administration | oui | aucun (clés Supabase injectées) |
 | `commando-import` | Mise à jour de la base d'entreprises du commando (API Recherche d'entreprises) | **non** (appel du job pg_cron par secret ; JWT vérifié dans le code pour l'appel manuel) | aucun obligatoire (secret partagé lu dans **Vault**) |
 | `commando-telephones` | Téléphones gratuits : lieux OpenStreetMap de la Vienne mis en cache (Overpass + Base Adresse Nationale), rapprochement par nom et numéro de voie | **non** (JWT membre pour une fiche, responsable pour les lots ; secret Vault pour le job hebdomadaire) | aucun |
-| `commando-veille` | Veille IA hebdomadaire (API Claude + recherche web), en étapes | **non** (JWT + rôle « responsable » vérifiés dans le code ; relances internes par le secret Vault) | `ANTHROPIC_API_KEY` |
+| `commando-veille` | Veille IA hebdomadaire (API Claude + recherche web), en étapes ; resserrage des trames d'une thématique | **non** (JWT + rôle « responsable » vérifiés dans le code ; relances internes par le secret Vault) | `ANTHROPIC_API_KEY` |
 
 Toutes s'exécutent côté serveur avec la clé `service_role`, **jamais** exposée au
 navigateur. Les droits sont revérifiés dans le code, pas seulement dans l'interface.
@@ -70,6 +70,17 @@ appeler le modèle** (point d'arrêt avant le premier appel réel).
   pour une veille complète, 3 à 4 pour une régénération, 1 pour la fiche Rex.
 
 Tests : `deno test --allow-read supabase/functions/_shared/validation_test.ts`.
+
+### Resserrage des trames (`type: "resserrage"`)
+
+Corps `{ "type": "resserrage", "thematique_id": "…" }` (responsable, ou secret Vault). Un seul
+appel au modèle, sans recherche web, réponse immédiate (20 à 40 s) : les trames, les objections
+et « pourquoi maintenant » sont réécrits plus courts et plus percutants selon `STYLE_TRAMES`
+(prompt v5 : points clés, accroche de 2 phrases, 2 questions, argument de 2 phrases, conclusion
+en 1 phrase, mots clés entre `**…**` rendus en gras surligné dans la fiche d'appel), sans rien
+inventer (fiche Rex et thématique seules sources). Validation Zod (`Resserrage`), puis mise à
+jour de la thématique (`modifiee_le`). Boutons dans la console Semaine : « ✂️ Resserrer les
+trames » par thématique, ou pour toutes les retenues.
 
 ## `commando-telephones`
 

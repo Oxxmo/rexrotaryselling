@@ -8,7 +8,8 @@
 //  Types de génération (corps JSON : { semaine_id, type, thematique_id? }) :
 //    * "veille"       : 5 propositions pour la semaine ;
 //    * "regeneration" : remplace une seule proposition (thematique_id) ;
-//    * "fiche_rex"    : brouillon de fiche Rex-Rotary depuis le site public.
+//    * "fiche_rex"    : brouillon de fiche Rex-Rotary depuis le site public ;
+//    * "resserrage"   : trames plus courtes d'une thématique (réponse immédiate).
 //
 //  Exécution en ÉTAPES COURTES. Les Edge Functions sont limitées à 150 s
 //  (offre gratuite) ou 400 s par processus : une veille complète dépasse
@@ -35,10 +36,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
-import { PROMPT_VEILLE, PROMPT_VERSION, PROMPT_FICHE, FORMAT_THEMATIQUE, FAMILLES_LIBELLES } from "../_shared/prompt_veille.ts";
+import { PROMPT_VEILLE, PROMPT_VERSION, PROMPT_FICHE, FORMAT_THEMATIQUE, FAMILLES_LIBELLES, PROMPT_RESSERRAGE, STYLE_TRAMES } from "../_shared/prompt_veille.ts";
 import {
-  extraireJson, validerSortie, validerPropositions, collecterUrls, verifierSources, alertes, estimerCout, cumulerUsage,
-  remplirPrompt, alleger, FAMILLES, type Usage, type ThematiqueT, type PropositionT,
+  extraireJson, validerSortie, validerPropositions, collecterUrls, verifierSources, alertes, estimerCout, cumulerUsage, remplirPrompt, alleger, FAMILLES, type Usage, type ThematiqueT, type PropositionT, Resserrage,
 } from "../_shared/validation.ts";
 
 const CORS = {
@@ -427,6 +427,39 @@ ${FORMAT_THEMATIQUE}`;
           `Étape « ${etat.libelle || etat.phase} » : ` + message);
       }
     }
+  }
+
+  // --- Resserrage d'une thématique existante : un seul appel, réponse immédiate ---
+  //  Trames plus courtes et plus percutantes, arguments clés en gras, sans
+  //  recherche web et sans rien inventer (fiche Rex + thématique seules sources).
+  //  Accessible au responsable (JWT) et aux appels internes (secret Vault).
+  if (body?.type === "resserrage") {
+    const thId = String(body?.thematique_id || "");
+    const { data: t } = await admin.from("commando_thematiques").select("id, titre, offre_rex, pourquoi_maintenant, trames, objections").eq("id", thId).maybeSingle();
+    if (!t) return json({ error: "Thématique introuvable" }, 400);
+    const system = remplirPrompt(PROMPT_RESSERRAGE, { style: STYLE_TRAMES, fiche_rex: params.fiche_rex || "(fiche non renseignée)" });
+    const contenu = JSON.stringify({ titre: t.titre, offre_rex: t.offre_rex, pourquoi_maintenant: t.pourquoi_maintenant, trames: t.trames, objections: t.objections }, null, 1);
+    const messages: any[] = [{ role: "user", content: "Thématique à resserrer :\n" + contenu }];
+    let data: any = null, erreurs: string[] = [], usage: Usage = {};
+    const debut = Date.now();
+    for (let essai = 0; essai < 2 && !data; essai++) {
+      let r: any;
+      try { r = await appeler(system, messages, [], 6000, 110_000 - (Date.now() - debut)); }
+      catch (e: any) { return json({ error: "Modèle : " + (e?.message || String(e)) }, 502); }
+      usage = cumulerUsage(usage, r.usage);
+      const parsed = Resserrage.safeParse(extraireJson(r.texte));
+      if (parsed.success) data = parsed.data;
+      else {
+        erreurs = parsed.error.issues.map((i: any) => i.path.join(".") + " : " + i.message);
+        messages.push({ role: "assistant", content: r.texte }, { role: "user", content: "Ta réponse n'est pas conforme : " + erreurs.join(" ; ") + ". Renvoie uniquement l'objet JSON corrigé." });
+      }
+    }
+    if (!data) return json({ error: "Réponse du modèle non conforme : " + erreurs.join(" | ") }, 502);
+    const maj: any = { trames: data.trames, objections: data.objections, modifiee_par: callerId, modifiee_le: new Date().toISOString() };
+    if (data.pourquoi_maintenant && data.pourquoi_maintenant.trim()) maj.pourquoi_maintenant = data.pourquoi_maintenant.trim();
+    const { error: uErr } = await admin.from("commando_thematiques").update(maj).eq("id", t.id);
+    if (uErr) return json({ error: "Enregistrement : " + uErr.message }, 500);
+    return json({ thematique_id: t.id, titre: t.titre, usage, cout_estime: estimerCout(modele, usage), duree_ms: Date.now() - debut });
   }
 
   // ============================================================

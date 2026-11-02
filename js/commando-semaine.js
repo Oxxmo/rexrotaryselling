@@ -98,6 +98,7 @@
       <div id="veilleMsg"></div>
       <div class="cmd-row">
         <button id="veilleLancer" class="btn btn--primary btn--sm" ${enCours || !fiche || nbSemaine >= limite ? "disabled" : ""}>🔎 Lancer la veille (5 propositions)</button>
+        <button id="veilleResserrer" class="btn btn--ghost btn--sm" title="Trames plus courtes et plus percutantes, arguments clés en gras, pour les thématiques retenues">✂️ Resserrer les trames des retenues</button>
         <button id="veilleFiche" class="btn btn--sm" ${enCours ? "disabled" : ""}>📝 Rédiger la fiche Rex (brouillon)</button>
         <button id="veilleImporter" class="btn btn--ghost btn--sm">⬆️ Importer un fichier de thématiques</button>
         <input type="file" id="veilleFichier" accept="application/json,.json" hidden />
@@ -107,6 +108,12 @@
         ${generations.map(g => `<tr><td>${esc(C().fmtDateTime(g.lancee_le))}</td><td>${esc(g.type)}</td><td>${g.statut === "en_cours" ? `<span class="cmd-badge cmd-badge--info"><span class="cmd-spin"></span>en cours${g.etat && g.etat.total ? ` · étape ${esc(g.etat.etape || 1)}/${esc(g.etat.total)}` : ""}</span>${g.etat && g.etat.libelle ? `<div class="muted" style="font-size:.78rem;margin-top:3px">${esc(g.etat.libelle)}${g.etat.note ? " · " + esc(g.etat.note) : ""}</div>` : ""}` : g.statut === "erreur" ? `<span class="cmd-badge cmd-badge--err">erreur</span>` : `<span class="cmd-badge cmd-badge--ok">terminée</span>`}</td><td>${esc(g.modele || "")} v${esc(g.prompt_version || "")}</td><td class="num">${Number(g.jetons_entree || 0) + Number(g.jetons_sortie || 0) || "—"}</td><td class="num">${g.nb_recherches ?? "—"}</td><td class="num">${g.cout_estime != null ? Number(g.cout_estime).toFixed(2) + " $" : "—"}</td><td class="num">${g.duree_ms ? Math.round(g.duree_ms / 1000) + " s" : "—"}</td><td class="muted">${esc(g.erreur || "")}</td></tr>`).join("")}
       </tbody></table></div><p class="muted" style="margin-top:6px">Coût du mois (toutes semaines chargées) : ${coutMois().toFixed(2)} $.</p>` : ""}
     </div>`;
+    $("#veilleResserrer", el).addEventListener("click", () => {
+      const retenues = thematiques.filter(t => t.statut === "retenue");
+      if (!retenues.length) { C().toast("Aucune thématique retenue pour cette semaine."); return; }
+      if (!confirm(`Resserrer les trames des ${retenues.length} thématique(s) retenue(s) ? Les textes actuels seront remplacés par une version plus courte (rien n'est inventé).`)) return;
+      resserrer(el, retenues);
+    });
     $("#veilleLancer", el).addEventListener("click", () => lancerVeille(el, { type: "veille" }, "Veille lancée en 6 étapes (recherche, puis une thématique à la fois) : comptez 8 à 12 minutes. Les propositions apparaissent au fur et à mesure, la page se met à jour toute seule."));
     $("#veilleFiche", el).addEventListener("click", () => {
       if (!confirm("Rédiger un brouillon de fiche Rex-Rotary à partir du site public ? Vous le corrigerez ensuite dans Paramètres.")) return;
@@ -125,6 +132,19 @@
     } catch (e) {
       msg.innerHTML = `<div class="cmd-err">${esc(C().erreur(e))}</div>`;
     }
+  }
+  // Resserrage : une thématique à la fois (un appel au modèle, 20 à 40 s chacune).
+  async function resserrer(el, liste) {
+    const msg = $("#veilleMsg", el);
+    let n = 0;
+    for (const t of liste) {
+      n++;
+      msg.innerHTML = `<div class="cmd-note"><span class="cmd-spin"></span>Resserrage ${n}/${liste.length} : « ${esc(t.titre)} »… (20 à 40 s)</div>`;
+      try { await C().fn("commando-veille", { type: "resserrage", semaine_id: semaine.id, thematique_id: t.id }); }
+      catch (e) { msg.innerHTML = `<div class="cmd-err">« ${esc(t.titre)} » : ${esc(C().erreur(e))}</div>`; return; }
+    }
+    msg.innerHTML = `<div class="cmd-note">✔︎ ${liste.length} thématique${liste.length > 1 ? "s" : ""} resserrée${liste.length > 1 ? "s" : ""} : trames plus courtes, arguments clés en gras.</div>`;
+    await show(el);
   }
   async function importerFichier(el, f) {
     if (!f) return;
@@ -161,13 +181,15 @@
   }
   function trameHtml(t) {
     const trames = t.trames || {};
+    const g = (x) => C().gras(x);
     return COULEURS.map(c => {
       const tr = trames[c]; if (!tr) return `<div class="cmd-trame cmd-trame--${c}"><p class="muted">Pas de trame ${c}.</p></div>`;
       return `<div class="cmd-trame cmd-trame--${c}">
-        <div class="cmd-trame__bloc"><b>${c} · accroche</b><p>${esc(tr.accroche || "")}</p></div>
-        ${(tr.questions_decouverte || []).length ? `<div class="cmd-trame__bloc"><b>questions</b><ol>${tr.questions_decouverte.map(q => `<li>${esc(q)}</li>`).join("")}</ol></div>` : ""}
-        ${tr.argument ? `<div class="cmd-trame__bloc"><b>argument</b><p>${esc(tr.argument)}</p></div>` : ""}
-        ${tr.conclusion ? `<div class="cmd-trame__bloc"><b>conclusion</b><p>${esc(tr.conclusion)}</p></div>` : ""}
+        ${(tr.points_cles || []).length ? `<ul class="cmd-trame__cles">${tr.points_cles.map(k => `<li>${g(k)}</li>`).join("")}</ul>` : ""}
+        <div class="cmd-trame__bloc"><b>${c} · accroche</b><p>${g(tr.accroche || "")}</p></div>
+        ${(tr.questions_decouverte || []).length ? `<div class="cmd-trame__bloc"><b>questions</b><ol>${tr.questions_decouverte.map(q => `<li>${g(q)}</li>`).join("")}</ol></div>` : ""}
+        ${tr.argument ? `<div class="cmd-trame__bloc"><b>argument</b><p>${g(tr.argument)}</p></div>` : ""}
+        ${tr.conclusion ? `<div class="cmd-trame__bloc"><b>conclusion</b><p>${g(tr.conclusion)}</p></div>` : ""}
       </div>`;
     }).join("");
   }
@@ -188,12 +210,13 @@
           ${t.statut !== "ecartee" ? `<button class="btn btn--ghost btn--sm" data-statut="ecartee">Écarter</button>` : `<button class="btn btn--ghost btn--sm" data-statut="proposee">Reproposer</button>`}
           <button class="btn btn--ghost btn--sm" data-edit>✏️ Modifier</button>
           ${t.origine === "ia" ? `<button class="btn btn--ghost btn--sm" data-regen>🔁 Régénérer</button>` : ""}
+          <button class="btn btn--ghost btn--sm" data-resserrer title="Trames plus courtes et plus percutantes, arguments clés en gras (sans rien inventer)">✂️ Resserrer les trames</button>
           <button class="btn btn--danger btn--sm" data-del>Supprimer</button>
         </div>
       </div>
       <h3>${esc(t.titre)}</h3>
       <p class="muted"><b>Offre Rex :</b> ${esc(t.offre_rex || "—")}</p>
-      <p><b>Pourquoi maintenant :</b> ${esc(t.pourquoi_maintenant || "")}</p>
+      <p><b>Pourquoi maintenant :</b> ${C().gras(t.pourquoi_maintenant || "")}</p>
       ${alertes.length ? `<div class="cmd-err">⚠︎ ${alertes.map(esc).join(" · ")}</div>` : ""}
       <h4>Sources (${nbVerif}/${(t.sources || []).length} vérifiées)</h4>
       ${(t.sources || []).length ? `<ul class="cmd-sources">${t.sources.map(sourceHtml).join("")}</ul>` : `<p class="muted">Aucune source.</p>`}
@@ -205,7 +228,7 @@
       <ol class="cmd-regles">${(t.regles || []).map(regleHtml).join("")}</ol>
       <div class="cmd-apercu" data-apercu-box hidden></div>
       <details><summary>Trames d'appel par couleur</summary>${trameHtml(t)}</details>
-      <details><summary>Objections (${(t.objections || []).length})</summary>${(t.objections || []).map(o => `<div class="cmd-obj__item"><b>« ${esc(o.objection)} »</b><p>${esc(o.reponse)}</p></div>`).join("") || "<p class='muted'>Aucune.</p>"}</details>
+      <details><summary>Objections (${(t.objections || []).length})</summary>${(t.objections || []).map(o => `<div class="cmd-obj__item"><b>« ${esc(o.objection)} »</b><p>${C().gras(o.reponse)}</p></div>`).join("") || "<p class='muted'>Aucune.</p>"}</details>
       <details><summary>Hypothèses (${(t.hypotheses || []).length}) — à distinguer des faits</summary><ul>${(t.hypotheses || []).map(h => `<li>${esc(h)}</li>`).join("") || "<li class='muted'>Aucune.</li>"}</ul></details>
     </div>`;
   }
@@ -244,6 +267,7 @@
         if (error) { C().toast("Échec : " + error.message); return; }
         C().toast("Thématique supprimée"); show(el);
       });
+      $("[data-resserrer]", card).addEventListener("click", () => resserrer(el, [t]));
       const rg = $("[data-regen]", card);
       if (rg) rg.addEventListener("click", () => {
         if (!confirm("Régénérer uniquement cette proposition par la veille IA ? L'actuelle sera remplacée.")) return;

@@ -314,7 +314,7 @@
     $$("[data-theme]", el).forEach(b => b.addEventListener("click", () => { themeActif = b.dataset.theme; showThemes(el); }));
     const t = thematiques.find(x => x.id === themeActif);
     if (!t) { el.querySelector("#themBody").innerHTML = `<p class="cmd-empty">Aucune thématique retenue.</p>`; return; }
-    el.querySelector("#themIntro").innerHTML = `<div class="cmd-card cmd-card--theme"><h3>${esc(t.titre)}</h3><p class="muted"><b>Offre Rex :</b> ${esc(t.offre_rex)}</p><p>${esc(t.pourquoi_maintenant)}</p></div>`;
+    el.querySelector("#themIntro").innerHTML = `<div class="cmd-card cmd-card--theme"><h3>${esc(t.titre)}</h3><p class="muted"><b>Offre Rex :</b> ${esc(t.offre_rex)}</p><p>${C().gras(t.pourquoi_maintenant)}</p></div>`;
     el.querySelector("#themFiltres").innerHTML = barreFiltres(false);
     const body = el.querySelector("#themBody");
     body.innerHTML = `<p class="cmd-empty"><span class="cmd-spin"></span>Chargement…</p>`;
@@ -340,20 +340,22 @@
     const trames = (t && t.trames) || {};
     const c = couleur || "orange";
     const tr = trames[c] || trames.vert || {};
+    const g = (txt) => C().gras(remplir(txt, r));
     const note = couleur ? "" : `<div class="cmd-note">Entreprise non classée pour cette thématique : la trame orange est proposée par défaut.</div>`;
     if (!tr.accroche && !tr.argument) return note + `<p class="muted">Aucune trame disponible pour cette couleur.</p>`;
     return note + `
       <div class="cmd-trame cmd-trame--${c}">
-        <div class="cmd-trame__bloc"><b>Accroche</b><p>${esc(remplir(tr.accroche, r))}</p></div>
-        ${(tr.questions_decouverte || []).length ? `<div class="cmd-trame__bloc"><b>Questions de découverte</b><ol>${tr.questions_decouverte.map(q => `<li>${esc(remplir(q, r))}</li>`).join("")}</ol></div>` : ""}
-        ${tr.argument ? `<div class="cmd-trame__bloc"><b>Argument</b><p>${esc(remplir(tr.argument, r))}</p></div>` : ""}
-        ${tr.conclusion ? `<div class="cmd-trame__bloc"><b>Conclusion</b><p>${esc(remplir(tr.conclusion, r))}</p></div>` : ""}
+        ${(tr.points_cles || []).length ? `<ul class="cmd-trame__cles">${tr.points_cles.map(k => `<li>${g(k)}</li>`).join("")}</ul>` : ""}
+        <div class="cmd-trame__bloc"><b>Accroche</b><p>${g(tr.accroche)}</p></div>
+        ${(tr.questions_decouverte || []).length ? `<div class="cmd-trame__bloc"><b>Questions</b><ol>${tr.questions_decouverte.map(q => `<li>${g(q)}</li>`).join("")}</ol></div>` : ""}
+        ${tr.argument ? `<div class="cmd-trame__bloc"><b>Argument</b><p>${g(tr.argument)}</p></div>` : ""}
+        ${tr.conclusion ? `<div class="cmd-trame__bloc"><b>Conclusion</b><p>${g(tr.conclusion)}</p></div>` : ""}
       </div>`;
   }
   function objectionsHtml(t) {
     const obj = (t && t.objections) || [];
     if (!obj.length) return "";
-    return `<details class="cmd-obj"><summary>Objections probables (${obj.length})</summary>${obj.map(o => `<div class="cmd-obj__item"><b>« ${esc(o.objection)} »</b><p>${esc(o.reponse)}</p></div>`).join("")}</details>`;
+    return `<details class="cmd-obj"><summary>Objections probables (${obj.length})</summary>${obj.map(o => `<div class="cmd-obj__item"><b>« ${esc(o.objection)} »</b><p>${C().gras(o.reponse)}</p></div>`).join("")}</details>`;
   }
   let ficheEl = null;
   async function ouvrirFiche(r) {

@@ -15,6 +15,8 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  // Texte des trames : échappé, puis **mots clés** rendus en gras (surlignés).
+  const gras = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 
   const tabs = [];            // { id, label, roles, render(el), onShow(el), el, rendered }
   let membre = null;          // { role } ou null
@@ -167,7 +169,7 @@
   }
 
   window.RexCommando = {
-    registerTab, onBoot, open, close, show, rpc, fn, sb, toast, esc, erreur,
+    registerTab, onBoot, open, close, show, rpc, fn, sb, toast, esc, gras, erreur,
     semaineIso, semaineCible, lundiDe, fmtDate, fmtDateTime, fmtSemaine, nomDe, prenomDe,
     role() { return membre ? membre.role : null; },
     isResponsable() { return !!membre && membre.role === "responsable"; },

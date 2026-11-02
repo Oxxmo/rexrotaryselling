@@ -43,6 +43,7 @@ const Regle = z.object({
 });
 
 const Trame = z.object({
+  points_cles: z.array(z.string()).max(5).default([]),
   accroche: z.string().default(""),
   questions_decouverte: z.array(z.string()).default([]),
   argument: z.string().default(""),
@@ -69,6 +70,14 @@ export const Thematique = z.object({
   hypotheses: z.array(z.string()).default([]),
 });
 export type ThematiqueT = z.infer<typeof Thematique>;
+
+// Réponse du resserrage d'une thématique existante (prompt PROMPT_RESSERRAGE).
+export const Resserrage = z.object({
+  pourquoi_maintenant: z.string().optional(),
+  trames: z.object({ vert: Trame, orange: Trame, rouge: Trame }),
+  objections: z.array(Objection).default([]),
+});
+export type ResserrageT = z.infer<typeof Resserrage>;
 
 export const SortieVeille = z.object({
   semaine: z.string().regex(/^\d{4}-W\d{2}$/, "semaine au format AAAA-Www"),
