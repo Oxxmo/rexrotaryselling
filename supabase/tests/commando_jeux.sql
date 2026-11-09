@@ -437,8 +437,12 @@ begin
   assert ok, 'V3 vote sur un sujet écarté accepté';
   r := public.commando_voter(v_sem, array[t2, t4], 'Mes clients en parlent');
   assert (r->>'a_vote')::boolean and (r->>'resultats_visibles')::boolean, 'V3 résultats visibles après le vote';
+  r := public.commando_voter(v_sem, array[t1], 'Je change');
+  assert jsonb_array_length(r->'mes_choix') = 1, 'V3 choix retiré encore compté : ' || (r->'mes_choix')::text;
+  assert (select (x->>'votes')::int from jsonb_array_elements(r->'sujets') x where x->>'titre' = 'V2 sujet deux') = 0, 'V3 ancien vote encore compté';
   r := public.commando_voter(v_sem, array[t2, t4], 'Je confirme');
   assert jsonb_array_length(r->'mes_choix') = 2 and r->>'mon_commentaire' = 'Je confirme', 'V3 vote modifiable';
+  assert (select (x->>'votes')::int from jsonb_array_elements(r->'sujets') x where x->>'titre' = 'V1 sujet un') = 0, 'V3 choix V1 retiré encore compté';
   assert (select count(*) from public.commando_points where type = 'vote' and commercial_id = 'bae7f6a3-2952-4a33-9b96-56f4b38eb8ea') = 1, 'V3 points du vote une seule fois';
   raise notice 'OK V3 : vote (bornes, sujets écartés, modification), résultats après le vote, points';
 end $$;

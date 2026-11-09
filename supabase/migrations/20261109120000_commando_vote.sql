@@ -33,6 +33,9 @@ create table if not exists public.commando_votes (
   unique (thematique_id, commercial_id)
 );
 create index if not exists commando_votes_semaine_idx on public.commando_votes (semaine_id);
+-- Un choix retiré est désactivé (actif = false) plutôt qu'effacé : un vote
+-- modifié ne supprime aucune ligne.
+alter table public.commando_votes add column if not exists actif boolean not null default true;
 
 create table if not exists public.commando_vote_participations (
   semaine_id    uuid not null references public.commando_semaines(id) on delete cascade,
@@ -135,7 +138,7 @@ language sql stable set search_path = public, pg_temp as $$
   select t.id, t.titre, coalesce(v.n, 0)::int,
          (row_number() over (order by coalesce(v.n, 0) desc, t.ordre, t.created_at))::int
     from public.commando_thematiques t
-    left join (select x.thematique_id, count(*) as n from public.commando_votes x where x.semaine_id = _semaine_id group by x.thematique_id) v
+    left join (select x.thematique_id, count(*) as n from public.commando_votes x where x.semaine_id = _semaine_id and x.actif group by x.thematique_id) v
       on v.thematique_id = t.id
    where t.semaine_id = _semaine_id and t.statut <> 'ecartee'
 $$;
@@ -149,7 +152,7 @@ declare v_ids uuid[]; v_total int;
 begin
   select count(*) into v_total from public.commando_votes x
     join public.commando_thematiques t on t.id = x.thematique_id and t.statut <> 'ecartee'
-   where x.semaine_id = _semaine_id;
+   where x.semaine_id = _semaine_id and x.actif;
   if v_total = 0 then return jsonb_build_object('retenues', '[]'::jsonb, 'raison', 'aucun vote'); end if;
   select array_agg(thematique_id order by rang) into v_ids from public.commando_vote_classement(_semaine_id) where rang <= 3;
   if coalesce(array_length(v_ids, 1), 0) < 3 then return jsonb_build_object('retenues', '[]'::jsonb, 'raison', 'moins de 3 sujets'); end if;
@@ -289,9 +292,11 @@ begin
   select count(*) into v_valides from public.commando_thematiques
    where id = any(v_ids) and semaine_id = _semaine_id and statut <> 'ecartee';
   if v_valides <> v_nb then raise exception 'Sujet inconnu ou retiré du vote'; end if;
-  delete from public.commando_votes where semaine_id = _semaine_id and commercial_id = auth.uid();
+  update public.commando_votes set actif = (thematique_id = any(v_ids))
+   where semaine_id = _semaine_id and commercial_id = auth.uid();
   insert into public.commando_votes (semaine_id, thematique_id, commercial_id)
-  select _semaine_id, x, auth.uid() from unnest(v_ids) x;
+  select _semaine_id, x, auth.uid() from unnest(v_ids) x
+  on conflict (thematique_id, commercial_id) do update set actif = true;
   insert into public.commando_vote_participations (semaine_id, commercial_id, commentaire)
   values (_semaine_id, auth.uid(), nullif(trim(coalesce(_commentaire, '')), ''))
   on conflict (semaine_id, commercial_id) do update set commentaire = excluded.commentaire, modifie_le = now();
@@ -338,7 +343,7 @@ begin
     'auto_retenir', v_sem.vote_auto_retenir, 'auto_publier', v_sem.vote_auto_publier,
     'resultat', v_sem.vote_resultat,
     'responsable', v_resp, 'a_vote', v_a_vote, 'resultats_visibles', v_voir,
-    'mes_choix', (select coalesce(jsonb_agg(thematique_id), '[]'::jsonb) from public.commando_votes where semaine_id = v_sem.id and commercial_id = v_uid),
+    'mes_choix', (select coalesce(jsonb_agg(thematique_id), '[]'::jsonb) from public.commando_votes where semaine_id = v_sem.id and commercial_id = v_uid and actif),
     'mon_commentaire', (select commentaire from public.commando_vote_participations where semaine_id = v_sem.id and commercial_id = v_uid),
     'participation', jsonb_build_object(
       'votants', (select count(*) from public.commando_vote_participations where semaine_id = v_sem.id),
@@ -351,7 +356,7 @@ begin
         'accroche', t.trames->'vert'->>'accroche', 'argument', t.trames->'vert'->>'argument',
         'statut', t.statut, 'ordre', t.ordre,
         'votes', case when v_voir then c.votes end, 'rang', case when v_voir then c.rang end,
-        'votants', case when v_resp then (select coalesce(jsonb_agg(x.commercial_id), '[]'::jsonb) from public.commando_votes x where x.thematique_id = t.id) end
+        'votants', case when v_resp then (select coalesce(jsonb_agg(x.commercial_id), '[]'::jsonb) from public.commando_votes x where x.thematique_id = t.id and x.actif) end
       ) order by t.ordre, t.created_at), '[]'::jsonb)
         from public.commando_thematiques t
         join public.commando_vote_classement(v_sem.id) c on c.thematique_id = t.id
