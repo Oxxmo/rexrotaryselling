@@ -457,3 +457,34 @@ semaine est publiée automatiquement au nom du responsable (`commando_publier_in
 aucun vote, rien n'est retenu. La publication manuelle est bloquée pendant un vote ouvert.
 Voter rapporte 3 points (barème « vote », une fois par semaine).
 
+
+## Fiches qui tournent et nouvelles sources (migrations `20261109140000` à `20261109150200`)
+
+Constat du 9 novembre : les commerciaux retombaient souvent sur les mêmes fiches. Trois causes : les sujets visaient les mêmes métiers trois semaines de suite (cabinets comptables et juridiques, agences immobilières), la liste suivait l'ordre alphabétique pour tout le monde, et les « à rappeler » ou « injoignables » revenaient mélangés aux fiches neuves.
+
+- **« Ma liste » en blocs** (`commando_ma_liste`, qui remplace `commando_liste` à l'écran ; l'ancienne fonction reste disponible avec les mêmes colonnes) :
+  - Mes rappels du jour : rappel daté arrivé à échéance depuis moins de 8 jours.
+  - À appeler : jamais appelées.
+  - À relancer : déjà appelées, délai écoulé.
+  - Appelées récemment : délai en cours.
+  - Passées.
+- **Ordre** à l'intérieur d'un bloc : couleur, puis priorité, puis une rotation quotidienne propre à chaque commercial (fini l'alphabet).
+  - La priorité tient compte d'un événement BODACC récent, d'une entreprise nouvelle, d'un numéro connu, de la taille et du chiffre d'affaires.
+- **Plancher** (paramètre `plancher_fiches_neuves`, 40 par défaut) : sous ce nombre de fiches neuves vertes ou orange, la liste du commercial est complétée par les meilleures fiches neuves non classées (badge « Complément »). La console de la semaine affiche le stock par commercial avant publication (`commando_stock_semaine`).
+- **Passer une fiche** (`commando_passer` / `commando_passer_annuler`) : hors cible, pas de numéro ou autre pendant 8 semaines (paramètre `delai_passer_semaines`) ; fermée ou doublon pendant 52 semaines.
+- **Numéro composé** : saisi au résultat d'appel, il est gardé sur la fiche pour toute l'équipe.
+- **Verrou** : une semaine publiée qui a déjà des appels ne peut plus changer ses sujets retenus (trigger `trg_commando_thematiques_verrou`).
+- **Veille (prompt v7)** : `commando_repartition_base` donne le nombre d'entreprises jamais appelées par code NAF et les métiers mis en vert les 3 dernières semaines ; la consigne « Varier les cibles » interdit de les remettre en vert sans stock suffisant.
+- **Annuaires publics gratuits** (`commando_sources_demander` le lundi à 2 h 30 UTC, `commando_sources_traiter` toutes les 5 minutes, bouton dans la console Imports) :
+  - Annuaire RGE de l'ADEME : téléphone et e-mail.
+  - FINESS (santé et médico-social) : téléphone.
+  - BODACC de la Vienne : changement de dirigeant, déménagement, rachat, capital, activité. Ces événements donnent le badge 📰 et une accroche suggérée.
+  - Un numéro déjà connu n'est jamais remplacé.
+  - Une entreprise en procédure collective (12 mois) ou dissoute (24 mois) n'est plus éligible.
+- **Chiffre d'affaires** : l'import hebdomadaire lit les finances publiées (table `commando_finances`).
+  - L'import se découpe en lots d'environ 95 s qui se relancent eux-mêmes, car une Edge Function est arrêtée au bout de 150 s.
+- **Base élargie aux 50 à 99 salariés** (tranche 21).
+- Premier passage (9 novembre) :
+  - Numéros : +190 RGE, +136 FINESS, soit 803 fiches éligibles avec numéro au lieu de 499.
+  - E-mails : +196.
+  - BODACC : 760 annonces concernent la base ; 181 entreprises sont retirées.

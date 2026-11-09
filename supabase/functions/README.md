@@ -82,6 +82,12 @@ inventer (fiche Rex et thématique seules sources). Validation Zod (`Resserrage`
 jour de la thématique (`modifiee_le`). Boutons dans la console Semaine : « ✂️ Resserrer les
 trames » par thématique, ou pour toutes les retenues.
 
+Depuis le 9 novembre, l'import lit aussi le dernier chiffre d'affaires publié (`include=finances`, table `commando_finances`).
+Il s'exécute par lots d'environ 95 s : une Edge Function est arrêtée au bout de 150 s.
+- Chaque lot enregistre son avancement dans `commando_imports.compteurs.avancement`.
+- Il relance ensuite la fonction avec `{ "reprise": { "import_id", "codes" } }`, en réutilisant le secret du cron ou le jeton du responsable.
+- L'archivage n'a lieu qu'au dernier lot.
+
 ## `commando-telephones`
 
 La base Sirene n'a pas de téléphone. Les serveurs publics Overpass étant souvent saturés,

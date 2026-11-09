@@ -248,7 +248,7 @@
         <div class="cmd-row">
           <button id="impTest" class="btn btn--sm">🔎 Tester sur 86000 (sans écriture)</button>
           <button id="imp86000" class="btn btn--sm">Importer 86000 seulement</button>
-          <button id="impFull" class="btn btn--primary btn--sm">⬇️ Lancer l'import complet (51 codes postaux)</button>
+          <button id="impFull" class="btn btn--primary btn--sm">⬇️ Lancer l'import complet (tous les codes postaux)</button>
           <button id="impRefresh" class="btn btn--ghost btn--sm">↻ Actualiser</button>
         </div>
         <div id="impRapport" class="import-detail"></div>
@@ -263,6 +263,13 @@
           <button id="telFull" class="btn btn--primary btn--sm">☎︎ Rapprocher les 51 codes postaux</button>
         </div>
         <div id="telMsg"></div>
+      </div>
+      <div class="cmd-card">
+        <h3>📚 Annuaires publics (gratuits)</h3>
+        <p class="muted">Chaque lundi à 3 h 30, l'outil interroge trois sources officielles : l'annuaire RGE de l'ADEME et le fichier FINESS (numéros de téléphone d'artisans du bâtiment et d'établissements de santé), et le BODACC (changement de dirigeant, déménagement, rachat… et entreprises en redressement, en liquidation ou dissoutes, retirées des listes). Un numéro déjà connu n'est jamais remplacé.</p>
+        <div id="srcEtat" class="muted"></div>
+        <div class="cmd-row"><button id="srcMaj" class="btn btn--sm">↻ Mettre à jour maintenant</button><button id="srcRefresh" class="btn btn--ghost btn--sm">Actualiser</button></div>
+        <div id="srcMsg"></div>
       </div>
       <div class="cmd-card cmd-imports">
         <h3>Historique des imports</h3>
@@ -359,6 +366,39 @@
       p.innerHTML = `${esc(String(count ?? "?"))} lieux avec téléphone en mémoire, mis à jour le ${esc(C().fmtDateTime(data[0].maj_le))}.`;
     } catch (e) { p.textContent = ""; }
   }
+  const SRC_NOM = { rge: "Annuaire RGE (ADEME)", finess: "FINESS", bodacc: "BODACC" };
+  const EV_NOM = { dirigeant: "nouveau dirigeant", demenagement: "déménagement", rachat: "rachat", etablissement: "nouvel établissement", capital: "capital", activite: "activité", procedure: "procédure collective", fermeture: "dissolution", autre: "autre" };
+  function resumeSource(q) {
+    const r = q.resultat || {};
+    if (!q.traite_le) return "en attente de réponse…";
+    if (r.erreur) return "erreur : " + r.erreur;
+    if (q.source === "bodacc") return `${n(r.annonces)} annonces lues, ${n(r.evenements_base)} concernent la base`;
+    return `${n(r.telephones_ajoutes)} numéro${n(r.telephones_ajoutes) > 1 ? "s" : ""} et ${n(r.emails_ajoutes)} e-mail${n(r.emails_ajoutes) > 1 ? "s" : ""} ajoutés (${n(r.siret_distincts)} établissements lus)`;
+  }
+  async function etatSources(el) {
+    const box = $("#srcEtat", el); if (!box) return;
+    let e;
+    try { e = await C().rpc("commando_sources_etat"); } catch (err) { box.textContent = ""; return; }
+    const tel = e.telephones || {};
+    const ev = Object.entries(e.evenements || {}).filter(([k]) => !["procedure", "fermeture", "autre"].includes(k));
+    box.innerHTML = `<p>Numéros connus : ${["osm", "rge", "finess", "manuel"].map(k => `${{ osm: "OpenStreetMap", rge: "RGE", finess: "FINESS", manuel: "saisis par l'équipe" }[k]} <b>${n(tel[k])}</b>`).join(" · ")}</p>
+      <p>Actualités BODACC des 90 derniers jours : ${ev.length ? ev.map(([k, v]) => `${esc(EV_NOM[k] || k)} <b>${n(v)}</b>`).join(" · ") : "aucune"} · entreprises retirées des listes (procédure collective ou dissolution) : <b>${n(e.exclues)}</b></p>
+      ${(e.requetes || []).length ? `<ul>${e.requetes.slice(0, 3).map(q => `<li>${esc(SRC_NOM[q.source] || q.source)} · ${esc(C().fmtDateTime(q.demande_le))} : ${esc(resumeSource(q))}</li>`).join("")}</ul>` : ""}`;
+  }
+  async function majSources(el) {
+    const msg = $("#srcMsg", el), btn = $("#srcMaj", el);
+    btn.disabled = true;
+    try {
+      await C().rpc("commando_sources_lancer");
+      msg.innerHTML = `<p class="muted"><span class="cmd-spin"></span>Requêtes envoyées aux trois annuaires, résultats dans une à deux minutes…</p>`;
+      for (const attente of [20000, 40000, 60000]) {
+        await new Promise(r => setTimeout(r, attente));
+        await etatSources(el);
+      }
+      msg.innerHTML = "";
+    } catch (e) { msg.innerHTML = `<div class="cmd-err">${esc(C().erreur(e))}</div>`; }
+    btn.disabled = false;
+  }
   async function majLieux(el) {
     const msg = $("#telMsg", el), btn = $("#telMaj", el);
     btn.disabled = true;
@@ -397,6 +437,8 @@
     if (!el.dataset.telWired) {
       el.dataset.telWired = "1";
       $("#telMaj", el).addEventListener("click", () => majLieux(el));
+      $("#srcMaj", el).addEventListener("click", () => majSources(el));
+      $("#srcRefresh", el).addEventListener("click", () => etatSources(el));
       $("#telTest", el).addEventListener("click", () => chercherTelephones(el, ["86000"]));
       $("#telFull", el).addEventListener("click", async () => {
         const { data } = await sb().from("commando_codes_postaux").select("code_postal").order("code_postal");
@@ -404,6 +446,7 @@
       });
     }
     etatTelephones(el);
+    etatSources(el);
     const { data } = await sb().from("commando_imports").select("*").order("lance_le", { ascending: false }).limit(15);
     const list = data || [];
     const wrap = $("#impList", el);
@@ -447,6 +490,8 @@
         <label>Délai de rappel après un refus (semaines)<input type="number" name="delai_rappel_refus_semaines" min="1" max="52" /></label>
         <label>Délai de rappel après un injoignable (semaines)<input type="number" name="delai_rappel_injoignable_semaines" min="1" max="52" /></label>
         <label>Objectif de RDV par commercial et par semaine<input type="number" name="objectif_rdv_semaine" min="1" max="50" /></label>
+        <label>Minimum de fiches neuves par commercial (complément automatique)<input type="number" name="plancher_fiches_neuves" min="0" max="500" /></label>
+        <label>Une fiche « passée » disparaît pendant (semaines)<input type="number" name="delai_passer_semaines" min="1" max="52" /></label>
         <label>Seuil d'échantillon (appels) pour un taux fiable<input type="number" name="seuil_echantillon" min="5" max="500" /></label>
         <label>Secteur libre visible par<select name="secteur_libre_visible_par"><option value="responsable">le responsable seulement</option><option value="equipe">toute l'équipe</option></select></label>
         <label>Limite de générations IA par semaine<input type="number" name="limite_generations_semaine" min="1" max="50" /></label>
@@ -498,7 +543,7 @@
     f.inclure_effectif_inconnu.checked = !!p.inclure_effectif_inconnu;
     f.b_moins.value = (p.bornes_anciennete || {}).moins_3 ?? 3;
     f.b_plus.value = (p.bornes_anciennete || {}).plus_5 ?? 5;
-    ["delai_rappel_refus_semaines", "delai_rappel_injoignable_semaines", "objectif_rdv_semaine", "seuil_echantillon", "limite_generations_semaine", "modele", "site_rex", "secteur_libre_visible_par", "consignes"].forEach(k => { f[k].value = p[k] ?? ""; });
+    ["delai_rappel_refus_semaines", "delai_rappel_injoignable_semaines", "objectif_rdv_semaine", "plancher_fiches_neuves", "delai_passer_semaines", "seuil_echantillon", "limite_generations_semaine", "modele", "site_rex", "secteur_libre_visible_par", "consignes"].forEach(k => { f[k].value = p[k] ?? ""; });
     f.concurrents.value = (p.concurrents || []).join("\n");
     Object.keys(FAMILLES).forEach(k => { f["famille_" + k].value = (p.familles || {})[k] || "neutre"; });
     const jx = p.jeux || {};
@@ -522,6 +567,8 @@
       delai_rappel_refus_semaines: Number(f.delai_rappel_refus_semaines.value) || 8,
       delai_rappel_injoignable_semaines: Number(f.delai_rappel_injoignable_semaines.value) || 2,
       objectif_rdv_semaine: Number(f.objectif_rdv_semaine.value) || 5,
+      plancher_fiches_neuves: f.plancher_fiches_neuves.value === "" ? 40 : Math.max(0, Math.min(500, Number(f.plancher_fiches_neuves.value) || 0)),
+      delai_passer_semaines: Math.max(1, Math.min(52, Number(f.delai_passer_semaines.value) || 8)),
       seuil_echantillon: Number(f.seuil_echantillon.value) || 30,
       limite_generations_semaine: Number(f.limite_generations_semaine.value) || 5,
       modele: f.modele.value.trim() || "claude-sonnet-5-5",

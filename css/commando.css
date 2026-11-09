@@ -267,3 +267,28 @@ body.cmd-mode #btnCommando{background:#fff;color:var(--rex, #c8102e);border-colo
 .cmd-vote__form{margin-top:8px}
 @media (max-width:640px){.cmd-vote__tete{flex-direction:column}.cmd-vote__nb{white-space:normal}}
 
+/* Ma liste en blocs : rappels, à appeler, à relancer, appelées, passées */
+.cmd-groupe{margin:12px 0;border:1px solid var(--line-soft);border-radius:14px;background:var(--card);padding:4px 12px 10px}
+.cmd-groupe>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:10px 0 6px;font-weight:800}
+.cmd-groupe>summary::-webkit-details-marker{display:none}
+.cmd-groupe>summary::before{content:"▸";color:var(--muted);transition:transform .15s}
+.cmd-groupe[open]>summary::before{transform:rotate(90deg)}
+.cmd-groupe__nb{background:var(--line-soft);border-radius:999px;padding:1px 9px;font-size:.8rem}
+.cmd-groupe__aide{font-size:.8rem;margin:0 0 6px}
+.cmd-groupe--rappel{border-color:#fcd34d;background:#fffbeb}
+.cmd-groupe--attente,.cmd-groupe--passee{opacity:.9}
+.cmd-badge--compl{background:#ede9fe;color:#5b21b6}
+.cmd-badge--signal{background:#e0f2fe;color:#075985}
+.cmd-dot--compl{background:#7c3aed}
+.cmd-item--compl{border-left-color:#7c3aed}
+.cmd-item__warn--rappel{background:#fef9c3;color:#854d0e}
+.cmd-signal{background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:8px 11px;margin:8px 0;font-size:.88rem;line-height:1.45}
+.cmd-signal a{color:#075985;font-weight:700}
+.cmd-passer{margin:6px 0}
+.cmd-passer__det summary{cursor:pointer;font-size:.85rem;font-weight:700;color:var(--muted)}
+.cmd-passer__det .cmd-row{margin-top:6px}
+.cmd-stock{margin:8px 0;font-size:.88rem}
+.cmd-stock table{width:100%;border-collapse:collapse}
+.cmd-stock td,.cmd-stock th{padding:5px 6px;border-bottom:1px solid var(--line-soft);text-align:left}
+.cmd-stock th{font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.cmd-stock__alerte{color:#92400e;font-weight:700}

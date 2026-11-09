@@ -544,12 +544,14 @@
     box.innerHTML = `<div class="cmd-card">
       <h3>Publication</h3>
       ${semaine.statut === "publiee" ? `<div class="cmd-ok">Semaine publiée le ${esc(C().fmtDateTime(semaine.publiee_le))} par ${esc(C().nomDe(semaine.publiee_par))}. Les couleurs sont figées ; les commerciaux voient leurs listes.</div>` : `<p class="muted">À la publication, chaque entreprise reçoit une couleur figée pour chacune des 3 thématiques retenues, et les listes apparaissent chez les commerciaux.</p>`}
+      <div id="pubStock" class="cmd-stock"></div>
       <div id="pubMsg"></div>
       <div class="cmd-row">
         ${voteActif() ? `<span class="muted">Vote en cours : ${voteEtat.auto_publier ? "la semaine sera publiée automatiquement à la clôture." : "publiez une fois le vote clos."}</span>` : ""}
         <button id="pubBtn" class="btn btn--primary" ${nb !== 3 || voteActif() ? "disabled" : ""}>🚀 ${semaine.statut === "publiee" ? "Republier (recalculer les couleurs)" : "Publier la semaine"} — ${nb}/3 retenues</button>
       </div>
     </div>`;
+    if (nb) rendreStock($("#pubStock", el));
     $("#pubBtn", el).addEventListener("click", async () => {
       if (!confirm(semaine.statut === "publiee" ? "Recalculer l'instantané des couleurs ? Possible uniquement si aucun appel n'a encore été enregistré." : "Publier la semaine et figer les couleurs ?")) return;
       const msg = $("#pubMsg", el);
@@ -559,6 +561,23 @@
         await charger(); rendreTete(el); rendrePublication(el); $("#pubMsg", el).innerHTML = msg.innerHTML;
       } catch (e) { msg.innerHTML = `<div class="cmd-err">${esc(C().erreur(e))}</div>`; }
     });
+  }
+
+  // Fiches neuves (jamais appelées) que les sujets retenus donnent à chaque
+  // commercial ; sous le plancher, sa liste est complétée automatiquement.
+  async function rendreStock(box) {
+    if (!box) return;
+    let r;
+    try { r = await C().rpc("commando_stock_semaine", { _semaine_id: semaine.id }); } catch (e) { box.innerHTML = ""; return; }
+    const plancher = Number(r.plancher || 0);
+    const lignes = (r.secteurs || []).filter(x => Number(x.stock_total) > 0);
+    if (!lignes.length) { box.innerHTML = ""; return; }
+    box.innerHTML = `<b>Fiches neuves par commercial</b> <span class="muted">(jamais appelées, vertes ou orange avec ${Number(r.retenues)} sujet${Number(r.retenues) > 1 ? "s" : ""} retenu${Number(r.retenues) > 1 ? "s" : ""} ; minimum ${plancher})</span>
+      <table><thead><tr><th>Secteur</th><th>Vert</th><th>Orange</th><th>Total</th><th></th></tr></thead><tbody>
+      ${lignes.map(x => `<tr><td>${esc(x.nom || x.code)}${x.commercial_id ? ` · ${esc(C().prenomDe(x.commercial_id))}` : " · secteur libre"}</td><td>${Number(x.vert)}</td><td>${Number(x.orange)}</td><td><b>${Number(x.neuves)}</b></td>
+        <td>${Number(x.complement) > 0 ? `<span class="cmd-stock__alerte">⚠️ +${Number(x.complement)} en complément automatique</span>` : "✔︎"}</td></tr>`).join("")}
+      </tbody></table>
+      ${lignes.some(x => Number(x.complement) > 0) ? `<div class="muted">Sous le minimum, la liste du commercial est complétée par les meilleures fiches hors sujets (actualité, numéro connu, taille). Pour plus de fiches dans les sujets, élargissez les règles vertes ou orange.</div>` : ""}`;
   }
 
   /* ---------- RDV passés à valider (toutes semaines) ---------- */

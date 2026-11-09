@@ -7,7 +7,7 @@
 //  Les {{variables}} sont remplies par la fonction commando-veille.
 // ============================================================
 
-export const PROMPT_VERSION = 6;
+export const PROMPT_VERSION = 7;
 
 // Familles d'offres Rex-Rotary (clé → libellé), paramétrables dans la console
 // (« privilégier », « neutre », « exclure »).
@@ -48,7 +48,7 @@ export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agenc
 - **Thématiques des 8 dernières semaines** (retenues, proposées non retenues ou écartées : toutes ont déjà été vues par le responsable) : {{themes_recents}}
 - **Familles d'offres** : à privilégier : {{familles_privilegiees}} ; exclues (aucune proposition) : {{familles_exclues}}
 - **Performance passée** (appels, RDV pris et RDV honorés par thématique, couleur et règle) : {{performance}}
-- **Données disponibles dans la base** (codes NAF présents avec leurs effectifs, répartition par tranche et par ancienneté) : {{repartition_base}}
+- **Données disponibles dans la base** (codes NAF présents avec leurs effectifs, répartition par tranche et par ancienneté, nombre d'entreprises **jamais appelées** par code NAF et par division (\`jamais_appelees\`), métiers mis en vert les 3 dernières semaines (\`naf_vert_recents\`)) : {{repartition_base}}
 
 ## Ta mission, étape par étape
 
@@ -73,6 +73,7 @@ export const PROMPT_VEILLE = `Tu es l'assistant de veille commerciale de l'agenc
 - **Ton.** Les trames apportent de la clarté, elles ne font pas peur.
 - **Pas de redite.** Ne reprends aucune thématique des 8 dernières semaines, qu'elle ait été retenue, non retenue ou écartée : le responsable les a toutes vues. Cherche d'autres angles, d'autres actualités, d'autres métiers. Une proposition trop proche d'un titre déjà vu est rejetée automatiquement.
 - **Familles d'offres.** La majorité des propositions se rattachent aux familles à privilégier ; aucune proposition ne porte sur une famille exclue.
+- **Varier les cibles.** Les commerciaux ne doivent pas retomber sur les mêmes entreprises chaque semaine. Un métier (préfixe NAF) déjà mis en vert dans \`naf_vert_recents\` ne repasse pas en vert, sauf s'il compte encore au moins 60 entreprises jamais appelées. Vise des métiers où le stock \`jamais_appelees\` est important, et fais en sorte que les 5 propositions couvrent ensemble au moins 6 divisions NAF différentes en vert. Chaque thématique doit viser, en vert et orange réunis, au moins 120 entreprises jamais appelées sur toute la base (environ 40 par commercial). La base compte aussi les 50 à 99 salariés (tranche 21) : ce sont souvent les plus gros parcs.
 - **Apprendre du passé.** Tiens compte de la performance passée : privilégie les angles et les règles qui ont produit des RDV honorés. Quand un échantillon compte moins de 30 appels, signale que la conclusion reste fragile.
 - **Faits et hypothèses séparés.** Ce qui est une supposition (par exemple « ce type d'entreprise serait moins préparé ») va dans le champ \`hypotheses\`, jamais dans les faits.
 

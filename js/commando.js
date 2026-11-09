@@ -24,6 +24,7 @@
   const STATUTS = { injoignable: "Injoignable", rappeler: "À rappeler", refus: "Refus", rdv: "RDV pris" };
   const RDV_STATUTS = { prevu: "prévu", honore: "honoré", annule: "annulé", reporte: "reporté" };
   const COULEUR_LABEL = { vert: "Vert", orange: "Orange", rouge: "Rouge" };
+  const RAISONS_PASSER = { hors_cible: "Hors cible", fermee: "Fermée ou n'existe plus", doublon: "Doublon", pas_de_numero: "Pas de numéro trouvé", autre: "Autre raison" };
   const RECOMPENSES = { premier_rdv: "Premier RDV de l'heure", rdv_bonus: "RDV pris", fiche_mystere: "Fiche mystère (pronostic tenu)", fidele: "Fidèle de la semaine" };
 
   /* ---------- État ---------- */
@@ -32,7 +33,7 @@
   let thematiques = [];       // thématiques retenues de la semaine
   let lignes = [];            // résultat de commando_liste (Ma liste)
   let lignesTheme = {};       // thematique_id → lignes (vue par thématique)
-  let filtres = { couleur: "prio", thematique: "", tranche: "", anciennete: "", nouvelle: false, appelees: "bas" };
+  let filtres = { couleur: "prio", thematique: "", tranche: "", anciennete: "", nouvelle: false, signal: false, telephone: false };
   const PAGE = 60;            // cartes affichées par page (bouton « Afficher plus »)
   // Liste complète (la passerelle tronque à 1 000 lignes par défaut : on demande explicitement plus).
   // Supabase plafonne chaque réponse à 1 000 lignes (un secteur peut en
@@ -41,7 +42,7 @@
   async function listeRpc(semaineId, thematiqueId) {
     const rows = [];
     for (let depuis = 0; depuis < 20000; depuis += PAGE_RPC) {
-      const { data, error } = await sb().rpc("commando_liste", { _semaine_id: semaineId, _thematique_id: thematiqueId }).range(depuis, depuis + PAGE_RPC - 1);
+      const { data, error } = await sb().rpc("commando_ma_liste", { _semaine_id: semaineId, _thematique_id: thematiqueId }).order("ordre").range(depuis, depuis + PAGE_RPC - 1);
       if (error) throw error;
       rows.push(...(data || []));
       if (!data || data.length < PAGE_RPC) break;
@@ -92,64 +93,120 @@
   }
 
   /* ---------- Filtres et cartes ---------- */
-  function appliquerFiltres(rows) {
-    return rows.filter(r => {
-      if (filtres.couleur === "prio") { if (r.couleur !== "vert" && r.couleur !== "orange") return false; }
+  // Un rappel échu s'affiche quelle que soit la couleur choisie.
+  function passeFiltres(r, avecCouleur) {
+    if (avecCouleur) {
+      if (filtres.couleur === "prio") { if (r.couleur !== "vert" && r.couleur !== "orange" && !r.complement) return false; }
+      else if (filtres.couleur === "complement") { if (!r.complement) return false; }
       else if (filtres.couleur === "non" ? r.couleur : (filtres.couleur && r.couleur !== filtres.couleur)) return false;
-      if (filtres.thematique && r.thematique_id !== filtres.thematique) return false;
-      if (filtres.tranche && r.tranche_effectif !== filtres.tranche) return false;
-      if (filtres.anciennete && r.anciennete !== filtres.anciennete) return false;
-      if (filtres.nouvelle && !r.est_nouvelle) return false;
-      if (filtres.appelees === "masquer" && r.deja_appelee) return false;
-      if (filtres.appelees === "seulement" && !r.deja_appelee) return false;
-      return true;
-    });
+    }
+    if (filtres.thematique && r.thematique_id !== filtres.thematique) return false;
+    if (filtres.tranche && r.tranche_effectif !== filtres.tranche) return false;
+    if (filtres.anciennete && r.anciennete !== filtres.anciennete) return false;
+    if (filtres.nouvelle && !r.est_nouvelle) return false;
+    if (filtres.signal && !r.signal) return false;
+    if (filtres.telephone && !r.telephone) return false;
+    return true;
+  }
+  function appliquerFiltres(rows) {
+    return rows.filter(r => passeFiltres(r, !["rappel", "attente", "passee"].includes(r.bloc)));
   }
   function barreFiltres(avecTheme) {
     const tranches = Object.keys(TRANCHES).filter(k => ["02", "03", "11", "12", "21"].includes(k));
     return `<div class="cmd-filtres">
-      <select data-filtre="couleur"><option value="prio">Vert et orange (à appeler)</option><option value="vert">Vert seulement</option><option value="orange">Orange seulement</option><option value="rouge">Rouge</option><option value="non">Non classées</option><option value="">Toutes les couleurs</option></select>
+      <select data-filtre="couleur"><option value="prio">À appeler : vert, orange et complément</option><option value="vert">Vert seulement</option><option value="orange">Orange seulement</option><option value="complement">Complément seulement</option><option value="rouge">Rouge</option><option value="non">Non classées</option><option value="">Toutes les couleurs</option></select>
       ${avecTheme ? `<select data-filtre="thematique"><option value="">Toutes les thématiques</option>${thematiques.map(t => `<option value="${t.id}">${esc(t.titre)}</option>`).join("")}</select>` : ""}
       <select data-filtre="tranche"><option value="">Toutes les tranches</option>${tranches.map(k => `<option value="${k}">${TRANCHES[k]} salariés</option>`).join("")}</select>
       <select data-filtre="anciennete"><option value="">Toute ancienneté</option>${Object.entries(ANCIENNETE).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
-      <select data-filtre="appelees"><option value="bas">Déjà appelées en bas</option><option value="masquer">Masquer les déjà appelées</option><option value="seulement">Seulement les déjà appelées</option></select>
+      <label class="cmd-check"><input type="checkbox" data-filtre="telephone" /> ☎︎ Avec numéro</label>
+      <label class="cmd-check"><input type="checkbox" data-filtre="signal" /> 📰 Avec actualité</label>
       <label class="cmd-check"><input type="checkbox" data-filtre="nouvelle" /> Nouvelles seulement</label>
     </div>`;
   }
   function brancherFiltres(el, onChange) {
     $$("[data-filtre]", el).forEach(f => {
       const k = f.dataset.filtre;
-      if (f.type === "checkbox") f.checked = !!filtres[k]; else f.value = filtres[k] || (k === "appelees" ? "bas" : "");
-      if (k === "couleur" && filtres.couleur === "") f.value = "";
+      if (f.type === "checkbox") f.checked = !!filtres[k]; else f.value = filtres[k] || "";
       f.addEventListener("change", () => { filtres[k] = f.type === "checkbox" ? f.checked : f.value; onChange(); });
     });
   }
+  function fmtCA(ca) {
+    const n = Number(ca);
+    if (!isFinite(n) || n <= 0) return "";
+    if (n >= 1e6) return (n / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " M€";
+    return Math.round(n / 1e3).toLocaleString("fr-FR") + " k€";
+  }
+  // Raison d'appeler tirée de l'annonce BODACC (suggestion, pas un fait sur l'entreprise).
+  const CONSEIL_SIGNAL = {
+    dirigeant: "Nouveau dirigeant : bon moment pour faire le point sur les contrats en cours (impression, téléphonie, informatique).",
+    demenagement: "Déménagement : nouveaux locaux, donc réseau, impression et téléphonie à installer.",
+    rachat: "Reprise du fonds : le repreneur revoit souvent le matériel et les contrats.",
+    etablissement: "Nouvel établissement : postes, impression et téléphonie à équiper.",
+    capital: "Augmentation de capital : l'entreprise investit, c'est le moment de proposer.",
+    activite: "Changement d'activité : les besoins en équipement évoluent."
+  };
+  function badgeSignal(r) {
+    if (!r.signal) return "";
+    return `<span class="cmd-badge cmd-badge--signal" title="${esc(r.signal)} (BODACC du ${esc(C().fmtDate(r.signal_le))})">📰 ${esc(r.signal)}</span>`;
+  }
+  function ligneEtat(r) {
+    const st = STATUTS[r.dernier_appel_statut] || r.dernier_appel_statut || "";
+    const qui = r.dernier_appel_par ? ` par ${esc(C().prenomDe(r.dernier_appel_par))}` : "";
+    if (r.bloc === "rappel") return `<div class="cmd-item__warn cmd-item__warn--rappel">🔁 Rappel prévu le ${esc(C().fmtDate(r.bloquee_jusqua))} · appel du ${esc(C().fmtDate(r.dernier_appel_le))}${qui}</div>`;
+    if (r.bloc === "passee") return `<div class="cmd-item__hist">⏭ Passée (${esc(RAISONS_PASSER[r.passee_raison] || r.passee_raison || "")}) jusqu'au ${esc(C().fmtDate(r.passee_jusqua))}</div>`;
+    if (r.deja_appelee) return `<div class="cmd-item__warn">☎︎ ${esc(st)} le ${esc(C().fmtDate(r.dernier_appel_le))}${qui} · à rappeler à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}</div>`;
+    if (Number(r.nb_appels)) return `<div class="cmd-item__hist">Dernier appel : ${esc(st)} le ${esc(C().fmtDate(r.dernier_appel_le))}${qui}</div>`;
+    return "";
+  }
   function carte(r) {
-    const bloque = r.deja_appelee
-      ? `<div class="cmd-item__warn">☎︎ ${esc(STATUTS[r.dernier_appel_statut] || r.dernier_appel_statut)} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))} · à rappeler à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}</div>`
-      : (r.nb_appels ? `<div class="cmd-item__hist">Dernier appel : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))}</div>` : "");
-    return `<button class="cmd-item ${r.deja_appelee ? "cmd-item--bloque" : ""} cmd-item--${r.couleur || "non"}" data-siret="${esc(r.siret)}">
+    const ca = fmtCA(r.ca);
+    return `<button class="cmd-item ${r.deja_appelee || r.bloc === "passee" ? "cmd-item--bloque" : ""} cmd-item--${r.couleur || (r.complement ? "compl" : "non")}" data-siret="${esc(r.siret)}">
       <div class="cmd-item__top">
         <span class="cmd-item__nom">${esc(r.raison_sociale)}${r.enseigne && r.enseigne !== r.raison_sociale ? ` <small>· ${esc(r.enseigne)}</small>` : ""}</span>
-        <span class="cmd-item__badges">${r.recompense ? `<span class="cmd-badge cmd-badge--warn" title="${esc(RECOMPENSES[r.recompense] || "")}">🎁</span>` : ""}${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${badgeCouleur(r.couleur)}</span>
+        <span class="cmd-item__badges">${r.recompense ? `<span class="cmd-badge cmd-badge--warn" title="${esc(RECOMPENSES[r.recompense] || "")}">🎁</span>` : ""}${badgeSignal(r)}${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${r.complement ? `<span class="cmd-badge cmd-badge--compl" title="Ajoutée pour compléter votre liste : hors des sujets de la semaine">Complément</span>` : badgeCouleur(r.couleur)}</span>
       </div>
-      <div class="cmd-item__meta">${esc(r.naf_libelle || r.naf_code || "")} · ${esc(trancheLabel(r.tranche_effectif, r.annee_effectif))} · ${esc(ancienneteLabel(r.anciennete))} · ${esc(r.commune || r.code_postal)}</div>
+      <div class="cmd-item__meta">${esc(r.naf_libelle || r.naf_code || "")} · ${esc(trancheLabel(r.tranche_effectif, r.annee_effectif))}${ca ? ` · CA ${esc(ca)}` : ""} · ${esc(ancienneteLabel(r.anciennete))} · ${esc(r.commune || r.code_postal)}</div>
       <div class="cmd-item__theme">🎯 ${esc(r.thematique_titre || "")}${r.telephone ? ` · ☎︎ ${esc(r.telephone)}` : ""}</div>
-      ${bloque}
+      ${ligneEtat(r)}
     </button>`;
   }
-  function rendreListe(wrap, rows, source, nb) {
-    const visibles = appliquerFiltres(rows);
+  const GROUPES = [
+    { id: "rappel", titre: "🔁 Mes rappels du jour", aide: "Vous aviez prévu de rappeler ces entreprises : c'est le moment.", ouvert: true, page: 30 },
+    { id: "neuve", titre: "🆕 À appeler", aide: "Jamais appelées. Les plus prometteuses d'abord, dans un ordre qui change chaque jour.", ouvert: true, page: 60 },
+    { id: "relance", titre: "↩︎ À relancer", aide: "Déjà appelées, délai écoulé : injoignables, anciens refus, rappels oubliés.", ouvert: false, page: 30 },
+    { id: "attente", titre: "⏳ Appelées récemment", aide: "Délai de rappel en cours.", ouvert: false, page: 30 },
+    { id: "passee", titre: "⏭ Passées", aide: "Retirées de votre liste pour un temps. Ouvrez une fiche pour l'y remettre.", ouvert: false, page: 30 }
+  ];
+  // Liste en blocs, chaque bloc avec son propre « Afficher plus ».
+  function rendreListe(wrap, rows, source) {
     if (!rows.length) { wrap.innerHTML = `<p class="cmd-empty">Aucune entreprise dans votre secteur pour cette semaine.</p>`; return; }
-    if (!visibles.length) { wrap.innerHTML = `<p class="cmd-empty">Aucune entreprise ne correspond aux filtres${filtres.couleur === "prio" ? " : aucune verte ni orange, choisissez « Toutes les couleurs »" : ""}.</p>`; return; }
-    const n = Math.min(visibles.length, nb || PAGE);
-    const reste = visibles.length - n;
-    wrap.innerHTML = `<p class="muted">${visibles.length} entreprise${visibles.length > 1 ? "s" : ""}${visibles.length !== rows.length ? ` sur ${rows.length} (filtre : ${filtres.couleur === "prio" ? "vert et orange" : "voir ci-dessus"})` : ""}${n < visibles.length ? ` · ${n} affichées` : ""}</p>`
-      + visibles.slice(0, n).map(carte).join("")
-      + (reste > 0 ? `<div class="cmd-row" style="justify-content:center"><button class="btn btn--sm" data-plus>Afficher ${Math.min(PAGE, reste)} de plus (${reste} restantes)</button></div>` : "");
+    const visibles = appliquerFiltres(rows);
+    wrap._nb = wrap._nb || {};
+    const ouverts = wrap._ouverts || {};
+    const html = [];
+    for (const g of GROUPES) {
+      const lst = visibles.filter(r => (r.bloc || "neuve") === g.id);
+      if (!lst.length && g.id !== "neuve") continue;
+      const n = Math.min(lst.length, wrap._nb[g.id] || g.page);
+      const reste = lst.length - n;
+      const ouvert = g.id in ouverts ? ouverts[g.id] : g.ouvert;
+      html.push(`<details class="cmd-groupe cmd-groupe--${g.id}" data-groupe="${g.id}" ${ouvert ? "open" : ""}>
+        <summary><span class="cmd-groupe__titre">${g.titre}</span> <span class="cmd-groupe__nb">${lst.length}</span></summary>
+        <p class="muted cmd-groupe__aide">${esc(g.aide)}</p>
+        ${lst.length ? lst.slice(0, n).map(carte).join("") : `<p class="cmd-empty">Aucune fiche neuve ne correspond aux filtres${filtres.couleur === "prio" ? " : essayez « Toutes les couleurs »" : ""}.</p>`}
+        ${reste > 0 ? `<div class="cmd-row" style="justify-content:center"><button class="btn btn--sm" data-plus="${g.id}">Afficher ${Math.min(g.page, reste)} de plus (${reste} restantes)</button></div>` : ""}
+      </details>`);
+    }
+    wrap.innerHTML = html.join("");
     $$(".cmd-item", wrap).forEach(b => b.addEventListener("click", () => ouvrirFiche(source.find(r => r.siret === b.dataset.siret))));
-    const plus = wrap.querySelector("[data-plus]");
-    if (plus) plus.addEventListener("click", () => rendreListe(wrap, rows, source, n + PAGE));
+    $$("[data-plus]", wrap).forEach(b => b.addEventListener("click", () => {
+      const g = GROUPES.find(x => x.id === b.dataset.plus);
+      wrap._nb[g.id] = (wrap._nb[g.id] || g.page) + g.page;
+      rendreListe(wrap, rows, source);
+    }));
+    $$("details[data-groupe]", wrap).forEach(d => d.addEventListener("toggle", () => {
+      wrap._ouverts = Object.assign(wrap._ouverts || {}, { [d.dataset.groupe]: d.open });
+    }));
   }
 
   /* ---------- Onglet « Ma liste » ---------- */
@@ -184,8 +241,8 @@
     const pct = Math.min(100, Math.round(rdv / obj * 100));
     head.innerHTML = `<div class="cmd-row"><h3 class="cmd-h">📞 Ma liste</h3>${selecteurSemaine()}</div>
       <div class="cmd-cards">
-        <div class="pilot-card"><div class="pilot-card__val">${Number(c.a_appeler || 0)}</div><div class="pilot-card__lbl">À appeler</div></div>
-        <div class="pilot-card"><div class="pilot-card__val"><span class="cmd-dot cmd-dot--vert"></span>${Number(c.vert || 0)} <span class="cmd-dot cmd-dot--orange"></span>${Number(c.orange || 0)} <span class="cmd-dot cmd-dot--rouge"></span>${Number(c.rouge || 0)}</div><div class="pilot-card__lbl">Vert · orange · rouge</div></div>
+        <div class="pilot-card"><div class="pilot-card__val">${Number(c.a_appeler || 0)}</div><div class="pilot-card__lbl">À appeler${Number(c.rappels || 0) ? ` · dont ${Number(c.rappels)} rappel${Number(c.rappels) > 1 ? "s" : ""}` : ""}</div></div>
+        <div class="pilot-card"><div class="pilot-card__val"><span class="cmd-dot cmd-dot--vert"></span>${Number(c.vert || 0)} <span class="cmd-dot cmd-dot--orange"></span>${Number(c.orange || 0)} <span class="cmd-dot cmd-dot--compl"></span>${Number(c.complement || 0)}</div><div class="pilot-card__lbl">Fiches neuves : vert · orange · complément</div></div>
         <div class="pilot-card"><div class="pilot-card__val">${Number(c.appels || 0)}</div><div class="pilot-card__lbl">Appels cette semaine</div></div>
         <div class="pilot-card pilot-card--obj"><div class="pilot-card__val">${rdv} <small>/ ${obj}</small></div><div class="pilot-card__lbl">RDV pris · objectif</div><div class="cmd-progress"><span style="width:${pct}%"></span></div></div>
       </div>`;
@@ -355,7 +412,9 @@
     const c = couleur || "orange";
     const tr = trames[c] || trames.vert || {};
     const g = (txt) => C().gras(remplir(txt, r));
-    const note = couleur ? "" : `<div class="cmd-note">Entreprise non classée pour cette thématique : la trame orange est proposée par défaut.</div>`;
+    const note = couleur ? "" : (r && r.complement
+      ? `<div class="cmd-note">Fiche ajoutée pour compléter votre liste : elle ne correspond à aucun sujet de la semaine. La trame orange de « ${esc((t && t.titre) || "")} » est proposée, adaptez l'accroche${r.signal ? " (ou partez de l'actualité ci-dessus)" : ""}.</div>`
+      : `<div class="cmd-note">Entreprise non classée pour cette thématique : la trame orange est proposée par défaut.</div>`);
     if (!tr.accroche && !tr.argument) return note + `<p class="muted">Aucune trame disponible pour cette couleur.</p>`;
     return note + `
       <div class="cmd-trame cmd-trame--${c}">
@@ -434,13 +493,13 @@
     }
     const regleTxt = r.couleur
       ? `${COULEUR_LABEL[r.couleur]} — règle ${Number(r.regle_index) + 1} : ${esc(r.raison || "")}`
-      : "Non classée : aucune règle de la thématique ne correspond.";
+      : (r.complement ? "Complément : aucun sujet de la semaine ne la vise, mais votre liste comptait moins de fiches neuves que le minimum prévu. Choisie parmi les plus prometteuses (actualité, numéro connu, taille)." : "Non classée : aucune règle de la thématique ne correspond.");
     const dans7j = new Date(); dans7j.setDate(dans7j.getDate() + 7);
     ficheEl.innerHTML = `
       <div class="modal__backdrop" data-fiche-close></div>
       <div class="modal__panel">
         <div class="modal__header">
-          <div><h2>${esc(r.raison_sociale)}</h2><div class="cmd-fiche__sub">${badgeCouleur(r.couleur)} ${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""} <span class="muted">🎯 ${esc(r.thematique_titre || "")}</span></div></div>
+          <div><h2>${esc(r.raison_sociale)}</h2><div class="cmd-fiche__sub">${r.complement ? `<span class="cmd-badge cmd-badge--compl">Complément</span>` : badgeCouleur(r.couleur)} ${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""} <span class="muted">🎯 ${esc(r.thematique_titre || "")}</span></div></div>
           <button class="modal__close" data-fiche-close aria-label="Fermer">✕</button>
         </div>
         <div class="modal__body cmd-fiche">
@@ -449,14 +508,18 @@
             <div><small>Effectif</small>${esc(trancheLabel(r.tranche_effectif, r.annee_effectif))}</div>
             <div><small>Ancienneté</small>${esc(ancienneteLabel(r.anciennete))}${r.date_creation_ul ? ` <span class="muted">(créée le ${esc(C().fmtDate(r.date_creation_ul))})</span>` : ""}</div>
             <div><small>Dirigeant</small>${esc(dirigeantLabel(r.dirigeants) || "non renseigné")}</div>
+            ${r.ca ? `<div><small>Chiffre d'affaires</small>${esc(fmtCA(r.ca))}${r.ca_annee ? ` <span class="muted">(${esc(r.ca_annee)})</span>` : ""}</div>` : ""}
             <div class="wide"><small>Adresse</small>${esc(r.adresse || "")}${r.enseigne ? ` <span class="muted">· enseigne ${esc(r.enseigne)}</span>` : ""}</div>
             <div><small>Téléphone</small><input id="ficheTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></div>
             <div><small>E-mail</small><input id="ficheMail" type="email" value="${esc(r.email || "")}" placeholder="contact@…" /></div>
           </div>
-          <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button>${r.telephone ? "" : `<button id="ficheTelOsm" class="btn btn--ghost btn--sm" title="Recherche gratuite dans OpenStreetMap">🔎 Chercher le téléphone</button>`}<button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
+          <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button>${r.telephone ? "" : `<button id="ficheTelOsm" class="btn btn--ghost btn--sm" title="Recherche gratuite dans OpenStreetMap">🔎 Chercher le téléphone</button><a class="btn btn--ghost btn--sm" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent((r.enseigne || r.raison_sociale || "") + " " + (r.commune || r.code_postal || "") + " téléphone")}">🌐 Chercher sur le web</a>`}<button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
           <div id="ficheTelSource" class="muted" style="font-size:.78rem"></div>
+          ${r.signal ? `<div class="cmd-signal">📰 <b>${esc(r.signal)}</b> · BODACC du ${esc(C().fmtDate(r.signal_le))}${r.signal_url ? ` · <a href="${esc(r.signal_url)}" target="_blank" rel="noopener">voir l'annonce</a>` : ""}${CONSEIL_SIGNAL[r.signal_type] ? `<div class="muted">${esc(CONSEIL_SIGNAL[r.signal_type])}</div>` : ""}</div>` : ""}
+          <div id="fichePasser" class="cmd-passer"></div>
           <div id="ficheMailBloc"></div>
           ${r.deja_appelee ? `<div class="cmd-item__warn">☎︎ Déjà appelée : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}. Rappel possible à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}.</div>` : ""}
+          ${r.bloc === "rappel" ? `<div class="cmd-item__warn cmd-item__warn--rappel">🔁 Rappel prévu le ${esc(C().fmtDate(r.bloquee_jusqua))} (appel du ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}).</div>` : ""}
           <h3 class="output-title">Pourquoi cette couleur</h3>
           <p class="cmd-regle">${regleTxt}</p>
           <h3 class="output-title">Trame d'appel</h3>
@@ -473,6 +536,7 @@
             <div id="resExtra" class="cmd-resultat__extra" hidden>
               <label id="resRappelLbl" hidden>Rappeler le<input id="resRappel" type="date" value="${dans7j.toISOString().slice(0, 10)}" /></label>
               <label id="resRdvLbl" hidden>Date et heure du RDV<input id="resRdv" type="datetime-local" /></label>
+              <label>Numéro composé <span class="muted">(gardé sur la fiche pour toute l'équipe)</span><input id="resTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></label>
               ${r.email ? "" : `<label>E-mail du contact <span class="muted">(pour le mail de suivi, demandez-le en fin d'appel)</span><input id="resMail" type="email" placeholder="prenom.nom@entreprise.fr" /></label>`}
               <label>Note (facultatif)<textarea id="resNote" rows="2" placeholder="Interlocuteur, contexte, prochaine étape…"></textarea></label>
               <div class="cmd-row"><button id="resSave" class="btn btn--primary">Enregistrer</button><span id="resErr" class="cmd-err" hidden></span></div>
@@ -490,6 +554,9 @@
     sb().from("commando_contacts").select("source, source_detail, site_web").eq("siret", r.siret).maybeSingle().then(({ data }) => {
       const s = $("#ficheTelSource", ficheEl); if (!s || !data) return;
       if (data.source === "osm") s.textContent = "Téléphone trouvé dans OpenStreetMap (© les contributeurs OpenStreetMap)" + (data.site_web ? " · site : " + data.site_web : "") + " — à confirmer au premier appel.";
+      else if (data.source === "rge") s.textContent = "Numéro de l'annuaire RGE de l'ADEME (déclaré par l'entreprise) — à confirmer au premier appel.";
+      else if (data.source === "finess") s.textContent = "Numéro du fichier FINESS (établissements de santé et médico-sociaux) — à confirmer au premier appel.";
+      else if (data.source === "manuel") s.textContent = "Numéro saisi par l'équipe.";
     });
     const telOsm = $("#ficheTelOsm", ficheEl);
     if (telOsm) telOsm.addEventListener("click", async () => {
@@ -504,6 +571,8 @@
         } else { telOsm.textContent = "Introuvable dans OpenStreetMap"; }
       } catch (e) { telOsm.disabled = false; telOsm.textContent = "🔎 Chercher le téléphone"; C().toast(C().erreur(e)); }
     });
+
+    rendrePasser(r);
 
     // Coordonnées
     $("#ficheSaveContact", ficheEl).addEventListener("click", async () => {
@@ -530,6 +599,8 @@
       $("#resExtra", ficheEl).hidden = false;
       $("#resRappelLbl", ficheEl).hidden = statut !== "rappeler";
       $("#resRdvLbl", ficheEl).hidden = statut !== "rdv";
+      const rt = $("#resTel", ficheEl), ft = $("#ficheTel", ficheEl);
+      if (rt && ft && !rt.value.trim() && ft.value.trim()) rt.value = ft.value.trim();
       if (statut === "rdv") $("#resRdv", ficheEl).focus();
     }));
     $("#resSave", ficheEl).addEventListener("click", async () => {
@@ -547,6 +618,12 @@
         row.date_rdv = new Date(v).toISOString(); row.rdv_statut = "prevu";
       }
       const b = $("#resSave", ficheEl); b.disabled = true;
+      const telSaisi = (($("#resTel", ficheEl) || {}).value || "").trim();
+      if (telSaisi && telSaisi !== (r.telephone || "")) {
+        const { error: tErr } = await sb().from("commando_contacts").upsert({ siret: r.siret, telephone: telSaisi, source: "manuel", updated_by: me.id }, { onConflict: "siret" });
+        if (tErr) { b.disabled = false; err.textContent = "Numéro non enregistré : " + tErr.message; err.hidden = false; return; }
+        r.telephone = telSaisi;
+      }
       const mailSaisi = ($("#resMail", ficheEl) || {}).value || "";
       if (mailSaisi.trim()) {
         const { error: mErr } = await sb().from("commando_contacts").upsert({ siret: r.siret, email: mailSaisi.trim(), updated_by: me.id }, { onConflict: "siret" });
@@ -577,6 +654,27 @@
     const h = $("#ficheHist", ficheEl);
     if (!h) return;
     h.innerHTML = (hist || []).length ? `<ul class="cmd-hist">${hist.map(a => `<li><b>${esc(STATUTS[a.statut] || a.statut)}</b>${a.statut === "rdv" ? ` (${esc(C().fmtDateTime(a.date_rdv))}, ${esc(RDV_STATUTS[a.rdv_statut] || "")})` : ""}${a.statut === "rappeler" && a.date_rappel ? ` (le ${esc(C().fmtDate(a.date_rappel))})` : ""} · ${esc(C().fmtDateTime(a.created_at))} · ${esc(C().prenomDe(a.commercial_id))}${a.couleur_au_moment ? ` · ${esc(COULEUR_LABEL[a.couleur_au_moment])}` : ""}${a.mail_prepare_le ? ` · ✉️ mail ${a.mail_variante === "rdv" ? "de confirmation" : "de suivi"}` : ""}${a.note ? `<br><span class="muted">${esc(a.note)}</span>` : ""}</li>`).join("")}</ul>` : `<p class="muted">Jamais appelée.</p>`;
+  }
+  // « Passer » : la fiche quitte la liste (8 semaines, 52 si fermée ou doublon).
+  function rendrePasser(r) {
+    const box = $("#fichePasser", ficheEl); if (!box) return;
+    if (r.bloc === "passee") {
+      box.innerHTML = `<div class="cmd-row"><span class="muted">⏭ Fiche passée (${esc(RAISONS_PASSER[r.passee_raison] || "")}) jusqu'au ${esc(C().fmtDate(r.passee_jusqua))}.</span><button id="passerAnnuler" class="btn btn--ghost btn--sm">↩︎ Remettre dans ma liste</button></div>`;
+      $("#passerAnnuler", box).addEventListener("click", async () => {
+        try { await C().rpc("commando_passer_annuler", { _siret: r.siret }); } catch (e) { C().toast(C().erreur(e)); return; }
+        C().toast("Fiche remise dans votre liste"); fermerFiche(); rafraichir();
+      });
+      return;
+    }
+    box.innerHTML = `<details class="cmd-passer__det"><summary>⏭ Passer cette fiche</summary>
+      <div class="cmd-row"><select id="passerRaison" class="cmd-sem">${Object.entries(RAISONS_PASSER).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select>
+      <button id="passerOk" class="btn btn--sm">Passer</button>
+      <span class="muted">Elle disparaît de votre liste pendant 8 semaines (un an si fermée ou doublon).</span></div></details>`;
+    $("#passerOk", box).addEventListener("click", async () => {
+      const raison = $("#passerRaison", box).value;
+      try { await C().rpc("commando_passer", { _siret: r.siret, _raison: raison }); } catch (e) { C().toast(C().erreur(e)); return; }
+      C().toast("Fiche passée"); fermerFiche(); rafraichir();
+    });
   }
   function fermerFiche() {
     if (ficheEl) ficheEl.hidden = true;
