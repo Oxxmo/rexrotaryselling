@@ -27,6 +27,7 @@
   const STATUT_LABEL = { proposee: "proposée", retenue: "retenue", ecartee: "écartée" };
 
   let semaines = [], semaine = null, thematiques = [], generations = [], parametres = null;
+  let voteEtat = null;   // état du vote de la semaine affichée (commando_vote_etat)
 
   /* ---------- Chargement ---------- */
   async function charger() {
@@ -44,12 +45,13 @@
         sb().from("commando_generations").select("*").eq("semaine_id", semaine.id).order("lancee_le", { ascending: false }).then(r => r.data || [])
       ]);
       thematiques = t; generations = g;
-    } else { thematiques = []; generations = []; }
+      try { voteEtat = await C().rpc("commando_vote_etat", { _semaine_id: semaine.id }); } catch (e) { voteEtat = null; }
+    } else { thematiques = []; generations = []; voteEtat = null; }
   }
 
   /* ---------- Rendu principal ---------- */
   async function render(el) {
-    el.innerHTML = `<div id="semHead"></div><div id="semValider"></div><div id="semVeille"></div><div id="semProps"></div><div id="semPub"></div><div id="semSuivi"></div>`;
+    el.innerHTML = `<div id="semHead"></div><div id="semValider"></div><div id="semVeille"></div><div id="semProps"></div><div id="semVote"></div><div id="semPub"></div><div id="semSuivi"></div>`;
   }
   async function show(el) {
     await charger();
@@ -57,9 +59,160 @@
     rendreValidation(el);
     rendreVeille(el);
     rendrePropositions(el);
+    rendreVote(el);
     rendrePublication(el);
     await rendreSuivi(el);
-    if (generations.some(g => g.statut === "en_cours")) C().poll(() => show(el), 5000); else C().stopPoll();
+    if (generations.some(g => g.statut === "en_cours")) C().poll(() => show(el), 5000);
+    else if (voteActif()) C().poll(() => rafraichirVote(el), 15000);
+    else C().stopPoll();
+  }
+  const voteActif = () => !!(voteEtat && voteEtat.vote && (voteEtat.ouvert || voteEtat.en_cloture));
+  // Pendant le vote : seul le bloc du vote est rafraîchi ; à la clôture, toute la page.
+  async function rafraichirVote(el) {
+    if (!semaine) return;
+    const avant = voteActif();
+    try { voteEtat = await C().rpc("commando_vote_etat", { _semaine_id: semaine.id }); } catch (e) { return; }
+    if (avant && !voteActif()) { show(el); return; }
+    if (!document.activeElement || !$("#semVote", el).contains(document.activeElement)) rendreVote(el);
+  }
+
+  /* ---------- Vote de l'équipe ---------- */
+  function finParDefaut() {
+    // Aujourd'hui 13 h 30 (avant le commando de 14 h) ; passé 13 h, dans une heure.
+    const d = new Date();
+    const cible = new Date(d); cible.setHours(13, 30, 0, 0);
+    const fin = d.getHours() < 13 ? cible : new Date(Math.ceil((d.getTime() + 3600000) / 300000) * 300000);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${fin.getFullYear()}-${p(fin.getMonth() + 1)}-${p(fin.getDate())}T${p(fin.getHours())}:${p(fin.getMinutes())}`;
+  }
+  function heureFinVote(ts) {
+    try { return new Date(ts).toLocaleString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; }
+  }
+  function lienVote() { return location.origin + location.pathname + "#commando/vote"; }
+  function messageEquipe(v) {
+    return `🗳️ Commando ${v.semaine} : votez pour vos ${v.nb_choix} sujets préférés dans RexSeller avant ${heureFinVote(v.fin)} 👉 ${lienVote()}`;
+  }
+  function formulaireVote(nb, reouvrir) {
+    const maxChoix = Math.max(1, Math.min(5, nb - 1));
+    const defChoix = Math.min(3, maxChoix);
+    return `<div class="cmd-form cmd-vote__form">
+      <label>Clôture du vote<input type="datetime-local" id="voteFin" value="${finParDefaut()}" /></label>
+      <label>Choix par commercial<select id="voteNb">${Array.from({ length: maxChoix }, (_, i) => i + 1).map(n => `<option value="${n}" ${n === defChoix ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      <label class="wide">Message à l'équipe <span class="muted">(facultatif, affiché en haut du vote)</span><input type="text" id="voteMessage" maxlength="300" placeholder="Ex. : je suis en clientèle ce matin, choisissez vos sujets avant 13 h 30 !" /></label>
+      <label class="wide"><span class="cmd-checks">
+        <label><input type="checkbox" id="voteAutoRetenir" checked /> À la clôture, retenir automatiquement les 3 sujets les plus votés</label>
+        <label><input type="checkbox" id="voteAutoPublier" checked /> … et publier la semaine (les listes apparaissent chez les commerciaux)</label>
+      </span></label>
+      <div class="cmd-row wide"><button id="voteOuvrir" class="btn btn--primary" ${nb < 4 ? "disabled" : ""}>🗳️ ${reouvrir ? "Rouvrir le vote" : `Soumettre les ${nb} sujets au vote`}</button>
+        ${nb < 4 ? `<span class="muted">Il faut au moins 4 sujets non écartés.</span>` : ""}</div>
+    </div>`;
+  }
+  function brancherFormulaire(el, box) {
+    const auto = $("#voteAutoRetenir", box), pub = $("#voteAutoPublier", box);
+    if (auto && pub) { pub.disabled = !auto.checked; auto.addEventListener("change", () => { pub.disabled = !auto.checked; if (!auto.checked) pub.checked = false; }); }
+    const b = $("#voteOuvrir", box); if (!b) return;
+    b.addEventListener("click", async () => {
+      const fin = $("#voteFin", box).value;
+      if (!fin) { C().toast("Indiquez l'heure de clôture."); return; }
+      b.disabled = true;
+      try {
+        await C().rpc("commando_vote_ouvrir", {
+          _semaine_id: semaine.id, _fin: new Date(fin).toISOString(), _nb_choix: Number($("#voteNb", box).value),
+          _auto_retenir: auto.checked, _auto_publier: pub.checked, _message: $("#voteMessage", box).value.trim() || null,
+        });
+        C().toast("Vote ouvert : prévenez l'équipe avec le message à copier");
+        show(el);
+      } catch (e) { b.disabled = false; C().toast(C().erreur(e)); }
+    });
+  }
+  function rendreVote(el) {
+    const box = $("#semVote", el); if (!box) return;
+    if (!semaine) { box.innerHTML = ""; return; }
+    const candidats = thematiques.filter(t => t.statut !== "ecartee");
+    const v = voteEtat;
+    if (!v || !v.vote) {
+      if (semaine.statut === "publiee") { box.innerHTML = ""; return; }
+      box.innerHTML = `<div class="cmd-card"><h3>🗳️ Vote de l'équipe</h3>
+        <p class="muted">Vous n'êtes pas avec l'équipe ce matin ? Soumettez les sujets au vote : chaque commercial choisit ses préférés dans RexSeller (onglet « Vote »), jusqu'à l'heure de clôture. Écartez d'abord les sujets que vous ne voulez pas proposer : tous les sujets non écartés (${candidats.length}) seront soumis.</p>
+        ${formulaireVote(candidats.length, false)}</div>`;
+      brancherFormulaire(el, box);
+      return;
+    }
+    const p = v.participation || {};
+    const sujets = (v.sujets || []).slice().sort((a, b) => (a.rang || 99) - (b.rang || 99));
+    const total = Math.max(1, Number(p.votants || 0));
+    const tableau = `<div class="tbl-scroll"><table class="grid"><thead><tr><th>Rang</th><th>Sujet</th><th class="num">Votes</th><th></th><th>Votants</th></tr></thead><tbody>
+      ${sujets.map(s => `<tr><td>${esc(s.rang || "")}${s.rang && s.rang <= 3 ? " ⭐" : ""}</td><td>${esc(s.titre)}${s.statut === "retenue" ? ` <span class="cmd-badge cmd-badge--ok">retenue</span>` : ""}</td>
+        <td class="num"><b>${esc(s.votes ?? 0)}</b></td><td style="min-width:120px"><div class="cmd-vote__barre"><span style="width:${Math.round(Number(s.votes || 0) / total * 100)}%"></span></div></td>
+        <td class="muted">${esc((s.votants || []).map(id => C().prenomDe(id)).join(", "))}</td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="muted" style="margin-top:6px">À égalité de votes, l'ordre des propositions départage.</p>`;
+    const commentaires = (v.votants || []).filter(x => x.commentaire);
+    const coms = commentaires.length ? `<ul class="cmd-hist">${commentaires.map(x => `<li><b>${esc(C().prenomDe(x.commercial_id))}</b> : ${esc(x.commentaire)}</li>`).join("")}</ul>` : "";
+    const options = `${v.auto_retenir ? "les 3 sujets les plus votés seront retenus" : "rien ne sera retenu automatiquement"}${v.auto_retenir && v.auto_publier ? " et la semaine publiée" : ""}`;
+    if (v.ouvert || v.en_cloture) {
+      box.innerHTML = `<div class="cmd-card cmd-vote__pilote"><h3>🗳️ Vote de l'équipe <span class="cmd-badge cmd-badge--warn">${v.en_cloture ? "clôture en cours" : "ouvert"}</span></h3>
+        <p><b>${esc(p.votants || 0)} / ${esc(p.commerciaux || 0)}</b> commerciaux ont voté · clôture <b>${esc(heureFinVote(v.fin))}</b> · ${esc(v.nb_choix)} choix chacun. À la clôture, ${esc(options)}.</p>
+        ${tableau}${coms}
+        <div class="cmd-row">
+          <button id="voteCopier" class="btn btn--sm">📋 Copier le message pour l'équipe</button>
+          <button id="voteClore" class="btn btn--ghost btn--sm" ${v.en_cloture ? "disabled" : ""}>⏹ Clore le vote maintenant</button>
+          <button id="voteEcheance" class="btn btn--ghost btn--sm" ${v.en_cloture ? "disabled" : ""}>⏰ Changer l'échéance</button>
+        </div>
+        <div id="voteEcheanceForm" hidden></div>
+        <p class="muted" style="margin-top:6px">Le lien ouvre directement l'onglet Vote : ${esc(lienVote())}</p></div>`;
+      $("#voteCopier", box).addEventListener("click", async () => {
+        const txt = messageEquipe(v);
+        try { await navigator.clipboard.writeText(txt); C().toast("Message copié : collez-le dans Teams"); }
+        catch (e) { prompt("Copiez ce message :", txt); }
+      });
+      $("#voteClore", box).addEventListener("click", async () => {
+        if (!confirm(`Clore le vote maintenant ? ${options.charAt(0).toUpperCase() + options.slice(1)}.`)) return;
+        try { await C().rpc("commando_vote_clore", { _semaine_id: semaine.id }); C().toast("Vote clos"); show(el); }
+        catch (e) { C().toast(C().erreur(e)); }
+      });
+      $("#voteEcheance", box).addEventListener("click", () => {
+        const f = $("#voteEcheanceForm", box);
+        f.hidden = !f.hidden;
+        if (!f.hidden) {
+          f.innerHTML = formulaireVote(thematiques.filter(t => t.statut !== "ecartee").length, true);
+          const nbSel = $("#voteNb", f); if (nbSel) nbSel.value = String(v.nb_choix);
+          $("#voteAutoRetenir", f).checked = !!v.auto_retenir; $("#voteAutoPublier", f).checked = !!v.auto_publier;
+          $("#voteMessage", f).value = v.message || "";
+          $("#voteOuvrir", f).textContent = "Enregistrer (les votes déjà faits sont conservés)";
+          brancherFormulaire(el, f);
+          $("#voteAutoPublier", f).disabled = !v.auto_retenir;
+        }
+      });
+      return;
+    }
+    // Vote clos
+    const r = v.resultat || {};
+    const retenues = thematiques.filter(t => t.statut === "retenue").length;
+    box.innerHTML = `<div class="cmd-card"><h3>🗳️ Vote de l'équipe <span class="cmd-badge cmd-badge--gris">clos</span></h3>
+      <p>Clos le ${esc(C().fmtDateTime(v.clos_le))} · ${esc(p.votants || 0)} / ${esc(p.commerciaux || 0)} commerciaux ont voté.
+        ${r.retenue_auto ? " Les 3 sujets les plus votés ont été retenus." : ""}${r.publie ? " La semaine a été publiée automatiquement." : ""}</p>
+      ${r.note ? `<div class="cmd-note">${esc(r.note)}</div>` : ""}
+      ${r.erreur_publication ? `<div class="cmd-err">Publication automatique impossible : ${esc(r.erreur_publication)}. Vérifiez les sujets retenus puis publiez ci-dessous.</div>` : ""}
+      ${tableau}${coms}
+      ${semaine.statut === "brouillon" ? `<div class="cmd-row">
+        <button id="voteRetenir" class="btn btn--sm">✔︎ Retenir les 3 plus votés</button>
+        <button id="voteRouvrir" class="btn btn--ghost btn--sm">🔁 Rouvrir le vote</button>
+        <span class="muted">${retenues}/3 retenue(s) actuellement.</span></div><div id="voteRouvrirForm" hidden></div>` : ""}
+    </div>`;
+    const rt = $("#voteRetenir", box);
+    if (rt) rt.addEventListener("click", async () => {
+      try {
+        const res = await C().rpc("commando_vote_retenir", { _semaine_id: semaine.id });
+        if ((res.retenues || []).length === 3) C().toast("3 sujets retenus d'après le vote"); else C().toast("Rien de retenu : " + (res.raison || ""));
+        show(el);
+      } catch (e) { C().toast(C().erreur(e)); }
+    });
+    const ro = $("#voteRouvrir", box);
+    if (ro) ro.addEventListener("click", () => {
+      const f = $("#voteRouvrirForm", box); f.hidden = !f.hidden;
+      if (!f.hidden) { f.innerHTML = formulaireVote(thematiques.filter(t => t.statut !== "ecartee").length, true); brancherFormulaire(el, f); }
+    });
   }
   function rendreTete(el) {
     const cible = C().semaineCible();
@@ -231,6 +384,7 @@
           <span class="cmd-badge">${t.origine === "ia" ? "IA" : "manuelle"}</span>
           ${t.famille ? `<span class="cmd-badge cmd-badge--info">${esc(FAMILLES[t.famille] || t.famille)}</span>` : ""}
           ${t.modifiee_le ? `<span class="cmd-badge">modifiée le ${esc(C().fmtDate(t.modifiee_le))}</span>` : ""}
+          ${(() => { const sv = voteEtat && voteEtat.vote && (voteEtat.sujets || []).find(x => x.id === t.id); return sv && sv.votes != null ? `<span class="cmd-badge cmd-badge--warn">🗳️ ${esc(sv.votes)} vote${Number(sv.votes) > 1 ? "s" : ""}</span>` : ""; })()}
         </div>
         <div class="admin-actions">
           ${t.statut !== "retenue" ? `<button class="btn btn--primary btn--sm" data-statut="retenue">✔︎ Retenir</button>` : `<button class="btn btn--sm" data-statut="proposee">↩︎ Ne plus retenir</button>`}
@@ -392,7 +546,8 @@
       ${semaine.statut === "publiee" ? `<div class="cmd-ok">Semaine publiée le ${esc(C().fmtDateTime(semaine.publiee_le))} par ${esc(C().nomDe(semaine.publiee_par))}. Les couleurs sont figées ; les commerciaux voient leurs listes.</div>` : `<p class="muted">À la publication, chaque entreprise reçoit une couleur figée pour chacune des 3 thématiques retenues, et les listes apparaissent chez les commerciaux.</p>`}
       <div id="pubMsg"></div>
       <div class="cmd-row">
-        <button id="pubBtn" class="btn btn--primary" ${nb !== 3 ? "disabled" : ""}>🚀 ${semaine.statut === "publiee" ? "Republier (recalculer les couleurs)" : "Publier la semaine"} — ${nb}/3 retenues</button>
+        ${voteActif() ? `<span class="muted">Vote en cours : ${voteEtat.auto_publier ? "la semaine sera publiée automatiquement à la clôture." : "publiez une fois le vote clos."}</span>` : ""}
+        <button id="pubBtn" class="btn btn--primary" ${nb !== 3 || voteActif() ? "disabled" : ""}>🚀 ${semaine.statut === "publiee" ? "Republier (recalculer les couleurs)" : "Publier la semaine"} — ${nb}/3 retenues</button>
       </div>
     </div>`;
     $("#pubBtn", el).addEventListener("click", async () => {

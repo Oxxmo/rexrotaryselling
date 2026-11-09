@@ -30,7 +30,7 @@
   let semaines = [], semaine = null, dernierTotal = null, releveOuvert = false;
   const TYPES = {
     appel: "Appel", rdv: "RDV pris", rdv_annule: "RDV annulé", rdv_honore: "RDV honoré validé", premier_rdv: "Premier RDV de l'heure",
-    pronostic: "Pronostic tenu", badge: "Badge", mail: "Mail de suivi", ajustement: "Ajustement du responsable", depense: "Utilisation",
+    pronostic: "Pronostic tenu", badge: "Badge", mail: "Mail de suivi", vote: "Vote des sujets", ajustement: "Ajustement du responsable", depense: "Utilisation",
   };
   let son = false;
   try { son = localStorage.getItem("rex.ligue.son") === "1"; } catch (e) { /* privé */ }
@@ -57,7 +57,7 @@
   }
 
   function bareme(b) {
-    return `Barème : appel <b>${esc(b.appel ?? 1)}</b> · RDV pris <b>${esc(b.rdv ?? 10)}</b> · RDV honoré validé <b>${esc(b.rdv_honore ?? 25)}</b> · premier RDV de l'heure <b>${esc(b.premier_rdv ?? 15)}</b> · mail de suivi <b>${esc(b.mail ?? 5)}</b> · pronostic tenu <b>${esc(b.pronostic ?? 10)}</b> · badge <b>${esc(b.badge ?? 20)}</b>.`;
+    return `Barème : appel <b>${esc(b.appel ?? 1)}</b> · RDV pris <b>${esc(b.rdv ?? 10)}</b> · RDV honoré validé <b>${esc(b.rdv_honore ?? 25)}</b> · premier RDV de l'heure <b>${esc(b.premier_rdv ?? 15)}</b> · mail de suivi <b>${esc(b.mail ?? 5)}</b> · vote des sujets <b>${esc(b.vote ?? 3)}</b> · pronostic tenu <b>${esc(b.pronostic ?? 10)}</b> · badge <b>${esc(b.badge ?? 20)}</b>.`;
   }
   async function chargerReleve(el) {
     const box = $("#ligueReleve", el); if (!box || !semaine) return;

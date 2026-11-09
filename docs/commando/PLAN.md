@@ -441,3 +441,19 @@ restent en place : ils rapportent eux aussi des points. La ligue est classée pa
 semaine ; « Ma liste » affiche le solde de la semaine et le total ; le relevé est consultable
 dans la ligue. Le type `depense` est réservé à un usage futur des points.
 
+## Vote des sujets par l'équipe (migration `20261109120000`)
+
+Quand le responsable n'est pas avec l'équipe le lundi matin, il soumet au vote les sujets de la
+semaine (onglet Semaine, bloc « Vote de l'équipe ») : tous les sujets non écartés d'une semaine
+en brouillon (4 au moins), une heure de clôture (13 h 30 par défaut), un nombre de choix par
+commercial (3 par défaut) et un message facultatif. Un message prêt à coller dans Teams contient
+le lien direct vers l'onglet Vote. Chaque commercial vote depuis RexSeller (onglet « 🗳️ Vote »,
+signalé par une pastille « à voter » sur le bouton Commando et ouvert en premier), peut changer
+d'avis jusqu'à la clôture, laisser un mot au responsable, et voit les résultats une fois son
+vote enregistré. Le responsable suit la participation, le classement et les commentaires en
+direct. À la clôture (pg_cron `commando_vote_echeances` chaque minute, ou « Clore maintenant ») :
+les 3 sujets les plus votés sont retenus (égalité : ordre des propositions) et, si demandé, la
+semaine est publiée automatiquement au nom du responsable (`commando_publier_interne`). Sans
+aucun vote, rien n'est retenu. La publication manuelle est bloquée pendant un vote ouvert.
+Voter rapporte 3 points (barème « vote », une fois par semaine).
+

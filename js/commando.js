@@ -223,7 +223,7 @@
         <details class="cmd-points__bareme"><summary>Comment gagner des points</summary>
           <ul><li>Appel passé : <b>${esc(b.appel ?? 1)}</b></li><li>RDV pris : <b>${esc(b.rdv ?? 10)}</b> (repris s'il est annulé)</li>
           <li>RDV honoré, validé par le responsable : <b>${esc(b.rdv_honore ?? 25)}</b></li><li>Premier RDV de l'heure : <b>${esc(b.premier_rdv ?? 15)}</b></li>
-          <li>Mail de suivi envoyé après l'appel : <b>${esc(b.mail ?? 5)}</b></li><li>Pronostic tenu : <b>${esc(b.pronostic ?? 10)}</b></li><li>Badge de la semaine (Ouvreur, Marathonien, Sniper, Fidèle) : <b>${esc(b.badge ?? 20)}</b> chacun, le lundi suivant</li></ul>
+          <li>Mail de suivi envoyé après l'appel : <b>${esc(b.mail ?? 5)}</b></li><li>Vote des sujets de la semaine : <b>${esc(b.vote ?? 3)}</b></li><li>Pronostic tenu : <b>${esc(b.pronostic ?? 10)}</b></li><li>Badge de la semaine (Ouvreur, Marathonien, Sniper, Fidèle) : <b>${esc(b.badge ?? 20)}</b> chacun, le lundi suivant</li></ul>
           <div class="muted">Les points se cumulent de semaine en semaine. Le détail est dans l'onglet Ligue.</div></details>
       </div>`);
     }

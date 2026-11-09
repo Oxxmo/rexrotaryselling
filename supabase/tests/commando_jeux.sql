@@ -363,4 +363,166 @@ begin
 end $$;
 select pg_temp.redevenir_admin();
 
+
+-- ------------------------------------------------------------
+-- V) Vote des sujets par l'équipe
+-- ------------------------------------------------------------
+select pg_temp.redevenir_admin();
+insert into public.commando_semaines (semaine, statut) values ('2030-W10', 'brouillon');
+insert into public.commando_thematiques (semaine_id, titre, ordre, statut, regles, trames)
+select s.id, x.titre, x.ordre, x.statut, '[{"couleur":"vert","si":{"naf_prefixes":["43"]},"raison":"artisans"}]'::jsonb,
+       '{"vert":{"points_cles":["**audit** 30 min"],"accroche":"Bonjour","argument":"Argument"}}'::jsonb
+  from public.commando_semaines s,
+       (values ('V1 sujet un', 1, 'retenue'), ('V2 sujet deux', 2, 'proposee'), ('V3 sujet trois', 3, 'proposee'), ('V4 sujet ecarte', 4, 'ecartee')) x(titre, ordre, statut)
+ where s.semaine = '2030-W10';
+insert into public.commando_thematiques (semaine_id, titre, ordre, statut)
+  select id, 'V5 sujet ecarte', 5, 'ecartee' from public.commando_semaines where semaine = '2030-W10';
+create temp table v_ids as select t.titre, t.id from public.commando_thematiques t join public.commando_semaines s on s.id = t.semaine_id where s.semaine = '2030-W10';
+grant select on v_ids to authenticated;
+
+select pg_temp.devenir(:'sarah');
+do $$
+declare v_sem uuid; ok boolean := false;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W10';
+  begin perform public.commando_vote_ouvrir(v_sem, now() + interval '1 hour', 2, true, true, null);
+  exception when others then ok := true; end;
+  assert ok, 'V1 un commercial a pu ouvrir un vote';
+  -- Un commercial ne voit pas les sujets non publiés en direct (RLS).
+  assert not exists (select 1 from public.commando_thematiques where semaine_id = v_sem), 'V1 RLS : sujets non publiés visibles';
+  raise notice 'OK V1 : ouverture réservée au responsable, sujets non publiés invisibles en direct';
+end $$;
+
+select pg_temp.devenir(:'scott');
+do $$
+declare v_sem uuid; ok boolean := false; r jsonb;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W10';
+  -- 3 sujets non écartés : refusé (il en faut 4).
+  begin perform public.commando_vote_ouvrir(v_sem, now() + interval '1 hour', 2, true, true, null);
+  exception when others then ok := true; end;
+  assert ok, 'V2 vote ouvert avec 3 sujets seulement';
+  update public.commando_thematiques set statut = 'proposee' where semaine_id = v_sem and titre = 'V4 sujet ecarte';
+  ok := false;
+  begin perform public.commando_vote_ouvrir(v_sem, now() + interval '1 minute', 2, true, true, null);
+  exception when others then ok := true; end;
+  assert ok, 'V2 clôture trop proche acceptée';
+  r := public.commando_vote_ouvrir(v_sem, now() + interval '1 hour', 2, true, true, 'Votez avant 13h30');
+  assert (r->>'sujets')::int = 4, 'V2 4 sujets au vote : ' || r::text;
+  assert not exists (select 1 from public.commando_thematiques where semaine_id = v_sem and statut = 'retenue'), 'V2 les retenues repassent proposées';
+  ok := false;
+  begin perform public.commando_publier(v_sem); exception when others then ok := true; end;
+  assert ok, 'V2 publication pendant un vote ouvert';
+  raise notice 'OK V2 : ouverture (4 sujets minimum, échéance, retenues remises à zéro), publication bloquée';
+end $$;
+
+select pg_temp.devenir(:'arthur');
+do $$
+declare v_sem uuid; r jsonb; t1 uuid; t2 uuid; t4 uuid; t5 uuid; ok boolean := false;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W10';
+  r := public.commando_vote_etat(null);
+  assert (r->>'ouvert')::boolean and r->>'semaine' = '2030-W10', 'V3 vote ouvert visible : ' || left(r::text, 200);
+  assert jsonb_array_length(r->'sujets') = 4, 'V3 4 sujets (écarté exclu)';
+  assert (r->>'resultats_visibles')::boolean = false and (r->'sujets'->0->'votes') = 'null'::jsonb, 'V3 compteurs cachés avant le vote';
+  assert r->'votants' = 'null'::jsonb, 'V3 détail des votants caché au commercial';
+  select id into t1 from pg_temp.v_ids where titre = 'V1 sujet un';
+  select id into t2 from pg_temp.v_ids where titre = 'V2 sujet deux';
+  select id into t4 from pg_temp.v_ids where titre = 'V4 sujet ecarte';
+  select id into t5 from pg_temp.v_ids where titre = 'V5 sujet ecarte';
+  begin perform public.commando_voter(v_sem, array[t1, t2, t4], null); exception when others then ok := true; end;
+  assert ok, 'V3 trois choix acceptés (max 2)';
+  ok := false;
+  begin perform public.commando_voter(v_sem, array[t5], null); exception when others then ok := true; end;
+  assert ok, 'V3 vote sur un sujet écarté accepté';
+  r := public.commando_voter(v_sem, array[t2, t4], 'Mes clients en parlent');
+  assert (r->>'a_vote')::boolean and (r->>'resultats_visibles')::boolean, 'V3 résultats visibles après le vote';
+  r := public.commando_voter(v_sem, array[t2, t4], 'Je confirme');
+  assert jsonb_array_length(r->'mes_choix') = 2 and r->>'mon_commentaire' = 'Je confirme', 'V3 vote modifiable';
+  assert (select count(*) from public.commando_points where type = 'vote' and commercial_id = 'bae7f6a3-2952-4a33-9b96-56f4b38eb8ea') = 1, 'V3 points du vote une seule fois';
+  raise notice 'OK V3 : vote (bornes, sujets écartés, modification), résultats après le vote, points';
+end $$;
+select pg_temp.devenir(:'sarah');
+do $$
+declare v_sem uuid; t1 uuid; t2 uuid;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W10';
+  select id into t1 from pg_temp.v_ids where titre = 'V1 sujet un';
+  select id into t2 from pg_temp.v_ids where titre = 'V2 sujet deux';
+  perform public.commando_voter(v_sem, array[t2, t1], null);
+end $$;
+select pg_temp.devenir(:'teo');
+do $$
+declare v_sem uuid; t3 uuid; t2 uuid;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W10';
+  select id into t2 from pg_temp.v_ids where titre = 'V2 sujet deux';
+  select id into t3 from pg_temp.v_ids where titre = 'V3 sujet trois';
+  perform public.commando_voter(v_sem, array[t2, t3], null);
+end $$;
+
+select pg_temp.devenir(:'scott');
+do $$
+declare v_sem uuid; r jsonb;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W10';
+  r := public.commando_vote_etat(v_sem);
+  assert (r->'participation'->>'votants')::int = 3, 'V4 3 votants : ' || (r->'participation')::text;
+  assert jsonb_array_length(r->'votants') = 3 and exists (select 1 from jsonb_array_elements(r->'votants') x where x->>'commentaire' = 'Je confirme'), 'V4 commentaires visibles du responsable';
+  assert exists (select 1 from jsonb_array_elements(r->'sujets') x where x->>'titre' = 'V2 sujet deux' and (x->>'votes')::int = 3 and (x->>'rang')::int = 1), 'V4 V2 premier avec 3 votes';
+  raise notice 'OK V4 : vue du responsable (participation, commentaires, classement en direct)';
+end $$;
+
+-- Échéance : traitée par le cron (rôle système), retient et publie.
+select pg_temp.redevenir_admin();
+do $$
+declare v_sem uuid; n int; s record; r jsonb;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W10';
+  update public.commando_semaines set vote_fin = now() - interval '1 second' where id = v_sem;
+  n := public.commando_vote_traiter_echeances();
+  assert n = 1, 'V5 une échéance traitée : ' || n;
+  select * into s from public.commando_semaines where id = v_sem;
+  assert s.vote_clos_le is not null and s.statut = 'publiee', 'V5 vote clos et semaine publiée : ' || coalesce(s.vote_resultat::text, 'null');
+  assert (s.vote_resultat->>'publie')::boolean and (s.vote_resultat->>'retenue_auto')::boolean, 'V5 résultat : ' || s.vote_resultat::text;
+  -- V2 (3 votes), puis égalité à 1 vote entre V1, V3, V4 : l'ordre du responsable départage (V1, V3).
+  assert (select array_agg(titre order by titre) from public.commando_thematiques where semaine_id = v_sem and statut = 'retenue')
+         = array['V1 sujet un', 'V2 sujet deux', 'V3 sujet trois'], 'V5 retenues attendues V1, V2, V3';
+  assert s.publiee_par = '28f7068b-a34b-45a3-a566-96558a8bf6dd', 'V5 publiée au nom du responsable qui a ouvert le vote';
+  n := public.commando_vote_traiter_echeances();
+  assert n = 0, 'V5 échéance retraitée';
+  raise notice 'OK V5 : clôture à l''échéance, 3 plus votés retenus (égalité départagée), publication automatique';
+end $$;
+select pg_temp.devenir(:'teo');
+do $$
+declare v_sem uuid; t3 uuid; ok boolean := false; r jsonb;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W10';
+  select id into t3 from pg_temp.v_ids where titre = 'V3 sujet trois';
+  begin perform public.commando_voter(v_sem, array[t3], null); exception when others then ok := true; end;
+  assert ok, 'V6 vote accepté après la clôture';
+  r := public.commando_vote_etat(v_sem);
+  assert (r->>'ouvert')::boolean = false and (r->>'resultats_visibles')::boolean, 'V6 résultats visibles après clôture';
+  raise notice 'OK V6 : vote refusé après la clôture, résultats visibles';
+end $$;
+
+-- Clôture manuelle sans vote : aucune retenue automatique.
+select pg_temp.redevenir_admin();
+insert into public.commando_semaines (semaine, statut) values ('2030-W11', 'brouillon');
+insert into public.commando_thematiques (semaine_id, titre, ordre)
+select s.id, 'W11 sujet ' || g, g from public.commando_semaines s, generate_series(1, 4) g where s.semaine = '2030-W11';
+select pg_temp.devenir(:'scott');
+do $$
+declare v_sem uuid; r jsonb;
+begin
+  select id into v_sem from public.commando_semaines where semaine = '2030-W11';
+  perform public.commando_vote_ouvrir(v_sem, now() + interval '2 hours', 3, true, true, null);
+  r := public.commando_vote_clore(v_sem);
+  assert r->>'note' like '%aucun vote%', 'V7 note attendue : ' || r::text;
+  assert (select statut from public.commando_semaines where id = v_sem) = 'brouillon', 'V7 semaine publiée sans vote';
+  assert not exists (select 1 from public.commando_thematiques where semaine_id = v_sem and statut = 'retenue'), 'V7 retenues sans vote';
+  raise notice 'OK V7 : clôture manuelle sans vote, rien de retenu ni publié';
+end $$;
+select pg_temp.redevenir_admin();
+
 rollback;

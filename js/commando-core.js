@@ -23,6 +23,8 @@
   let activeId = null;
   let wired = false;
   let pollTimer = null;
+  let ongletPrefere = null;   // onglet ouvert par défaut (ex. « vote » quand un vote attend l'utilisateur)
+  const bootHooks = [];       // actions des modules une fois le membre connu
 
   function sb() { return window.rexSupa; }
   function cfg() { return window.REX_CONFIG || {}; }
@@ -126,8 +128,15 @@
     const v = $("#commandoView"); if (v) v.hidden = false;
     const sem = $("#cmdSemaine"); if (sem) sem.textContent = "Semaine " + semaineCible();
     window.scrollTo({ top: 0 });
-    show(id || activeId || (visibleTabs()[0] || {}).id);
+    show(id || ongletPrefere || activeId || (visibleTabs()[0] || {}).id);
   }
+  // Libellé d'onglet dynamique (pastille « à faire ») et onglet préféré à l'ouverture.
+  function setLabel(id, label) {
+    const t = tabs.find(x => x.id === id); if (!t || t.label === label) return;
+    t.label = label; renderNav();
+  }
+  function preferer(id) { ongletPrefere = id || null; }
+  function apresBoot(fnc) { bootHooks.push(fnc); if (membre) { try { fnc(); } catch (e) { /* module facultatif */ } } }
   function close() {
     document.body.classList.remove("cmd-mode");
     const v = $("#commandoView"); if (v) v.hidden = true;
@@ -153,6 +162,7 @@
     if (!membre) return;
     wire();
     renderNav();
+    bootHooks.forEach(f => { try { f(); } catch (e) { /* module facultatif */ } });
     // Réouverture directe (lien ou rechargement) : #commando/<onglet>
     const m = /^#commando(?:\/([\w-]+))?/.exec(location.hash || "");
     if (m) open(m[1] || null);
@@ -169,7 +179,7 @@
   }
 
   window.RexCommando = {
-    registerTab, onBoot, open, close, show, rpc, fn, sb, toast, esc, gras, erreur,
+    registerTab, onBoot, open, close, show, rpc, fn, sb, toast, esc, gras, erreur, setLabel, preferer, apresBoot,
     semaineIso, semaineCible, lundiDe, fmtDate, fmtDateTime, fmtSemaine, nomDe, prenomDe,
     role() { return membre ? membre.role : null; },
     isResponsable() { return !!membre && membre.role === "responsable"; },

@@ -246,4 +246,24 @@ body.cmd-mode #btnCommando{background:#fff;color:var(--rex, #c8102e);border-colo
 .cmd-mail__apercu{margin:8px 0;padding:8px 10px;background:#fff;border:1px solid var(--line-soft);border-radius:10px}
 .cmd-mail__objet{font-weight:800;margin-bottom:4px}
 .cmd-mail__corps{margin:0;white-space:pre-wrap;font:inherit;font-size:.92rem;line-height:1.45;color:var(--ink)}
+/* Vote des sujets */
+.appbar__dot{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#fde68a;color:#3b2a00;font-size:.72rem;font-weight:800;animation:cmdpulse 1.6s ease-in-out infinite}
+@keyframes cmdpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.cmd-vote__liste{display:grid;gap:12px;margin:12px 0}
+.cmd-vote__sujet{background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:12px 14px;border-left:6px solid var(--line)}
+.cmd-vote__sujet--choisi{border-left-color:#d97706;background:#fffbeb}
+.cmd-vote__sujet--retenu{border-left-color:#16a34a}
+.cmd-vote__tete{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.cmd-vote__tete h4{margin:6px 0 4px;font-size:1rem;line-height:1.35}
+.cmd-vote__tete .btn{flex-shrink:0}
+.cmd-vote__pourquoi{margin:4px 0 6px;font-size:.92rem;line-height:1.45}
+.cmd-vote__detail{margin-top:6px;font-size:.88rem}.cmd-vote__detail summary{cursor:pointer;font-weight:700;color:var(--rex-dark)}
+.cmd-vote__detail p{margin:6px 0}
+.cmd-vote__res{display:flex;align-items:center;gap:10px;margin-top:8px}
+.cmd-vote__barre{flex:1;height:8px;background:var(--line-soft);border-radius:999px;overflow:hidden;min-width:80px}
+.cmd-vote__barre span{display:block;height:100%;background:linear-gradient(90deg,#f59e0b,#d97706);border-radius:999px;transition:width .4s}
+.cmd-vote__nb{font-size:.85rem;white-space:nowrap}
+.cmd-vote__valider textarea{width:100%;margin-top:4px;font:inherit;padding:8px 10px;border:1px solid var(--line-soft);border-radius:10px}
+.cmd-vote__form{margin-top:8px}
+@media (max-width:640px){.cmd-vote__tete{flex-direction:column}.cmd-vote__nb{white-space:normal}}
 
