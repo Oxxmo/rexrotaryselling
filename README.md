@@ -33,6 +33,9 @@ situées sous lui** dans l'organigramme (RRO → CA → RO → commercial).
 - **Console d'administration intégrée** (☰ → *Administration*, responsables uniquement) :
   créer / modifier / supprimer les comptes de son équipe et réinitialiser les mots de
   passe, sans toucher au SQL. Chaque responsable ne gère que son sous-arbre.
+- **Feuille de route** (bouton 🧭, équipe de Poitiers uniquement) : feuille prospective de la
+  semaine de chaque commercial — pistes persistantes, prévisions, RDV posés S+1/S+2/S+3,
+  engagements et besoins du manager. Éditable en ligne, utilisable sur téléphone.
 - **Système de tickets** (☰ → *Signaler / Demande*) : tout utilisateur peut créer une
   demande ou signaler un bug ; les tickets ne sont visibles que par leur auteur et par
   le **développeur dédié** (`profiles.is_dev = true`), qui les consulte via *Tickets reçus*
