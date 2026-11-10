@@ -51,11 +51,12 @@
 
   /* ---------- Rendu principal ---------- */
   async function render(el) {
-    el.innerHTML = `<div id="semHead"></div><div id="semValider"></div><div id="semVeille"></div><div id="semProps"></div><div id="semVote"></div><div id="semPub"></div><div id="semSuivi"></div>`;
+    el.innerHTML = `<div id="semHead"></div><div id="semCockpit"></div><div id="semValider"></div><div id="semVeille"></div><div id="semProps"></div><div id="semVote"></div><div id="semPub"></div><div id="semSuivi"></div>`;
   }
   async function show(el) {
     await charger();
     rendreTete(el);
+    rendreCockpit(el);
     rendreValidation(el);
     rendreVeille(el);
     rendrePropositions(el);
@@ -74,6 +75,91 @@
     try { voteEtat = await C().rpc("commando_vote_etat", { _semaine_id: semaine.id }); } catch (e) { return; }
     if (avant && !voteActif()) { show(el); return; }
     if (!document.activeElement || !$("#semVote", el).contains(document.activeElement)) rendreVote(el);
+  }
+
+  /* ---------- Cockpit : la semaine en 5 étapes + pilote automatique ---------- */
+  const PILOTE_DEFAUT = { actif: false, jour: 1, heure_veille: "07:00", cloture_vote: "13:30", nb_choix: 3, auto_publier: true };
+  const heureTxt = (h) => String(h || "").replace(":", "h");
+  async function rendreCockpit(el) {
+    const box = $("#semCockpit", el); if (!box) return;
+    if (!semaine) { box.innerHTML = ""; return; }
+    const pil = Object.assign({}, PILOTE_DEFAUT, (parametres || {}).pilote || {});
+    let journal = [], appels = 0, rdv = 0;
+    try { const e = await C().rpc("commando_pilote_etat"); journal = (e && e.journal) || []; } catch (e) { /* facultatif */ }
+    try {
+      const [a, r] = await Promise.all([
+        sb().from("commando_appels").select("id", { count: "exact", head: true }).eq("semaine_id", semaine.id),
+        sb().from("commando_appels").select("id", { count: "exact", head: true }).eq("semaine_id", semaine.id).eq("statut", "rdv")
+      ]);
+      appels = Number(a.count || 0); rdv = Number(r.count || 0);
+    } catch (e) { /* facultatif */ }
+    const gen = generations.find(g => g.type === "veille") || null;
+    const nbSujets = thematiques.filter(t => t.statut !== "ecartee").length;
+    const nbRetenues = thematiques.filter(t => t.statut === "retenue").length;
+    const publiee = semaine.statut === "publiee";
+    const v = voteEtat && voteEtat.vote ? voteEtat : null;
+    const etapes = [];
+    // ① Veille
+    if (gen && gen.statut === "en_cours") etapes.push({ ico: "🔎", titre: "Veille", etat: "encours", txt: `En cours · étape ${(gen.etat && gen.etat.etape) || 1}/${(gen.etat && gen.etat.total) || 6}` });
+    else if (gen && gen.statut === "erreur" && !nbSujets) etapes.push({ ico: "🔎", titre: "Veille", etat: "alerte", txt: "Erreur : relancez-la ci-dessous" });
+    else if (nbSujets) etapes.push({ ico: "🔎", titre: "Veille", etat: "fait", txt: `${nbSujets} sujet${nbSujets > 1 ? "s" : ""} proposé${nbSujets > 1 ? "s" : ""}` });
+    else etapes.push({ ico: "🔎", titre: "Veille", etat: pil.actif ? "auto" : "afaire", txt: pil.actif ? `Automatique lundi à ${heureTxt(pil.heure_veille)}` : "À lancer" });
+    // ② Vote
+    if (v && (v.ouvert || v.en_cloture)) etapes.push({ ico: "🗳️", titre: "Vote", etat: "encours", txt: `${Number((v.participation || {}).votants || 0)}/${Number((v.participation || {}).commerciaux || 0)} ont voté · clôture ${heureFinVote(v.fin)}` });
+    else if (v && v.clos_le) etapes.push({ ico: "🗳️", titre: "Vote", etat: "fait", txt: "Clos" });
+    else if (publiee) etapes.push({ ico: "🗳️", titre: "Vote", etat: "fait", txt: "Pas de vote cette semaine" });
+    else etapes.push({ ico: "🗳️", titre: "Vote", etat: pil.actif ? "auto" : "option", txt: pil.actif ? `S'ouvre seul après la veille, jusqu'à ${heureTxt(pil.cloture_vote)}` : "Facultatif" });
+    // ③ Publication
+    if (publiee) etapes.push({ ico: "🚀", titre: "Publication", etat: "fait", txt: `Publiée le ${C().fmtDateTime(semaine.publiee_le)}` });
+    else if (v && v.auto_publier && (v.ouvert || v.en_cloture)) etapes.push({ ico: "🚀", titre: "Publication", etat: "auto", txt: `Automatique à ${heureFinVote(v.fin)}` });
+    else if (pil.actif && !v) etapes.push({ ico: "🚀", titre: "Publication", etat: "auto", txt: `Automatique à ${heureTxt(pil.cloture_vote)}` });
+    else etapes.push({ ico: "🚀", titre: "Publication", etat: "afaire", txt: `Retenir 3 sujets (${nbRetenues}/3), puis publier` });
+    // ④ Commando
+    etapes.push({ ico: "📞", titre: "Commando", etat: publiee ? (appels ? "encours" : "pret") : "attente", txt: publiee ? `${appels} appel${appels > 1 ? "s" : ""} · ${rdv} RDV` : "Lundi 14h–17h" });
+    // ⑤ Bilan
+    etapes.push({ ico: "🏆", titre: "Bilan", etat: appels ? "fait" : "attente", txt: appels ? "Ligue et efficacité à jour" : "Après le commando" });
+    // Prochaine action (une seule, la plus utile)
+    let action = "";
+    if (!publiee) {
+      if (gen && gen.statut === "en_cours") action = "La veille travaille (8 à 12 minutes). Les propositions arrivent ci-dessous au fur et à mesure.";
+      else if (!nbSujets) action = pil.actif ? `Rien à faire : la veille partira seule lundi à ${heureTxt(pil.heure_veille)}. Vous pouvez aussi la lancer maintenant.` : "Lancez la veille (bloc « Veille IA » ci-dessous).";
+      else if (v && (v.ouvert || v.en_cloture)) action = "Le vote tourne. Vous pouvez écarter un sujet, changer l'heure de clôture ou clore maintenant (bloc « Vote de l'équipe »).";
+      else if (pil.actif && nbSujets >= 4 && !nbRetenues) action = "Le vote va s'ouvrir tout seul dans quelques minutes. Écartez d'abord les sujets qui ne vous plaisent pas si besoin.";
+      else action = `Retenez 3 sujets (${nbRetenues}/3) puis publiez, ou ouvrez un vote.`;
+    } else action = appels ? "La semaine est lancée. Suivez la ligue et validez les RDV honorés quand ils ont eu lieu." : "Tout est prêt : les commerciaux ont leurs listes.";
+    const JOURNAL = { veille_lancee: "🤖 Veille lancée automatiquement", vote_ouvert: "🤖 Vote ouvert automatiquement", veille_impossible: "⚠️ Veille automatique impossible", vote_impossible: "⚠️ Vote automatique impossible" };
+    const dernier = journal.find(j => j.semaine === semaine.semaine);
+    box.innerHTML = `<div class="cmd-card cmd-cockpit">
+      <ol class="cmd-etapes">${etapes.map((e, i) => `<li class="cmd-etape cmd-etape--${e.etat}"><span class="cmd-etape__num">${e.etat === "fait" ? "✔︎" : i + 1}</span><div><b>${e.ico} ${esc(e.titre)}</b><small>${esc(e.txt)}</small></div></li>`).join("")}</ol>
+      <div class="cmd-cockpit__action"><b>👉 Maintenant :</b> ${esc(action)}</div>
+      <div class="cmd-pilote ${pil.actif ? "cmd-pilote--on" : ""}">
+        <label class="cmd-switch"><input type="checkbox" id="piloteActif" ${pil.actif ? "checked" : ""} /><span></span><b>🤖 Pilote automatique du lundi</b></label>
+        <span class="muted">${pil.actif ? `Veille à ${esc(heureTxt(pil.heure_veille))}, vote jusqu'à ${esc(heureTxt(pil.cloture_vote))}, 3 sujets les plus votés retenus${pil.auto_publier ? " et publiés" : ""}. Vous gardez la main à tout moment.` : "Désactivé : vous lancez la veille, le vote et la publication à la main."}</span>
+        <details class="cmd-pilote__det"><summary>Réglages</summary>
+          <div class="cmd-row">
+            <label>Veille à <input type="time" id="piloteVeille" value="${esc(pil.heure_veille)}" /></label>
+            <label>Clôture du vote <input type="time" id="piloteCloture" value="${esc(pil.cloture_vote)}" /></label>
+            <label>Choix par commercial <select id="piloteChoix">${[1, 2, 3].map(n => `<option ${Number(pil.nb_choix) === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+            <label class="cmd-check"><input type="checkbox" id="pilotePublier" ${pil.auto_publier ? "checked" : ""} /> publier à la clôture</label>
+            <button id="piloteSave" class="btn btn--sm">Enregistrer</button>
+          </div>
+        </details>
+        ${dernier ? `<div class="muted cmd-pilote__journal">${esc(JOURNAL[dernier.action] || dernier.action)} le ${esc(C().fmtDateTime(dernier.le))}${dernier.detail && dernier.detail.erreur ? " : " + esc(dernier.detail.erreur) : ""}</div>` : ""}
+      </div>
+    </div>`;
+    const enregistrer = async (patch) => {
+      const pilote = Object.assign({}, pil, patch);
+      const { error } = await sb().from("commando_parametres").update({ pilote }).eq("id", true);
+      if (error) { C().toast("Échec : " + error.message); return; }
+      parametres = Object.assign({}, parametres, { pilote });
+      C().toast(pilote.actif ? "🤖 Pilote automatique activé" : "Pilote automatique désactivé");
+      rendreCockpit(el);
+    };
+    $("#piloteActif", box).addEventListener("change", (e) => enregistrer({ actif: e.target.checked }));
+    $("#piloteSave", box).addEventListener("click", () => enregistrer({
+      heure_veille: $("#piloteVeille", box).value || "07:00", cloture_vote: $("#piloteCloture", box).value || "13:30",
+      nb_choix: Number($("#piloteChoix", box).value) || 3, auto_publier: $("#pilotePublier", box).checked
+    }));
   }
 
   /* ---------- Vote de l'équipe ---------- */
@@ -251,16 +337,19 @@
       <div id="veilleMsg"></div>
       <div class="cmd-row">
         <button id="veilleLancer" class="btn btn--primary btn--sm" ${enCours || !fiche || nbSemaine >= limite ? "disabled" : ""}>🔎 Lancer la veille (5 propositions)</button>
+      </div>
+      <details class="cmd-plus"><summary>⋯ Autres actions (trames, mails, fiche Rex, import, sujet manuel)</summary>
+      <div class="cmd-row">
         <button id="veilleResserrer" class="btn btn--ghost btn--sm" title="Trames plus courtes et plus percutantes, arguments clés en gras, pour les thématiques retenues">✂️ Resserrer les trames des retenues</button>
         <button id="veilleMails" class="btn btn--ghost btn--sm" title="Rédige les mails de suivi des thématiques retenues qui n'en ont pas encore">✉️ Rédiger les mails des retenues</button>
         <button id="veilleFiche" class="btn btn--sm" ${enCours ? "disabled" : ""}>📝 Rédiger la fiche Rex (brouillon)</button>
         <button id="veilleImporter" class="btn btn--ghost btn--sm">⬆️ Importer un fichier de thématiques</button>
         <input type="file" id="veilleFichier" accept="application/json,.json" hidden />
         <button id="veilleManuelle" class="btn btn--ghost btn--sm">✍️ Ajouter une thématique à la main</button>
-      </div>
-      ${generations.length ? `<div class="tbl-scroll" style="margin-top:10px"><table class="grid"><thead><tr><th>Lancée</th><th>Type</th><th>État</th><th>Modèle</th><th class="num">Jetons</th><th class="num">Recherches</th><th class="num">Coût</th><th class="num">Durée</th><th>Erreur</th></tr></thead><tbody>
+      </div></details>
+      ${generations.length ? `<details class="cmd-plus"><summary>🧾 Historique des générations (${generations.length}) · coût du mois ${coutMois().toFixed(2)} $</summary><div class="tbl-scroll" style="margin-top:10px"><table class="grid"><thead><tr><th>Lancée</th><th>Type</th><th>État</th><th>Modèle</th><th class="num">Jetons</th><th class="num">Recherches</th><th class="num">Coût</th><th class="num">Durée</th><th>Erreur</th></tr></thead><tbody>
         ${generations.map(g => `<tr><td>${esc(C().fmtDateTime(g.lancee_le))}</td><td>${esc(g.type)}</td><td>${g.statut === "en_cours" ? `<span class="cmd-badge cmd-badge--info"><span class="cmd-spin"></span>en cours${g.etat && g.etat.total ? ` · étape ${esc(g.etat.etape || 1)}/${esc(g.etat.total)}` : ""}</span>${g.etat && g.etat.libelle ? `<div class="muted" style="font-size:.78rem;margin-top:3px">${esc(g.etat.libelle)}${g.etat.note ? " · " + esc(g.etat.note) : ""}</div>` : ""}` : g.statut === "erreur" ? `<span class="cmd-badge cmd-badge--err">erreur</span>` : `<span class="cmd-badge cmd-badge--ok">terminée</span>`}</td><td>${esc(g.modele || "")} v${esc(g.prompt_version || "")}</td><td class="num">${Number(g.jetons_entree || 0) + Number(g.jetons_sortie || 0) || "—"}</td><td class="num">${g.nb_recherches ?? "—"}</td><td class="num">${g.cout_estime != null ? Number(g.cout_estime).toFixed(2) + " $" : "—"}</td><td class="num">${g.duree_ms ? Math.round(g.duree_ms / 1000) + " s" : "—"}</td><td class="muted">${esc(g.erreur || "")}</td></tr>`).join("")}
-      </tbody></table></div><p class="muted" style="margin-top:6px">Coût du mois (toutes semaines chargées) : ${coutMois().toFixed(2)} $.</p>` : ""}
+      </tbody></table></div></details>` : ""}
     </div>`;
     $("#veilleResserrer", el).addEventListener("click", () => {
       const retenues = thematiques.filter(t => t.statut === "retenue");
@@ -389,17 +478,20 @@
         <div class="admin-actions">
           ${t.statut !== "retenue" ? `<button class="btn btn--primary btn--sm" data-statut="retenue">✔︎ Retenir</button>` : `<button class="btn btn--sm" data-statut="proposee">↩︎ Ne plus retenir</button>`}
           ${t.statut !== "ecartee" ? `<button class="btn btn--ghost btn--sm" data-statut="ecartee">Écarter</button>` : `<button class="btn btn--ghost btn--sm" data-statut="proposee">Reproposer</button>`}
+          <details class="cmd-plus cmd-plus--inline"><summary>⋯</summary><div class="admin-actions">
           <button class="btn btn--ghost btn--sm" data-edit>✏️ Modifier</button>
           ${t.origine === "ia" ? `<button class="btn btn--ghost btn--sm" data-regen>🔁 Régénérer</button>` : ""}
           <button class="btn btn--ghost btn--sm" data-resserrer title="Trames plus courtes et plus percutantes, arguments clés en gras (sans rien inventer)">✂️ Resserrer les trames</button>
           <button class="btn btn--ghost btn--sm" data-mails title="Rédige les deux mails de suivi (RDV confirmé, suite à notre échange), sans rien inventer">✉️ Rédiger les mails</button>
           <button class="btn btn--danger btn--sm" data-del>Supprimer</button>
+          </div></details>
         </div>
       </div>
       <h3>${esc(t.titre)}</h3>
       <p class="muted"><b>Offre Rex :</b> ${esc(t.offre_rex || "—")}</p>
       <p><b>Pourquoi maintenant :</b> ${C().gras(t.pourquoi_maintenant || "")}</p>
       ${alertes.length ? `<div class="cmd-err">⚠︎ ${alertes.map(esc).join(" · ")}</div>` : ""}
+      <details class="cmd-plus"><summary>📚 Sources (${nbVerif}/${(t.sources || []).length} vérifiées), concurrence et ciblage</summary>
       <h4>Sources (${nbVerif}/${(t.sources || []).length} vérifiées)</h4>
       ${(t.sources || []).length ? `<ul class="cmd-sources">${t.sources.map(sourceHtml).join("")}</ul>` : `<p class="muted">Aucune source.</p>`}
       <h4>Concurrence</h4>
@@ -409,6 +501,7 @@
       <h4>Règles de couleur <button class="btn btn--ghost btn--sm" data-apercu>📊 Aperçu des compteurs</button></h4>
       <ol class="cmd-regles">${(t.regles || []).map(regleHtml).join("")}</ol>
       <div class="cmd-apercu" data-apercu-box hidden></div>
+      </details>
       <details><summary>Trames d'appel par couleur</summary>${trameHtml(t)}</details>
       <details><summary>✉️ Mails de suivi ${(t.mails && (t.mails.rdv || t.mails.suite)) ? "" : "<span class='muted'>(à rédiger)</span>"}</summary>${mailsHtml(t)}</details>
       <details><summary>Objections (${(t.objections || []).length})</summary>${(t.objections || []).map(o => `<div class="cmd-obj__item"><b>« ${esc(o.objection)} »</b><p>${C().gras(o.reponse)}</p></div>`).join("") || "<p class='muted'>Aucune.</p>"}</details>

@@ -488,3 +488,35 @@ Constat du 9 novembre : les commerciaux retombaient souvent sur les mêmes fiche
   - Numéros : +190 RGE, +136 FINESS, soit 803 fiches éligibles avec numéro au lieu de 499.
   - E-mails : +196.
   - BODACC : 760 annonces concernent la base ; 181 entreprises sont retirées.
+
+## Audit d'usage et automatisation (migration `20261110120000`)
+
+Mesures avant l'audit, sur un téléphone de 390 px :
+- La trame d'appel commençait à 1 161 px du haut de la fiche, les boutons de résultat à 1 924 px (trois écrans plus bas).
+- Le numéro n'était pas cliquable.
+- « Ma liste » montrait 4 cartes de compteurs, le bloc des jeux, les confirmations de RDV et 6 filtres avant la première fiche.
+- Le responsable avait 11 onglets et une page « Semaine » de plus de 5 000 px.
+
+**Commerciaux**
+- **Mode Commando** : le bouton « ▶ Démarrer le commando » ouvre la première fiche à appeler, rappels du jour d'abord.
+  - Après chaque résultat enregistré, la fiche suivante s'ouvre toute seule.
+  - Une barre indique la fiche n/N, les appels, les RDV et les points de la session, avec « Suivante » et « Terminer ».
+- **Fiche « appel d'abord »** :
+  - Un bouton vert « 📞 Appeler » (lien `tel:`), ou de quoi trouver et coller le numéro.
+  - L'actualité BODACC, puis la trame (accroche à 385 px du haut).
+  - Les 4 résultats toujours visibles en bas de la fiche.
+  - Repliés : entreprise et coordonnées, raison de la couleur, historique, « Passer ».
+- **Points en direct** : `commando_mes_points` crédite les points tout de suite. Le gain s'affiche après chaque appel (« ⭐ +1 point », « +11 points »).
+- **Ma liste** : un en-tête d'action (bouton Démarrer, à appeler, RDV/objectif, points, appels). Jeux de l'heure et filtres repliés ; les jeux s'ouvrent seuls quand un pronostic attend.
+
+**Responsable**
+- **Frise de la semaine** en haut de l'onglet « Semaine » : Veille → Vote → Publication → Commando → Bilan.
+  - Chaque étape indique son état : fait, en cours, automatique, à faire ou alerte.
+  - Une seule phrase « 👉 Maintenant » donne la prochaine action.
+- **Pilote automatique du lundi** (paramètre `pilote`, interrupteur dans la frise ; activé le 10 novembre) :
+  - `commando_pilote_tick` tourne toutes les 10 minutes.
+  - À 7 h (heure de Paris), il lance la veille : une génération en attente, reprise par le cron `commando_veille_relance`.
+  - Quand la veille a fini, il ouvre le vote jusqu'à 13 h 30, avec retenue des 3 plus votés et publication automatiques.
+  - Il ne fait rien si une veille a déjà été lancée, si des sujets sont retenus à la main ou si la semaine est publiée. Chaque action est notée dans `commando_pilote_journal`.
+- **Veille et propositions compactées** : un bouton principal ; le reste (actions, historique, sources, concurrence, ciblage) est replié.
+- **Onglets** : Base, Secteurs, Membres, Imports et Paramètres sont regroupés sous « ⚙️ Réglages ». Le responsable passe de 11 à 7 onglets.

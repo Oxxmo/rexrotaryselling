@@ -606,9 +606,9 @@
 
   /* ---------- Enregistrement des onglets (responsable) ---------- */
   const R = ["responsable"];
-  C().registerTab({ id: "base", label: "📚 Base", roles: R, render: renderBase, onShow: showBase });
-  C().registerTab({ id: "secteurs", label: "🗺️ Secteurs", roles: R, render: renderSecteurs, onShow: showSecteurs });
-  C().registerTab({ id: "membres", label: "👥 Membres", roles: R, render: renderMembres, onShow: showMembres });
-  C().registerTab({ id: "imports", label: "⬇️ Imports", roles: R, render: renderImports, onShow: showImports });
-  C().registerTab({ id: "parametres", label: "⚙️ Paramètres", roles: R, render: renderParametres, onShow: showParametres });
+  C().registerTab({ groupe: "reglages", id: "base", label: "📚 Base", roles: R, render: renderBase, onShow: showBase });
+  C().registerTab({ groupe: "reglages", id: "secteurs", label: "🗺️ Secteurs", roles: R, render: renderSecteurs, onShow: showSecteurs });
+  C().registerTab({ groupe: "reglages", id: "membres", label: "👥 Membres", roles: R, render: renderMembres, onShow: showMembres });
+  C().registerTab({ groupe: "reglages", id: "imports", label: "⬇️ Imports", roles: R, render: renderImports, onShow: showImports });
+  C().registerTab({ groupe: "reglages", id: "parametres", label: "⚙️ Paramètres", roles: R, render: renderParametres, onShow: showParametres });
 })();

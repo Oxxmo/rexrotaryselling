@@ -50,6 +50,8 @@
     return rows;
   }
   let themeActif = null;
+  let jeuxOuvert = null;       // choix de l'utilisateur pour le bloc des jeux (replié par défaut)
+  let filtresOuverts = false;
 
   function trancheLabel(t, annee) {
     if (!t) return "effectif non renseigné";
@@ -111,9 +113,13 @@
   function appliquerFiltres(rows) {
     return rows.filter(r => passeFiltres(r, !["rappel", "attente", "passee"].includes(r.bloc)));
   }
+  function nbFiltresActifs() {
+    return (filtres.couleur !== "prio" ? 1 : 0) + ["thematique", "tranche", "anciennete"].filter(k => filtres[k]).length + ["nouvelle", "signal", "telephone"].filter(k => filtres[k]).length;
+  }
   function barreFiltres(avecTheme) {
     const tranches = Object.keys(TRANCHES).filter(k => ["02", "03", "11", "12", "21"].includes(k));
-    return `<div class="cmd-filtres">
+    const n = nbFiltresActifs();
+    return `<details class="cmd-filtres-det" ${filtresOuverts ? "open" : ""}><summary>🔎 Filtres${n ? ` <span class="cmd-groupe__nb">${n}</span>` : ""}</summary><div class="cmd-filtres">
       <select data-filtre="couleur"><option value="prio">À appeler : vert, orange et complément</option><option value="vert">Vert seulement</option><option value="orange">Orange seulement</option><option value="complement">Complément seulement</option><option value="rouge">Rouge</option><option value="non">Non classées</option><option value="">Toutes les couleurs</option></select>
       ${avecTheme ? `<select data-filtre="thematique"><option value="">Toutes les thématiques</option>${thematiques.map(t => `<option value="${t.id}">${esc(t.titre)}</option>`).join("")}</select>` : ""}
       <select data-filtre="tranche"><option value="">Toutes les tranches</option>${tranches.map(k => `<option value="${k}">${TRANCHES[k]} salariés</option>`).join("")}</select>
@@ -121,14 +127,20 @@
       <label class="cmd-check"><input type="checkbox" data-filtre="telephone" /> ☎︎ Avec numéro</label>
       <label class="cmd-check"><input type="checkbox" data-filtre="signal" /> 📰 Avec actualité</label>
       <label class="cmd-check"><input type="checkbox" data-filtre="nouvelle" /> Nouvelles seulement</label>
-    </div>`;
+    </div></details>`;
   }
   function brancherFiltres(el, onChange) {
     $$("[data-filtre]", el).forEach(f => {
       const k = f.dataset.filtre;
       if (f.type === "checkbox") f.checked = !!filtres[k]; else f.value = filtres[k] || "";
-      f.addEventListener("change", () => { filtres[k] = f.type === "checkbox" ? f.checked : f.value; onChange(); });
+      f.addEventListener("change", () => {
+        filtres[k] = f.type === "checkbox" ? f.checked : f.value; onChange();
+        const nb = el.querySelector(".cmd-filtres-det summary"); const n = nbFiltresActifs();
+        if (nb) nb.innerHTML = "🔎 Filtres" + (n ? ` <span class="cmd-groupe__nb">${n}</span>` : "");
+      });
     });
+    const det = el.querySelector(".cmd-filtres-det");
+    if (det) det.addEventListener("toggle", () => { filtresOuverts = det.open; });
   }
   function fmtCA(ca) {
     const n = Number(ca);
@@ -236,18 +248,29 @@
   async function rendreTete(el) {
     const head = el.querySelector("#listeHead");
     if (!semaine) { head.innerHTML = `<div class="cmd-row"><h3 class="cmd-h">📞 Ma liste</h3></div>`; return; }
-    const c = await C().rpc("commando_ma_semaine", { _semaine_id: semaine.id }) || {};
-    const obj = Number(c.objectif || 5), rdv = Number(c.rdv || 0);
+    const [c, pts] = await Promise.all([
+      C().rpc("commando_ma_semaine", { _semaine_id: semaine.id }).catch(() => ({})),
+      C().rpc("commando_mes_points", { _semaine_id: semaine.id }).catch(() => null)
+    ]);
+    if (pts) ptsSemaine = Number(pts.semaine || 0);
+    const obj = Number((c || {}).objectif || 5), rdv = Number((c || {}).rdv || 0);
     const pct = Math.min(100, Math.round(rdv / obj * 100));
-    head.innerHTML = `<div class="cmd-row"><h3 class="cmd-h">📞 Ma liste</h3>${selecteurSemaine()}</div>
-      <div class="cmd-cards">
-        <div class="pilot-card"><div class="pilot-card__val">${Number(c.a_appeler || 0)}</div><div class="pilot-card__lbl">À appeler${Number(c.rappels || 0) ? ` · dont ${Number(c.rappels)} rappel${Number(c.rappels) > 1 ? "s" : ""}` : ""}</div></div>
-        <div class="pilot-card"><div class="pilot-card__val"><span class="cmd-dot cmd-dot--vert"></span>${Number(c.vert || 0)} <span class="cmd-dot cmd-dot--orange"></span>${Number(c.orange || 0)} <span class="cmd-dot cmd-dot--compl"></span>${Number(c.complement || 0)}</div><div class="pilot-card__lbl">Fiches neuves : vert · orange · complément</div></div>
-        <div class="pilot-card"><div class="pilot-card__val">${Number(c.appels || 0)}</div><div class="pilot-card__lbl">Appels cette semaine</div></div>
-        <div class="pilot-card pilot-card--obj"><div class="pilot-card__val">${rdv} <small>/ ${obj}</small></div><div class="pilot-card__lbl">RDV pris · objectif</div><div class="cmd-progress"><span style="width:${pct}%"></span></div></div>
+    const rappels = Number((c || {}).rappels || 0);
+    head.innerHTML = `<div class="cmd-hero">
+        <div class="cmd-hero__top"><h3 class="cmd-h">📞 Ma liste</h3>${selecteurSemaine()}</div>
+        <button id="btnSession" class="btn btn--primary cmd-hero__go">▶ Démarrer le commando</button>
+        <div class="cmd-hero__aide muted">Les fiches s'enchaînent : appelez, notez le résultat, la suivante s'ouvre toute seule.</div>
+        <div class="cmd-hero__stats">
+          <div class="cmd-stat"><b>${Number((c || {}).a_appeler || 0)}</b><span>à appeler${rappels ? ` · ${rappels} rappel${rappels > 1 ? "s" : ""}` : ""}</span></div>
+          <div class="cmd-stat"><b>${rdv}<small>/${obj}</small></b><span>RDV cette semaine</span><div class="cmd-progress"><span style="width:${pct}%"></span></div></div>
+          <div class="cmd-stat"><b>⭐ ${ptsSemaine == null ? "—" : ptsSemaine}</b><span>points cette semaine</span></div>
+          <div class="cmd-stat"><b>${Number((c || {}).appels || 0)}</b><span>appels passés</span></div>
+        </div>
       </div>`;
+    majBoutonSession();
+    head.querySelector("#btnSession").addEventListener("click", demarrerSession);
     const sel = head.querySelector("#listeSemaine");
-    if (sel) sel.addEventListener("change", async () => { semaine = semaines.find(s => s.id === sel.value); themeActif = null; await showListe(el); });
+    if (sel) sel.addEventListener("change", async () => { semaine = semaines.find(s => s.id === sel.value); themeActif = null; session.actif = false; await showListe(el); });
   }
   /* ---------- Jeux de l'heure : premier RDV, pronostic, fiches gagnées ---------- */
   function heureCourte(ts) {
@@ -317,7 +340,14 @@
     const rec = j.recompenses || [];
     blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">🎁 Mes fiches gagnées <span class="muted">(${rec.length} · ${esc(j.nb_recompenses_semaine || 0)}/${esc(j.max_fiches_semaine || 15)} cette semaine)</span></div>
       ${rec.length ? `<div id="jeuRecompenses"></div>` : `<div class="muted">Aucune pour le moment. Les fiches gagnées viennent du secteur libre et vous sont réservées.</div>`}</div>`);
-    box.innerHTML = `<div class="cmd-card cmd-card--jeux"><h3>🎮 Jeux de l'heure · créneau ${esc(creneauCourt(c.debut))}</h3>${blocs.join("")}</div>`;
+    // Replié par défaut ; ouvert tout seul quand un pronostic attend le commercial.
+    const resume = [c.en_jeu === false ? "hors créneau" : `créneau ${creneauCourt(c.debut)}`,
+      actifs.premier_rdv && c.en_jeu !== false ? (c.premier_rdv ? `1er RDV : ${c.premier_rdv.commercial_id === me ? "vous !" : C().prenomDe(c.premier_rdv.commercial_id)}` : "1er RDV à prendre") : "",
+      c.peut_pronostiquer && !c.pronostic ? "pronostic à faire" : "",
+      rec.length ? `${rec.length} fiche${rec.length > 1 ? "s" : ""} gagnée${rec.length > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+    const ouvert = jeuxOuvert != null ? jeuxOuvert : !!(c.peut_pronostiquer && !c.pronostic);
+    box.innerHTML = `<details class="cmd-card cmd-card--jeux cmd-jeux-det" ${ouvert ? "open" : ""}><summary><b>🎮 Jeux de l'heure</b> <span class="muted">${esc(resume)}</span></summary>${blocs.join("")}</details>`;
+    box.querySelector("details").addEventListener("toggle", (e) => { jeuxOuvert = e.target.open; });
     const btn = box.querySelector("#jeuPronoBtn");
     if (btn) btn.addEventListener("click", async () => {
       try {
@@ -482,6 +512,67 @@
     };
     dessiner();
   }
+  /* ---------- Mode Commando : les fiches s'enchaînent ---------- */
+  // « Démarrer » ouvre la première fiche (rappels du jour, puis fiches neuves,
+  // avec les filtres affichés) ; après chaque résultat enregistré, la fiche
+  // suivante s'ouvre toute seule. Compteurs et points de la session en direct.
+  const session = { actif: false, file: [], index: -1, appels: 0, rdv: 0, points: 0 };
+  let ptsSemaine = null;      // points de la semaine connus (pour afficher le gain après un appel)
+  const ligneDe = (siret) => lignes.find(x => x.siret === siret);
+  function fileSession() {
+    const v = appliquerFiltres(lignes);
+    return v.filter(r => r.bloc === "rappel").concat(v.filter(r => r.bloc === "neuve")).map(r => r.siret);
+  }
+  function demarrerSession() {
+    if (session.actif) { const r = ligneDe(session.file[session.index]); if (r && (r.bloc === "neuve" || r.bloc === "rappel")) { ouvrirFiche(r); return; } ficheSuivante(); return; }
+    const file = fileSession();
+    if (!file.length) { C().toast("Aucune fiche à appeler avec ces filtres"); return; }
+    Object.assign(session, { actif: true, file, index: 0, appels: 0, rdv: 0, points: 0 });
+    majBoutonSession();
+    ouvrirFiche(ligneDe(file[0]));
+  }
+  function ficheSuivante() {
+    while (++session.index < session.file.length) {
+      const r = ligneDe(session.file[session.index]);
+      if (r && (r.bloc === "neuve" || r.bloc === "rappel")) { majBoutonSession(); ouvrirFiche(r); return; }
+    }
+    terminerSession(true);
+  }
+  function terminerSession(fini) {
+    if (!session.actif) return;
+    session.actif = false;
+    fermerFiche();
+    C().toast((fini ? "🏁 Liste terminée, bravo ! " : "Session terminée : ") + `${session.appels} appel${session.appels > 1 ? "s" : ""}, ${session.rdv} RDV${session.points ? `, +${session.points} points` : ""}`);
+    majBoutonSession();
+  }
+  function majBoutonSession() {
+    const b = document.querySelector("#btnSession"); if (!b) return;
+    b.textContent = session.actif ? `▶ Reprendre le commando · fiche ${Math.min(session.index + 1, session.file.length)}/${session.file.length}` : "▶ Démarrer le commando";
+  }
+  function barreSession() {
+    if (!session.actif) return "";
+    const n = session.file.length, i = Math.min(session.index + 1, n);
+    return `<div class="cmd-session" role="status">
+      <div class="cmd-session__info"><b>▶ Commando</b> · fiche ${i}/${n}<span class="cmd-session__stats">☎︎ ${session.appels} · 📅 ${session.rdv}${session.points ? ` · ⭐ +${session.points}` : ""}</span></div>
+      <div class="cmd-session__btns"><button class="btn btn--sm" data-session="suivante">Suivante ▶</button><button class="btn btn--ghost btn--sm" data-session="fin">Terminer</button></div>
+    </div>`;
+  }
+  // Points crédités tout de suite après un appel : renvoie le gain depuis le dernier relevé.
+  async function gainPoints() {
+    if (!semaine) return 0;
+    try {
+      const p = await C().rpc("commando_mes_points", { _semaine_id: semaine.id });
+      const avant = ptsSemaine, apres = Number((p && p.semaine) || 0);
+      ptsSemaine = apres;
+      return avant == null ? 0 : Math.max(0, apres - avant);
+    } catch (e) { return 0; }
+  }
+  // Lien d'appel : un tap sur téléphone lance l'appel (numéro nettoyé).
+  function lienTel(tel) {
+    const n = String(tel || "").replace(/[^0-9+]/g, "");
+    return n.length >= 6 ? "tel:" + n : "";
+  }
+
   async function ouvrirFiche(r) {
     if (!r) return;
     const t = thematiques.find(x => x.id === r.thematique_id);
@@ -495,81 +586,113 @@
       ? `${COULEUR_LABEL[r.couleur]} — règle ${Number(r.regle_index) + 1} : ${esc(r.raison || "")}`
       : (r.complement ? "Complément : aucun sujet de la semaine ne la vise, mais votre liste comptait moins de fiches neuves que le minimum prévu. Choisie parmi les plus prometteuses (actualité, numéro connu, taille)." : "Non classée : aucune règle de la thématique ne correspond.");
     const dans7j = new Date(); dans7j.setDate(dans7j.getDate() + 7);
+    const qui = dirigeantLabel(r.dirigeants);
+    const rechercheWeb = "https://www.google.com/search?q=" + encodeURIComponent((r.enseigne || r.raison_sociale || "") + " " + (r.commune || r.code_postal || "") + " téléphone");
     ficheEl.innerHTML = `
       <div class="modal__backdrop" data-fiche-close></div>
-      <div class="modal__panel">
+      <div class="modal__panel cmd-fiche-panel" role="dialog" aria-modal="true" aria-label="${esc(r.raison_sociale)}">
         <div class="modal__header">
-          <div><h2>${esc(r.raison_sociale)}</h2><div class="cmd-fiche__sub">${r.complement ? `<span class="cmd-badge cmd-badge--compl">Complément</span>` : badgeCouleur(r.couleur)} ${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""} <span class="muted">🎯 ${esc(r.thematique_titre || "")}</span></div></div>
+          <div class="cmd-fiche__titre">
+            <h2>${esc(r.raison_sociale)}</h2>
+            <div class="cmd-fiche__sub">${r.complement ? `<span class="cmd-badge cmd-badge--compl">Complément</span>` : badgeCouleur(r.couleur)}${r.est_nouvelle ? ` <span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${r.signal ? ` ${badgeSignal(r)}` : ""}</div>
+            <div class="cmd-fiche__qui">👤 ${esc(qui || "Dirigeant non renseigné")} · 📍 ${esc(r.commune || r.code_postal || "")}${r.naf_libelle ? ` · ${esc(r.naf_libelle)}` : ""}</div>
+          </div>
           <button class="modal__close" data-fiche-close aria-label="Fermer">✕</button>
         </div>
+        ${barreSession()}
         <div class="modal__body cmd-fiche">
-          <div class="cmd-fiche__grid">
-            <div><small>Activité</small>${esc(r.naf_libelle || "—")} <span class="muted">(${esc(r.naf_code || "")})</span></div>
-            <div><small>Effectif</small>${esc(trancheLabel(r.tranche_effectif, r.annee_effectif))}</div>
-            <div><small>Ancienneté</small>${esc(ancienneteLabel(r.anciennete))}${r.date_creation_ul ? ` <span class="muted">(créée le ${esc(C().fmtDate(r.date_creation_ul))})</span>` : ""}</div>
-            <div><small>Dirigeant</small>${esc(dirigeantLabel(r.dirigeants) || "non renseigné")}</div>
-            ${r.ca ? `<div><small>Chiffre d'affaires</small>${esc(fmtCA(r.ca))}${r.ca_annee ? ` <span class="muted">(${esc(r.ca_annee)})</span>` : ""}</div>` : ""}
-            <div class="wide"><small>Adresse</small>${esc(r.adresse || "")}${r.enseigne ? ` <span class="muted">· enseigne ${esc(r.enseigne)}</span>` : ""}</div>
-            <div><small>Téléphone</small><input id="ficheTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></div>
-            <div><small>E-mail</small><input id="ficheMail" type="email" value="${esc(r.email || "")}" placeholder="contact@…" /></div>
-          </div>
-          <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button>${r.telephone ? "" : `<button id="ficheTelOsm" class="btn btn--ghost btn--sm" title="Recherche gratuite dans OpenStreetMap">🔎 Chercher le téléphone</button><a class="btn btn--ghost btn--sm" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent((r.enseigne || r.raison_sociale || "") + " " + (r.commune || r.code_postal || "") + " téléphone")}">🌐 Chercher sur le web</a>`}<button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
-          <div id="ficheTelSource" class="muted" style="font-size:.78rem"></div>
-          ${r.signal ? `<div class="cmd-signal">📰 <b>${esc(r.signal)}</b> · BODACC du ${esc(C().fmtDate(r.signal_le))}${r.signal_url ? ` · <a href="${esc(r.signal_url)}" target="_blank" rel="noopener">voir l'annonce</a>` : ""}${CONSEIL_SIGNAL[r.signal_type] ? `<div class="muted">${esc(CONSEIL_SIGNAL[r.signal_type])}</div>` : ""}</div>` : ""}
-          <div id="fichePasser" class="cmd-passer"></div>
-          <div id="ficheMailBloc"></div>
-          ${r.deja_appelee ? `<div class="cmd-item__warn">☎︎ Déjà appelée : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}. Rappel possible à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}.</div>` : ""}
+          <div id="ficheAppel" class="cmd-appel"></div>
+          <div id="ficheTelSource" class="muted cmd-appel__source"></div>
           ${r.bloc === "rappel" ? `<div class="cmd-item__warn cmd-item__warn--rappel">🔁 Rappel prévu le ${esc(C().fmtDate(r.bloquee_jusqua))} (appel du ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}).</div>` : ""}
-          <h3 class="output-title">Pourquoi cette couleur</h3>
-          <p class="cmd-regle">${regleTxt}</p>
-          <h3 class="output-title">Trame d'appel</h3>
+          ${r.deja_appelee ? `<div class="cmd-item__warn">☎︎ Déjà appelée : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}. Rappel possible à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}.</div>` : ""}
+          ${r.signal ? `<div class="cmd-signal">📰 <b>${esc(r.signal)}</b> · BODACC du ${esc(C().fmtDate(r.signal_le))}${r.signal_url ? ` · <a href="${esc(r.signal_url)}" target="_blank" rel="noopener">voir l'annonce</a>` : ""}${CONSEIL_SIGNAL[r.signal_type] ? `<div class="muted">${esc(CONSEIL_SIGNAL[r.signal_type])}</div>` : ""}</div>` : ""}
+          <h3 class="output-title cmd-fiche__sujet">🎯 ${esc(r.thematique_titre || "Trame d'appel")}</h3>
           ${trameHtml(t, r.couleur, r)}
           ${objectionsHtml(t)}
-          <h3 class="output-title">Résultat de l'appel</h3>
-          <div class="cmd-resultat">
-            <div class="cmd-resultat__btns">
-              <button class="btn" data-statut="injoignable">📵 Injoignable</button>
-              <button class="btn" data-statut="rappeler">🔁 Rappeler</button>
-              <button class="btn" data-statut="refus">✕ Refus</button>
-              <button class="btn btn--primary" data-statut="rdv">📅 RDV pris</button>
+          <div id="ficheMailBloc"></div>
+          <details class="cmd-fiche__det">
+            <summary>🏢 Entreprise et coordonnées</summary>
+            <div class="cmd-fiche__grid">
+              <div><small>Activité</small>${esc(r.naf_libelle || "—")} <span class="muted">(${esc(r.naf_code || "")})</span></div>
+              <div><small>Effectif</small>${esc(trancheLabel(r.tranche_effectif, r.annee_effectif))}</div>
+              <div><small>Ancienneté</small>${esc(ancienneteLabel(r.anciennete))}${r.date_creation_ul ? ` <span class="muted">(créée le ${esc(C().fmtDate(r.date_creation_ul))})</span>` : ""}</div>
+              <div><small>Dirigeant</small>${esc(qui || "non renseigné")}</div>
+              ${r.ca ? `<div><small>Chiffre d'affaires</small>${esc(fmtCA(r.ca))}${r.ca_annee ? ` <span class="muted">(${esc(r.ca_annee)})</span>` : ""}</div>` : ""}
+              <div class="wide"><small>Adresse</small>${esc(r.adresse || "")}${r.enseigne ? ` <span class="muted">· enseigne ${esc(r.enseigne)}</span>` : ""}</div>
+              <div><small>Téléphone</small><input id="ficheTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></div>
+              <div><small>E-mail</small><input id="ficheMail" type="email" value="${esc(r.email || "")}" placeholder="contact@…" /></div>
             </div>
-            <div id="resExtra" class="cmd-resultat__extra" hidden>
-              <label id="resRappelLbl" hidden>Rappeler le<input id="resRappel" type="date" value="${dans7j.toISOString().slice(0, 10)}" /></label>
-              <label id="resRdvLbl" hidden>Date et heure du RDV<input id="resRdv" type="datetime-local" /></label>
-              <label>Numéro composé <span class="muted">(gardé sur la fiche pour toute l'équipe)</span><input id="resTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></label>
-              ${r.email ? "" : `<label>E-mail du contact <span class="muted">(pour le mail de suivi, demandez-le en fin d'appel)</span><input id="resMail" type="email" placeholder="prenom.nom@entreprise.fr" /></label>`}
-              <label>Note (facultatif)<textarea id="resNote" rows="2" placeholder="Interlocuteur, contexte, prochaine étape…"></textarea></label>
-              <div class="cmd-row"><button id="resSave" class="btn btn--primary">Enregistrer</button><span id="resErr" class="cmd-err" hidden></span></div>
-            </div>
+            <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button><button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
+          </details>
+          <details class="cmd-fiche__det"><summary>❓ Pourquoi cette fiche</summary><p class="cmd-regle">${regleTxt}</p></details>
+          <details class="cmd-fiche__det"><summary>🕘 Historique des appels <span id="ficheHistNb" class="muted"></span></summary><div id="ficheHist"><span class="cmd-spin"></span></div></details>
+          <div id="fichePasser" class="cmd-passer"></div>
+        </div>
+        <div class="cmd-resultat cmd-resultat--fixe">
+          <div id="resExtra" class="cmd-resultat__extra" hidden>
+            <label id="resRappelLbl" hidden>Rappeler le<input id="resRappel" type="date" value="${dans7j.toISOString().slice(0, 10)}" /></label>
+            <label id="resRdvLbl" hidden>Date et heure du RDV<input id="resRdv" type="datetime-local" /></label>
+            <label>Numéro composé <span class="muted">(gardé sur la fiche pour toute l'équipe)</span><input id="resTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></label>
+            ${r.email ? "" : `<label>E-mail du contact <span class="muted">(pour le mail de suivi, demandez-le en fin d'appel)</span><input id="resMail" type="email" placeholder="prenom.nom@entreprise.fr" /></label>`}
+            <label>Note (facultatif)<textarea id="resNote" rows="2" placeholder="Interlocuteur, contexte, prochaine étape…"></textarea></label>
+            <div class="cmd-row"><button id="resSave" class="btn btn--primary">${session.actif ? "Enregistrer et passer à la suivante ▶" : "Enregistrer"}</button><span id="resErr" class="cmd-err" hidden></span></div>
           </div>
-          <h3 class="output-title">Historique des appels</h3>
-          <div id="ficheHist"><span class="cmd-spin"></span></div>
+          <div class="cmd-resultat__btns" role="group" aria-label="Résultat de l'appel">
+            <button class="btn" data-statut="injoignable">📵 Injoignable</button>
+            <button class="btn" data-statut="rappeler">🔁 Rappeler</button>
+            <button class="btn" data-statut="refus">✕ Refus</button>
+            <button class="btn btn--rdv" data-statut="rdv">📅 RDV</button>
+          </div>
         </div>
       </div>`;
     ficheEl.hidden = false;
     document.body.style.overflow = "hidden";
     $$("[data-fiche-close]", ficheEl).forEach(x => x.addEventListener("click", fermerFiche));
+    $$("[data-session]", ficheEl).forEach(x => x.addEventListener("click", () => x.dataset.session === "fin" ? terminerSession(false) : ficheSuivante()));
+
+    // Bloc d'appel : un bouton « Appeler » si le numéro est connu, sinon de quoi le trouver.
+    const majAppel = () => {
+      const box = $("#ficheAppel", ficheEl); if (!box) return;
+      const tel = r.telephone || "";
+      const href = lienTel(tel);
+      box.innerHTML = href
+        ? `<a class="btn btn--appel" href="${esc(href)}">📞 Appeler · ${esc(tel)}</a>`
+        : `<div class="cmd-appel__vide"><b>Pas encore de numéro.</b> Trouvez-le puis collez-le ici : il servira à toute l'équipe.
+            <div class="cmd-row"><input id="appelTel" type="tel" placeholder="05 49 …" /><button id="appelTelOk" class="btn btn--sm">OK</button></div>
+            <div class="cmd-row"><button id="ficheTelOsm" class="btn btn--ghost btn--sm" title="Recherche gratuite dans OpenStreetMap">🔎 Chercher (OpenStreetMap)</button><a class="btn btn--ghost btn--sm" target="_blank" rel="noopener" href="${esc(rechercheWeb)}">🌐 Chercher sur le web</a></div></div>`;
+      const ok = $("#appelTelOk", box);
+      if (ok) ok.addEventListener("click", async () => {
+        const v = $("#appelTel", box).value.trim();
+        if (!lienTel(v)) { C().toast("Numéro incomplet"); return; }
+        const { error } = await sb().from("commando_contacts").upsert({ siret: r.siret, telephone: v, source: "manuel", updated_by: me.id }, { onConflict: "siret" });
+        if (error) { C().toast("Échec : " + error.message); return; }
+        r.telephone = v; $("#ficheTel", ficheEl).value = v; $("#resTel", ficheEl).value = v;
+        $("#ficheTelSource", ficheEl).textContent = "Numéro saisi par l'équipe.";
+        C().toast("Numéro enregistré pour l'équipe"); majAppel();
+      });
+      const telOsm = $("#ficheTelOsm", box);
+      if (telOsm) telOsm.addEventListener("click", async () => {
+        telOsm.disabled = true; telOsm.textContent = "Recherche…";
+        try {
+          const res = await C().fn("commando-telephones", { siret: r.siret });
+          const c = res && res.contact;
+          if (c && c.telephone) {
+            r.telephone = c.telephone; $("#ficheTel", ficheEl).value = c.telephone; $("#resTel", ficheEl).value = c.telephone;
+            $("#ficheTelSource", ficheEl).textContent = "Téléphone trouvé dans OpenStreetMap (© les contributeurs OpenStreetMap)" + (c.site_web ? " · site : " + c.site_web : "") + " — à confirmer au premier appel.";
+            C().toast("Téléphone trouvé"); majAppel();
+          } else { telOsm.textContent = "Introuvable dans OpenStreetMap"; }
+        } catch (e) { telOsm.disabled = false; telOsm.textContent = "🔎 Chercher (OpenStreetMap)"; C().toast(C().erreur(e)); }
+      });
+    };
+    majAppel();
 
     // Source du téléphone (attribution OpenStreetMap)
     sb().from("commando_contacts").select("source, source_detail, site_web").eq("siret", r.siret).maybeSingle().then(({ data }) => {
-      const s = $("#ficheTelSource", ficheEl); if (!s || !data) return;
+      const s = $("#ficheTelSource", ficheEl); if (!s || !data || !r.telephone) return;
       if (data.source === "osm") s.textContent = "Téléphone trouvé dans OpenStreetMap (© les contributeurs OpenStreetMap)" + (data.site_web ? " · site : " + data.site_web : "") + " — à confirmer au premier appel.";
       else if (data.source === "rge") s.textContent = "Numéro de l'annuaire RGE de l'ADEME (déclaré par l'entreprise) — à confirmer au premier appel.";
       else if (data.source === "finess") s.textContent = "Numéro du fichier FINESS (établissements de santé et médico-sociaux) — à confirmer au premier appel.";
       else if (data.source === "manuel") s.textContent = "Numéro saisi par l'équipe.";
-    });
-    const telOsm = $("#ficheTelOsm", ficheEl);
-    if (telOsm) telOsm.addEventListener("click", async () => {
-      telOsm.disabled = true; telOsm.textContent = "Recherche…";
-      try {
-        const res = await C().fn("commando-telephones", { siret: r.siret });
-        const c = res && res.contact;
-        if (c && c.telephone) {
-          $("#ficheTel", ficheEl).value = c.telephone; r.telephone = c.telephone;
-          $("#ficheTelSource", ficheEl).textContent = "Téléphone trouvé dans OpenStreetMap (© les contributeurs OpenStreetMap)" + (c.site_web ? " · site : " + c.site_web : "") + " — à confirmer au premier appel.";
-          telOsm.remove(); C().toast("Téléphone trouvé");
-        } else { telOsm.textContent = "Introuvable dans OpenStreetMap"; }
-      } catch (e) { telOsm.disabled = false; telOsm.textContent = "🔎 Chercher le téléphone"; C().toast(C().erreur(e)); }
     });
 
     rendrePasser(r);
@@ -581,6 +704,7 @@
       if (error) { C().toast("Échec : " + error.message); return; }
       r.telephone = row.telephone; r.email = row.email;
       C().toast("Coordonnées enregistrées");
+      majAppel();
       rendreMail(ficheEl, t, r);
     });
     $("#ficheOppo", ficheEl).addEventListener("click", async () => {
@@ -588,14 +712,15 @@
       const { error } = await sb().from("commando_contacts").upsert({ siret: r.siret, opposition: true, opposition_le: new Date().toISOString(), updated_by: me.id }, { onConflict: "siret" });
       if (error) { C().toast("Échec : " + error.message); return; }
       C().toast("Opposition enregistrée");
-      fermerFiche(); rafraichir();
+      await rafraichir();
+      if (session.actif) ficheSuivante(); else fermerFiche();
     });
 
     // Résultat d'appel
     let statut = null;
     $$("[data-statut]", ficheEl).forEach(b => b.addEventListener("click", () => {
       statut = b.dataset.statut;
-      $$("[data-statut]", ficheEl).forEach(x => x.classList.toggle("btn--primary", x === b));
+      $$("[data-statut]", ficheEl).forEach(x => x.classList.toggle("is-choisi", x === b));
       $("#resExtra", ficheEl).hidden = false;
       $("#resRappelLbl", ficheEl).hidden = statut !== "rappeler";
       $("#resRdvLbl", ficheEl).hidden = statut !== "rdv";
@@ -631,20 +756,27 @@
         r.email = mailSaisi.trim();
       }
       const { error } = await sb().from("commando_appels").insert(row);
-      b.disabled = false;
-      if (error) { err.textContent = "Échec : " + error.message; err.hidden = false; return; }
+      if (error) { b.disabled = false; err.textContent = "Échec : " + error.message; err.hidden = false; return; }
       dernierAppelMoi = { statut, date_rdv: row.date_rdv || null, created_at: new Date().toISOString() };
-      rafraichir();
+      const gain = await gainPoints();
+      if (session.actif) { session.appels++; if (statut === "rdv") session.rdv++; session.points += gain; }
+      const bravo = statut === "rdv" ? "📅 RDV enregistré, bravo !" : "Appel enregistré";
+      const pts = gain ? ` · ⭐ +${gain} point${gain > 1 ? "s" : ""}` : "";
+      await rafraichir();
+      b.disabled = false;
       // Mail de suivi : si la thématique en a un et que l'e-mail est connu, on reste sur la fiche pour l'envoyer.
       if (t && t.mails && (t.mails.rdv || t.mails.suite) && r.email) {
-        C().toast(statut === "rdv" ? "RDV enregistré, bravo ! Envoyez le mail de confirmation ✉️" : "Appel enregistré. Un mail de suivi est prêt ✉️");
+        C().toast(bravo + pts + " · un mail de suivi est prêt ✉️");
         $("#resExtra", ficheEl).hidden = true;
+        $$("[data-statut]", ficheEl).forEach(x => x.disabled = true);
         rendreMail(ficheEl, t, r);
+        const sbar = $(".cmd-session", ficheEl); if (sbar) sbar.outerHTML = barreSession();
+        $$("[data-session]", ficheEl).forEach(x => x.addEventListener("click", () => x.dataset.session === "fin" ? terminerSession(false) : ficheSuivante()));
         const m = $("#ficheMailBloc", ficheEl); if (m) m.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
-      C().toast(statut === "rdv" ? "RDV enregistré, bravo !" : "Appel enregistré");
-      fermerFiche();
+      C().toast(bravo + pts);
+      if (session.actif) ficheSuivante(); else fermerFiche();
     });
 
     // Historique
@@ -653,6 +785,7 @@
     rendreMail(ficheEl, t, r);
     const h = $("#ficheHist", ficheEl);
     if (!h) return;
+    const nb = $("#ficheHistNb", ficheEl); if (nb) nb.textContent = (hist || []).length ? `(${hist.length})` : "(jamais appelée)";
     h.innerHTML = (hist || []).length ? `<ul class="cmd-hist">${hist.map(a => `<li><b>${esc(STATUTS[a.statut] || a.statut)}</b>${a.statut === "rdv" ? ` (${esc(C().fmtDateTime(a.date_rdv))}, ${esc(RDV_STATUTS[a.rdv_statut] || "")})` : ""}${a.statut === "rappeler" && a.date_rappel ? ` (le ${esc(C().fmtDate(a.date_rappel))})` : ""} · ${esc(C().fmtDateTime(a.created_at))} · ${esc(C().prenomDe(a.commercial_id))}${a.couleur_au_moment ? ` · ${esc(COULEUR_LABEL[a.couleur_au_moment])}` : ""}${a.mail_prepare_le ? ` · ✉️ mail ${a.mail_variante === "rdv" ? "de confirmation" : "de suivi"}` : ""}${a.note ? `<br><span class="muted">${esc(a.note)}</span>` : ""}</li>`).join("")}</ul>` : `<p class="muted">Jamais appelée.</p>`;
   }
   // « Passer » : la fiche quitte la liste (8 semaines, 52 si fermée ou doublon).
@@ -673,7 +806,9 @@
     $("#passerOk", box).addEventListener("click", async () => {
       const raison = $("#passerRaison", box).value;
       try { await C().rpc("commando_passer", { _siret: r.siret, _raison: raison }); } catch (e) { C().toast(C().erreur(e)); return; }
-      C().toast("Fiche passée"); fermerFiche(); rafraichir();
+      C().toast("Fiche passée");
+      await rafraichir();
+      if (session.actif) ficheSuivante(); else fermerFiche();
     });
   }
   function fermerFiche() {

@@ -96,10 +96,22 @@
     if (!membre) return [];
     return tabs.filter(t => t.roles.includes(membre.role));
   }
+  // Les onglets d'administration (groupe « reglages ») sont rangés sous un
+  // seul onglet « ⚙️ Réglages », avec une seconde rangée quand on y est.
+  const GROUPES = { reglages: "⚙️ Réglages" };
   function renderNav() {
     const nav = $("#cmdTabs"); if (!nav) return;
-    nav.innerHTML = visibleTabs().map(t =>
-      `<button class="tab ${t.id === activeId ? "tab--active" : ""}" data-cmd-tab="${esc(t.id)}">${esc(t.label)}</button>`).join("");
+    const vis = visibleTabs();
+    const actif = vis.find(t => t.id === activeId);
+    const groupeActif = actif && actif.groupe;
+    const btn = (t) => `<button class="tab ${t.id === activeId ? "tab--active" : ""}" data-cmd-tab="${esc(t.id)}">${esc(t.label)}</button>`;
+    const principaux = vis.filter(t => !t.groupe).map(btn);
+    Object.keys(GROUPES).forEach(g => {
+      const membres = vis.filter(t => t.groupe === g);
+      if (membres.length) principaux.push(`<button class="tab ${groupeActif === g ? "tab--active" : ""}" data-cmd-tab="${esc(membres[0].id)}">${esc(GROUPES[g])}</button>`);
+    });
+    const sous = groupeActif ? `<div class="cmd__subtabs">${vis.filter(t => t.groupe === groupeActif).map(btn).join("")}</div>` : "";
+    nav.innerHTML = `<div class="cmd__tabs-row">${principaux.join("")}</div>${sous}`;
     $$("[data-cmd-tab]", nav).forEach(b => b.addEventListener("click", () => show(b.dataset.cmdTab)));
   }
   async function show(id) {
