@@ -377,3 +377,12 @@ body.cmd-mode #btnCommando{background:#fff;color:var(--rex, #c8102e);border-colo
 .cmd-plus--inline>summary{list-style:none;padding:6px 10px;border:1px solid var(--line-2);border-radius:10px;background:#faf8f7}
 .cmd-plus--inline>summary::-webkit-details-marker{display:none}
 .cmd-plus--inline[open]>.admin-actions{margin-top:6px}
+
+/* Notifications (encart Activer / ligne Tester · Désactiver) */
+.cmd-notifs{background:var(--rex-soft);border:1px solid var(--rex-light);border-radius:14px;padding:12px 14px;margin:0 0 12px;font-size:.86rem}
+.cmd-notifs__titre{font-weight:800;margin-bottom:4px}
+.cmd-notifs__liste{color:var(--ink-soft);margin-bottom:10px;line-height:1.45}
+.cmd-notifs__etapes{margin:4px 0 10px 18px;padding:0;line-height:1.5}
+.cmd-notifs__act{display:flex;gap:8px;flex-wrap:wrap}
+.cmd-notifs--ok,.cmd-notifs--off{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--card);border-color:var(--line-soft);color:var(--ink-soft)}
+.cmd-notifs--off{background:#fff7ed;border-color:#fed7aa}

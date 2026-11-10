@@ -520,3 +520,32 @@ Mesures avant l'audit, sur un téléphone de 390 px :
   - Il ne fait rien si une veille a déjà été lancée, si des sujets sont retenus à la main ou si la semaine est publiée. Chaque action est notée dans `commando_pilote_journal`.
 - **Veille et propositions compactées** : un bouton principal ; le reste (actions, historique, sources, concurrence, ciblage) est replié.
 - **Onglets** : Base, Secteurs, Membres, Imports et Paramètres sont regroupés sous « ⚙️ Réglages ». Le responsable passe de 11 à 7 onglets.
+
+## Notifications sur le téléphone (migration `20261111120000`)
+
+Même principe que Flash Live PO : Web Push, sans application à installer en dehors de RexSeller et sans service payant.
+
+**Messages envoyés** (jamais de nom de client)
+
+| Message | Qui le reçoit | Quand |
+|---|---|---|
+| 🎉 RDV pour Sarah ! (sujet, n-ième RDV du jour) | toute l'équipe sauf l'auteur | à chaque RDV, de 8 h à 20 h |
+| 🗳️ À vous de voter ! | commerciaux | à l'ouverture du vote |
+| ⏳ Plus que 30 minutes pour voter | commerciaux qui n'ont pas voté | 30 minutes avant la clôture |
+| 📞 Les listes de la semaine sont prêtes | toute l'équipe | à la publication |
+| ⏰ Commando dans 10 minutes | commerciaux | lundi 13 h 50, si la semaine est publiée |
+| 🔎 Veille terminée / ⚠️ Veille en erreur | responsable | à la fin de la veille |
+
+**Côté téléphone** (`js/commando-notifs.js`, `sw.js`)
+- Un encart « 🔔 Soyez prévenu en direct » dans « Ma liste » et dans le cockpit de la semaine.
+  - Le bouton « Activer » demande l'autorisation, abonne l'appareil et envoie une notification d'essai.
+  - Une fois activé, il reste une ligne discrète « Tester · Désactiver ».
+  - « Plus tard » masque l'encart 7 jours.
+- Sur iPhone, Safari n'autorise les notifications qu'une fois Rex Seller ajouté à l'écran d'accueil (iOS 16.4 et plus). L'encart donne les 3 étapes.
+- Un toucher sur la notification ouvre l'app sur le bon onglet (Ligue, Vote, Ma liste, Semaine).
+
+**Côté serveur**
+- `commando_push` : un abonnement par appareil.
+- `commando_notifications` : la file, avec l'état de chaque envoi.
+- Les déclencheurs ne bloquent jamais l'action d'origine : une erreur de notification est seulement journalisée.
+- Les messages restés en attente sont relancés jusqu'à 3 fois.

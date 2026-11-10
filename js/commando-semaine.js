@@ -51,7 +51,7 @@
 
   /* ---------- Rendu principal ---------- */
   async function render(el) {
-    el.innerHTML = `<div id="semHead"></div><div id="semCockpit"></div><div id="semValider"></div><div id="semVeille"></div><div id="semProps"></div><div id="semVote"></div><div id="semPub"></div><div id="semSuivi"></div>`;
+    el.innerHTML = `<div id="semHead"></div><div id="semCockpit"></div><div id="semNotifs"></div><div id="semValider"></div><div id="semVeille"></div><div id="semProps"></div><div id="semVote"></div><div id="semPub"></div><div id="semSuivi"></div>`;
   }
   async function show(el) {
     await charger();
@@ -82,6 +82,7 @@
   const heureTxt = (h) => String(h || "").replace(":", "h");
   async function rendreCockpit(el) {
     const box = $("#semCockpit", el); if (!box) return;
+    if (window.RexCommandoNotifs) window.RexCommandoNotifs.rendre($("#semNotifs", el));
     if (!semaine) { box.innerHTML = ""; return; }
     const pil = Object.assign({}, PILOTE_DEFAUT, (parametres || {}).pilote || {});
     let journal = [], appels = 0, rdv = 0;

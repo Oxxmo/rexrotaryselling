@@ -227,13 +227,14 @@
     return `<select id="listeSemaine" class="cmd-sem">${semaines.map(s => `<option value="${s.id}" ${semaine && s.id === semaine.id ? "selected" : ""}>${esc(C().fmtSemaine(s.semaine))}</option>`).join("")}</select>`;
   }
   async function renderListe(el) {
-    el.innerHTML = `<div id="listeHead"></div><div id="listeJeux"></div><div id="listeRdv"></div><div id="listeFiltres"></div><div id="listeBody"></div>`;
+    el.innerHTML = `<div id="listeHead"></div><div id="listeNotifs"></div><div id="listeJeux"></div><div id="listeRdv"></div><div id="listeFiltres"></div><div id="listeBody"></div>`;
   }
   async function showListe(el) {
     el.querySelector("#listeBody").innerHTML = `<p class="cmd-empty"><span class="cmd-spin"></span>Chargement…</p>`;
     await chargerSemaines();
     await chargerSemaine();
     await rendreTete(el);
+    if (window.RexCommandoNotifs) window.RexCommandoNotifs.rendre(el.querySelector("#listeNotifs"));
     await rendreJeux(el);
     await rendreConfirmations(el);
     C().poll(() => rendreJeux(el), 30000);

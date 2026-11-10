@@ -115,6 +115,27 @@ OpenStreetMap (ODbL) : l'attribution est affichée dans la fiche.
 
 Tests : `deno test --allow-read supabase/functions/commando-telephones/index_test.ts`.
 
+## `commando-notifier`
+
+Notifications Web Push du commando, même bibliothèque que Flash Live PO
+(`jsr:@negrel/webpush`). Déployée avec `verify_jwt = false` : la fonction vérifie elle-même
+l'appelant (secret Vault `commando_cron_secret` en en-tête `x-commando-secret`, ou JWT d'un
+membre du commando).
+
+- **`{"action": "cle"}`** : clé publique VAPID (base64url) pour abonner l'appareil.
+  Au premier appel, la fonction crée la paire de clés et la range dans Vault
+  (`commando_vapid`, via `commando_vapid_creer`) ; la clé privée ne quitte jamais le serveur.
+- **`{"action": "test"}`** (membre connecté) : notification d'essai sur ses propres appareils.
+- **`{"action": "envoyer", "id": 123}`** (la base, via pg_net) : envoie un message de la file
+  `commando_notifications` aux appareils renvoyés par `commando_notif_destinataires`, puis note
+  l'état (`envoyee`, `echec`, `sans_destinataire`). Un abonnement expiré (404 ou 410) est
+  désactivé (`commando_push.actif = false`).
+
+Les messages sont déposés par la base (migration `20261111120000`) : déclencheurs sur
+`commando_appels` (RDV), `commando_semaines` (vote ouvert, listes publiées) et
+`commando_generations` (veille), et cron `commando_notifs` toutes les 5 minutes (rappel de vote,
+début du commando, relance des messages restés en attente).
+
 ## Déploiement
 
 ### Option A : interface Supabase
