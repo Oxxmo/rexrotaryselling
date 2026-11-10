@@ -21,11 +21,12 @@
   const n = (v) => Number(v || 0);
 
   const BADGES = {
-    ouvreur:     { icone: "🥇", nom: "Ouvreur",     aide: "premier RDV de la semaine" },
-    marathonien: { icone: "🏃", nom: "Marathonien", aide: "le plus d'appels" },
-    sniper:      { icone: "🎯", nom: "Sniper",      aide: "meilleur taux de RDV (10 appels au moins)" },
-    fidele:      { icone: "💎", nom: "Fidèle",      aide: "le plus de RDV honorés validés sur les semaines précédentes : il choisit en premier ses fiches du secteur libre" },
+    ouvreur:     { icone: "medal",  nom: "Ouvreur",     aide: "premier RDV de la semaine" },
+    marathonien: { icone: "timer",  nom: "Marathonien", aide: "le plus d'appels" },
+    sniper:      { icone: "target", nom: "Sniper",      aide: "meilleur taux de RDV (10 appels au moins)" },
+    fidele:      { icone: "award",  nom: "Fidèle",      aide: "le plus de RDV honorés validés sur les semaines précédentes : il choisit en premier ses fiches du secteur libre" },
   };
+  const ic = (x) => C().ic(x);
 
   let semaines = [], semaine = null, dernierTotal = null, releveOuvert = false;
   const TYPES = {
@@ -42,7 +43,7 @@
     const d = new Date(ts);
     const h = Number(d.toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit" }).slice(0, 2));
     const jour = d.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "short" });
-    return `${jour} · ${h}h–${h + 1}h`;
+    return `${jour}, ${h}h–${h + 1}h`;
   }
   function bip() {
     try {
@@ -57,7 +58,7 @@
   }
 
   function bareme(b) {
-    return `Barème : appel <b>${esc(b.appel ?? 1)}</b> · RDV pris <b>${esc(b.rdv ?? 10)}</b> · RDV honoré validé <b>${esc(b.rdv_honore ?? 25)}</b> · premier RDV de l'heure <b>${esc(b.premier_rdv ?? 15)}</b> · mail de suivi <b>${esc(b.mail ?? 5)}</b> · vote des sujets <b>${esc(b.vote ?? 3)}</b> · pronostic tenu <b>${esc(b.pronostic ?? 10)}</b> · badge <b>${esc(b.badge ?? 20)}</b>.`;
+    return `Barème : appel <b>${esc(b.appel ?? 1)}</b>, RDV pris <b>${esc(b.rdv ?? 10)}</b>, RDV honoré validé <b>${esc(b.rdv_honore ?? 25)}</b>, premier RDV de l'heure <b>${esc(b.premier_rdv ?? 15)}</b>, mail de suivi <b>${esc(b.mail ?? 5)}</b>, vote des sujets <b>${esc(b.vote ?? 3)}</b>, pronostic tenu <b>${esc(b.pronostic ?? 10)}</b>, badge <b>${esc(b.badge ?? 20)}</b>.`;
   }
   async function chargerReleve(el) {
     const box = $("#ligueReleve", el); if (!box || !semaine) return;
@@ -69,8 +70,8 @@
     const appels = {};
     const autres = rows.filter(r => { if (r.type !== "appel") return true; appels[r.commercial_id] = (appels[r.commercial_id] || 0) + Number(r.points); return false; });
     box.innerHTML = `<div class="tbl-scroll"><table class="grid"><thead><tr><th>Quand</th><th>Commercial</th><th>Quoi</th><th class="num">Points</th></tr></thead><tbody>
-      ${Object.entries(appels).map(([cid, p]) => `<tr><td class="muted">semaine</td><td>${esc(C().prenomDe(cid))}</td><td>Appels passés (${rows.filter(r => r.type === "appel" && r.commercial_id === cid).length})</td><td class="num">+${p}</td></tr>`).join("")}
-      ${autres.map(r => `<tr><td class="muted">${esc(C().fmtDateTime(r.created_at))}</td><td>${esc(C().prenomDe(r.commercial_id))}</td><td>${esc(TYPES[r.type] || r.type)}${r.libelle ? ` <span class="muted">· ${esc(r.libelle)}</span>` : ""}</td><td class="num">${Number(r.points) > 0 ? "+" : ""}${esc(r.points)}</td></tr>`).join("")}
+      ${Object.entries(appels).map(([cid, p]) => `<tr><td class="muted">Semaine</td><td>${esc(C().prenomDe(cid))}</td><td>Appels passés (${rows.filter(r => r.type === "appel" && r.commercial_id === cid).length})</td><td class="num">+${p}</td></tr>`).join("")}
+      ${autres.map(r => `<tr><td class="muted">${esc(C().fmtDateTime(r.created_at))}</td><td>${esc(C().prenomDe(r.commercial_id))}</td><td>${esc(TYPES[r.type] || r.type)}${r.libelle ? ` <span class="muted">(${esc(r.libelle)})</span>` : ""}</td><td class="num">${Number(r.points) > 0 ? "+" : ""}${esc(r.points)}</td></tr>`).join("")}
     </tbody></table></div>`;
   }
   async function ajuster(el, commercialId) {
@@ -104,7 +105,7 @@
   async function rafraichir(el) {
     const head = $("#ligueHead", el), body = $("#ligueBody", el);
     if (!semaine) {
-      head.innerHTML = `<div class="cmd-row"><h3 class="cmd-h">🏆 Ligue du commando</h3></div>`;
+      head.innerHTML = "";
       body.innerHTML = `<p class="cmd-empty">Aucune semaine publiée pour le moment.</p>`;
       return;
     }
@@ -115,21 +116,19 @@
     if (dernierTotal !== null && total > dernierTotal && son) bip();
     dernierTotal = total;
 
-    head.innerHTML = `<div class="cmd-row">
-        <h3 class="cmd-h">🏆 Ligue du commando</h3>
-        <select id="ligueSemaine" class="cmd-sem">${semaines.map(s => `<option value="${s.id}" ${s.id === semaine.id ? "selected" : ""}>${esc(C().fmtSemaine(s.semaine))}</option>`).join("")}</select>
+    const autre = semaine.semaine !== C().semaineCible();
+    head.innerHTML = `<div class="cmd-entete">
+        <span class="muted" style="margin:0">${autre ? `Semaine ${esc(C().numSemaine(semaine.semaine))} (${esc(C().periodeSemaine(semaine.semaine))}), en attendant la publication de la nouvelle semaine.` : "Classement en direct, mis à jour toutes les 10 secondes."}</span>
         <span class="grow"></span>
-        <button id="ligueSon" class="btn btn--ghost btn--sm" title="Un petit son à chaque nouveau RDV">${son ? "🔔 Son activé" : "🔕 Son coupé"}</button>
+        <button id="ligueSon" class="btn btn--sm" title="Un petit son à chaque nouveau RDV" aria-pressed="${son}">${son ? ic("volume-2") + "Son activé" : ic("volume-x") + "Son coupé"}</button>
       </div>
       <div class="cmd-cards">
-        <div class="pilot-card"><div class="pilot-card__val">⭐ ${n(l.total_points_semaine)}</div><div class="pilot-card__lbl">Points gagnés cette semaine (tous)</div></div>
-        <div class="pilot-card"><div class="pilot-card__val">${total}</div><div class="pilot-card__lbl">RDV pris cette semaine</div></div>
+        <div class="pilot-card"><div class="pilot-card__val">${total}</div><div class="pilot-card__lbl">RDV pris</div></div>
         <div class="pilot-card"><div class="pilot-card__val">${n(l.total_appels)}</div><div class="pilot-card__lbl">Appels</div></div>
-        <div class="pilot-card"><div class="pilot-card__val">${n(l.total_mails)}</div><div class="pilot-card__lbl">✉️ Mails de suivi envoyés</div></div>
-        <div class="pilot-card"><div class="pilot-card__val">${l.fidele ? esc(C().prenomDe(l.fidele)) : "—"}</div><div class="pilot-card__lbl">💎 Fidèle de la semaine</div></div>
-        ${C().isResponsable() ? `<div class="pilot-card"><div class="pilot-card__val">${n(l.a_valider)}</div><div class="pilot-card__lbl">RDV passés à valider (onglet Semaine)</div></div>` : ""}
+        <div class="pilot-card"><div class="pilot-card__val">${n(l.total_points_semaine)}</div><div class="pilot-card__lbl">Points de l'équipe</div></div>
+        <div class="pilot-card"><div class="pilot-card__val">${n(l.total_mails)}</div><div class="pilot-card__lbl">Mails de suivi</div></div>
+        ${C().isResponsable() ? `<div class="pilot-card"><div class="pilot-card__val">${n(l.a_valider)}</div><div class="pilot-card__lbl">RDV passés à valider</div></div>` : ""}
       </div>`;
-    $("#ligueSemaine", head).addEventListener("change", (e) => { semaine = semaines.find(s => s.id === e.target.value); dernierTotal = null; rafraichir(el); });
     $("#ligueSon", head).addEventListener("click", () => {
       son = !son;
       try { localStorage.setItem("rex.ligue.son", son ? "1" : "0"); } catch (e) { /* privé */ }
@@ -140,29 +139,38 @@
     if (l.actif === false) { body.innerHTML = `<p class="cmd-empty">La ligue est désactivée dans les paramètres.</p>`; return; }
     const classement = l.classement || [];
     const me = C().me().id;
-    const rang = (i) => ["🥇", "🥈", "🥉"][i] || `${i + 1}.`;
-    body.innerHTML = `<div class="cmd-card">
-        <h3>Classement de la semaine</h3>
-        <p class="muted">Classé par points de la semaine, puis par RDV pris. Les RDV honorés comptent une fois validés par le responsable ; les badges rapportent leurs points le lundi suivant.</p>
-        <div class="tbl-scroll"><table class="grid"><thead><tr><th></th><th>Commercial</th><th class="num">⭐ Semaine</th><th class="num">⭐ Total</th><th class="num">Appels</th><th class="num">RDV</th><th class="num">✉️ Mails</th><th class="num">Taux</th><th class="num">Honorés validés (${esc(l.fenetre_fidele || 4)} sem.)</th><th class="num">🎁 Fiches</th><th>Badges</th>${C().isResponsable() ? "<th></th>" : ""}</tr></thead><tbody>
-          ${classement.length ? classement.map((c, i) => `<tr class="${c.commercial_id === me ? "cmd-ligue__moi" : ""}">
-              <td>${rang(i)}</td><td><b>${esc(C().nomDe(c.commercial_id))}</b>${c.commercial_id === me ? ' <span class="muted">(vous)</span>' : ""}</td>
-              <td class="num"><b>${n(c.points_semaine)}</b></td><td class="num">${n(c.points_total)}</td>
-              <td class="num">${n(c.appels)}</td><td class="num">${n(c.rdv)}</td><td class="num">${n(c.mails)}</td>
-              <td class="num">${c.taux != null ? Math.round(Number(c.taux) * 100) + " %" : "—"}</td>
-              <td class="num">${n(c.honores_valides)}</td><td class="num">${n(c.fiches_gagnees)}</td>
-              <td>${(c.badges || []).map(b => BADGES[b] ? `<span class="cmd-badge cmd-badge--warn" title="${esc(BADGES[b].aide)}">${BADGES[b].icone} ${esc(BADGES[b].nom)}</span>` : "").join(" ")}</td>
-              ${C().isResponsable() ? `<td><button class="btn btn--ghost btn--sm" data-ajuster="${c.commercial_id}" title="Bonus ou malus, avec un motif">± pts</button></td>` : ""}
-            </tr>`).join("") : `<tr><td colspan="12" class="muted">Aucun membre.</td></tr>`}
-        </tbody></table></div>
-        <p class="muted" style="margin-top:8px">${bareme(l.bareme || {})}</p>
-        <details class="cmd-releve" ${releveOuvert ? "open" : ""}><summary>Relevé de points de la semaine</summary><div id="ligueReleve"><span class="cmd-spin"></span></div></details>
-        <p class="muted" style="margin-top:8px">${Object.values(BADGES).map(b => `${b.icone} <b>${esc(b.nom)}</b> : ${esc(b.aide)}`).join(" · ")}</p>
+    const badge = (b) => BADGES[b] ? `<span class="cmd-badge" title="${esc(BADGES[b].aide)}">${ic(BADGES[b].icone)}${esc(BADGES[b].nom)}</span>` : "";
+    body.innerHTML = `<div class="cmd-card" style="padding:0">
+        <div style="padding:16px 16px 4px"><h3>Classement de la semaine</h3>
+        <p class="muted">Par points de la semaine, puis par RDV pris. Les RDV honorés comptent une fois validés par le responsable ; les badges rapportent leurs points le lundi suivant.</p></div>
+        <ol class="cmd-classement">
+          ${classement.length ? classement.map((c, i) => `<li class="${c.commercial_id === me ? "cmd-ligue__moi" : ""}">
+              <span class="cmd-classement__rang">${i + 1}</span>
+              <span class="cmd-classement__nom">${esc(C().nomDe(c.commercial_id))}${c.commercial_id === me ? ' <span class="muted">(vous)</span>' : ""}</span>
+              <span class="cmd-classement__pts">${n(c.points_semaine)}<small>${n(c.points_total)} au total</small></span>
+              <span class="cmd-classement__faits">
+                <span>${ic("phone")}${n(c.appels)} appels</span><span>${ic("calendar-check")}${n(c.rdv)} RDV</span>
+                <span>Taux ${c.taux != null ? Math.round(Number(c.taux) * 100) + " %" : "—"}</span>
+                <span>${ic("mail")}${n(c.mails)} mails</span><span>${ic("circle-check")}${n(c.honores_valides)} honorés validés</span>
+                ${n(c.fiches_gagnees) ? `<span>${ic("gift")}${n(c.fiches_gagnees)} fiches gagnées</span>` : ""}
+              </span>
+              ${(c.badges || []).length ? `<span class="cmd-classement__badges">${(c.badges || []).map(badge).join("")}</span>` : ""}
+              ${C().isResponsable() ? `<span class="cmd-classement__faits"><button class="btn btn--ghost btn--sm" data-ajuster="${c.commercial_id}" title="Bonus ou malus, avec un motif">${ic("plus")}Ajuster les points</button></span>` : ""}
+            </li>`).join("") : `<li class="muted">Aucun membre.</li>`}
+        </ol>
+        <div style="padding:4px 16px 16px;border-top:1px solid var(--c-line)">
+          <details class="cmd-releve" ${releveOuvert ? "open" : ""}><summary>Relevé de points de la semaine</summary><div id="ligueReleve"><span class="cmd-spin"></span></div></details>
+          <details class="cmd-releve"><summary>Barème et badges</summary>
+            <p class="muted" style="margin-top:8px">${bareme(l.bareme || {})}</p>
+            <ul class="cmd-hist">${Object.values(BADGES).map(b => `<li>${ic(b.icone)} <b>${esc(b.nom)}</b> : ${esc(b.aide)}</li>`).join("")}</ul>
+            ${l.fidele ? `<p class="muted">Fidèle de la semaine : <b>${esc(C().prenomDe(l.fidele))}</b>.</p>` : ""}
+          </details>
+        </div>
       </div>
       <div class="cmd-card">
-        <h3>Premier RDV de chaque créneau</h3>
+        <h3>${ic("clock")}Premier RDV de chaque créneau</h3>
         <p class="muted">Le premier RDV d'une heure d'appel rapporte des fiches premium du secteur libre ; chaque RDV suivant en rapporte une.</p>
-        ${(l.creneaux || []).length ? `<ul class="cmd-hist">${l.creneaux.map(c => `<li><b>${esc(creneauLabel(c.creneau))}</b> : ${esc(C().prenomDe(c.commercial_id))} à ${esc(heure(c.a))} · ${n(c.rdv)} RDV sur le créneau</li>`).join("")}</ul>` : `<p class="muted">Aucun RDV pris cette semaine pour le moment.</p>`}
+        ${(l.creneaux || []).length ? `<ul class="cmd-hist">${l.creneaux.map(c => `<li><b>${esc(creneauLabel(c.creneau))}</b> : ${esc(C().prenomDe(c.commercial_id))} à ${esc(heure(c.a))}, ${n(c.rdv)} RDV sur le créneau</li>`).join("")}</ul>` : `<p class="muted">Aucun RDV pris cette semaine pour le moment.</p>`}
       </div>`;
     body.querySelectorAll("[data-ajuster]").forEach(b => b.addEventListener("click", () => ajuster(el, b.dataset.ajuster)));
     const det = $(".cmd-releve", body);
@@ -172,5 +180,5 @@
     }
   }
 
-  C().registerTab({ id: "ligue", label: "🏆 Ligue", render, onShow: show });
+  C().registerTab({ id: "ligue", label: "Ligue", icone: "trophy", render, onShow: show });
 })();

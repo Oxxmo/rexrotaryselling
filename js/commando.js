@@ -18,6 +18,7 @@
   const C = () => window.RexCommando;
   const esc = (s) => C().esc(s);
   const sb = () => C().sb();
+  const ic = (n) => C().ic(n);
 
   const TRANCHES = { "00": "0", "01": "1 ou 2", "02": "3 à 5", "03": "6 à 9", "11": "10 à 19", "12": "20 à 49", "21": "50 à 99", "22": "100 à 199", "31": "200 à 249", "32": "250 à 499", "41": "500 à 999", "42": "1 000 à 1 999", "51": "2 000 à 4 999", "52": "5 000 à 9 999", "53": "10 000 et plus" };
   const ANCIENNETE = { moins_3: "moins de 3 ans", "3_5": "3 à 5 ans", plus_5: "plus de 5 ans" };
@@ -119,13 +120,13 @@
   function barreFiltres(avecTheme) {
     const tranches = Object.keys(TRANCHES).filter(k => ["02", "03", "11", "12", "21"].includes(k));
     const n = nbFiltresActifs();
-    return `<details class="cmd-filtres-det" ${filtresOuverts ? "open" : ""}><summary>🔎 Filtres${n ? ` <span class="cmd-groupe__nb">${n}</span>` : ""}</summary><div class="cmd-filtres">
+    return `<details class="cmd-filtres-det" ${filtresOuverts ? "open" : ""}><summary>${ic("sliders-horizontal")}Filtres${n ? ` <span class="cmd-groupe__nb">${n}</span>` : ""}</summary><div class="cmd-filtres">
       <select data-filtre="couleur"><option value="prio">À appeler : vert, orange et complément</option><option value="vert">Vert seulement</option><option value="orange">Orange seulement</option><option value="complement">Complément seulement</option><option value="rouge">Rouge</option><option value="non">Non classées</option><option value="">Toutes les couleurs</option></select>
       ${avecTheme ? `<select data-filtre="thematique"><option value="">Toutes les thématiques</option>${thematiques.map(t => `<option value="${t.id}">${esc(t.titre)}</option>`).join("")}</select>` : ""}
       <select data-filtre="tranche"><option value="">Toutes les tranches</option>${tranches.map(k => `<option value="${k}">${TRANCHES[k]} salariés</option>`).join("")}</select>
       <select data-filtre="anciennete"><option value="">Toute ancienneté</option>${Object.entries(ANCIENNETE).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
-      <label class="cmd-check"><input type="checkbox" data-filtre="telephone" /> ☎︎ Avec numéro</label>
-      <label class="cmd-check"><input type="checkbox" data-filtre="signal" /> 📰 Avec actualité</label>
+      <label class="cmd-check"><input type="checkbox" data-filtre="telephone" /> Avec numéro</label>
+      <label class="cmd-check"><input type="checkbox" data-filtre="signal" /> Avec actualité</label>
       <label class="cmd-check"><input type="checkbox" data-filtre="nouvelle" /> Nouvelles seulement</label>
     </div></details>`;
   }
@@ -136,7 +137,7 @@
       f.addEventListener("change", () => {
         filtres[k] = f.type === "checkbox" ? f.checked : f.value; onChange();
         const nb = el.querySelector(".cmd-filtres-det summary"); const n = nbFiltresActifs();
-        if (nb) nb.innerHTML = "🔎 Filtres" + (n ? ` <span class="cmd-groupe__nb">${n}</span>` : "");
+        if (nb) nb.innerHTML = ic("sliders-horizontal") + "Filtres" + (n ? ` <span class="cmd-groupe__nb">${n}</span>` : "");
       });
     });
     const det = el.querySelector(".cmd-filtres-det");
@@ -159,15 +160,15 @@
   };
   function badgeSignal(r) {
     if (!r.signal) return "";
-    return `<span class="cmd-badge cmd-badge--signal" title="${esc(r.signal)} (BODACC du ${esc(C().fmtDate(r.signal_le))})">📰 ${esc(r.signal)}</span>`;
+    return `<span class="cmd-badge cmd-badge--signal" title="${esc(r.signal)} (BODACC du ${esc(C().fmtDate(r.signal_le))})">${ic("newspaper")}${esc(r.signal)}</span>`;
   }
   function ligneEtat(r) {
     const st = STATUTS[r.dernier_appel_statut] || r.dernier_appel_statut || "";
     const qui = r.dernier_appel_par ? ` par ${esc(C().prenomDe(r.dernier_appel_par))}` : "";
-    if (r.bloc === "rappel") return `<div class="cmd-item__warn cmd-item__warn--rappel">🔁 Rappel prévu le ${esc(C().fmtDate(r.bloquee_jusqua))} · appel du ${esc(C().fmtDate(r.dernier_appel_le))}${qui}</div>`;
-    if (r.bloc === "passee") return `<div class="cmd-item__hist">⏭ Passée (${esc(RAISONS_PASSER[r.passee_raison] || r.passee_raison || "")}) jusqu'au ${esc(C().fmtDate(r.passee_jusqua))}</div>`;
-    if (r.deja_appelee) return `<div class="cmd-item__warn">☎︎ ${esc(st)} le ${esc(C().fmtDate(r.dernier_appel_le))}${qui} · à rappeler à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}</div>`;
-    if (Number(r.nb_appels)) return `<div class="cmd-item__hist">Dernier appel : ${esc(st)} le ${esc(C().fmtDate(r.dernier_appel_le))}${qui}</div>`;
+    if (r.bloc === "rappel") return `<div class="cmd-item__warn cmd-item__warn--rappel">${ic("rotate-ccw")}<span>Rappel prévu le ${esc(C().fmtDate(r.bloquee_jusqua))}, appel du ${esc(C().fmtDate(r.dernier_appel_le))}${qui}</span></div>`;
+    if (r.bloc === "passee") return `<div class="cmd-item__hist">${ic("skip-forward")}<span>Passée (${esc(RAISONS_PASSER[r.passee_raison] || r.passee_raison || "")}) jusqu'au ${esc(C().fmtDate(r.passee_jusqua))}</span></div>`;
+    if (r.deja_appelee) return `<div class="cmd-item__warn">${ic("phone")}<span>${esc(st)} le ${esc(C().fmtDate(r.dernier_appel_le))}${qui}, à rappeler à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}</span></div>`;
+    if (Number(r.nb_appels)) return `<div class="cmd-item__hist">${ic("history")}<span>Dernier appel : ${esc(st)} le ${esc(C().fmtDate(r.dernier_appel_le))}${qui}</span></div>`;
     return "";
   }
   function carte(r) {
@@ -175,19 +176,26 @@
     return `<button class="cmd-item ${r.deja_appelee || r.bloc === "passee" ? "cmd-item--bloque" : ""} cmd-item--${r.couleur || (r.complement ? "compl" : "non")}" data-siret="${esc(r.siret)}">
       <div class="cmd-item__top">
         <span class="cmd-item__nom">${esc(r.raison_sociale)}${r.enseigne && r.enseigne !== r.raison_sociale ? ` <small>· ${esc(r.enseigne)}</small>` : ""}</span>
-        <span class="cmd-item__badges">${r.recompense ? `<span class="cmd-badge cmd-badge--warn" title="${esc(RECOMPENSES[r.recompense] || "")}">🎁</span>` : ""}${badgeSignal(r)}${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${r.complement ? `<span class="cmd-badge cmd-badge--compl" title="Ajoutée pour compléter votre liste : hors des sujets de la semaine">Complément</span>` : badgeCouleur(r.couleur)}</span>
+        <span class="cmd-item__badges">${r.recompense ? `<span class="cmd-badge cmd-badge--warn" title="${esc(RECOMPENSES[r.recompense] || "")}">${ic("gift")}Gagnée</span>` : ""}${badgeSignal(r)}${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${r.complement ? `<span class="cmd-badge cmd-badge--compl" title="Ajoutée pour compléter votre liste : hors des sujets de la semaine">Complément</span>` : badgeCouleur(r.couleur)}</span>
       </div>
-      <div class="cmd-item__meta">${esc(r.naf_libelle || r.naf_code || "")} · ${esc(trancheLabel(r.tranche_effectif, r.annee_effectif))}${ca ? ` · CA ${esc(ca)}` : ""} · ${esc(ancienneteLabel(r.anciennete))} · ${esc(r.commune || r.code_postal)}</div>
-      <div class="cmd-item__theme">🎯 ${esc(r.thematique_titre || "")}${r.telephone ? ` · ☎︎ ${esc(r.telephone)}` : ""}</div>
+      <div class="cmd-item__meta">${esc(r.naf_libelle || r.naf_code || "")}</div>
+      <div class="cmd-item__faits">
+        <span>${ic("users")}${esc(r.tranche_effectif ? (TRANCHES[r.tranche_effectif] || r.tranche_effectif) + " salariés" : "effectif inconnu")}</span>
+        <span>${ic("map-pin")}${esc(r.commune || r.code_postal || "")}</span>
+        ${r.telephone ? `<span>${ic("phone")}${esc(r.telephone)}</span>` : ""}
+        <span>${ic("calendar")}${esc(ancienneteLabel(r.anciennete))}</span>
+        ${ca ? `<span>CA ${esc(ca)}</span>` : ""}
+      </div>
+      ${r.thematique_titre ? `<div class="cmd-item__theme">${ic("target")}${esc(r.thematique_titre)}</div>` : ""}
       ${ligneEtat(r)}
     </button>`;
   }
   const GROUPES = [
-    { id: "rappel", titre: "🔁 Mes rappels du jour", aide: "Vous aviez prévu de rappeler ces entreprises : c'est le moment.", ouvert: true, page: 30 },
-    { id: "neuve", titre: "🆕 À appeler", aide: "Jamais appelées. Les plus prometteuses d'abord, dans un ordre qui change chaque jour.", ouvert: true, page: 60 },
-    { id: "relance", titre: "↩︎ À relancer", aide: "Déjà appelées, délai écoulé : injoignables, anciens refus, rappels oubliés.", ouvert: false, page: 30 },
-    { id: "attente", titre: "⏳ Appelées récemment", aide: "Délai de rappel en cours.", ouvert: false, page: 30 },
-    { id: "passee", titre: "⏭ Passées", aide: "Retirées de votre liste pour un temps. Ouvrez une fiche pour l'y remettre.", ouvert: false, page: 30 }
+    { id: "rappel", icone: "rotate-ccw", titre: "Mes rappels du jour", aide: "Vous aviez prévu de rappeler ces entreprises : c'est le moment.", ouvert: true, page: 30 },
+    { id: "neuve", icone: "phone", titre: "À appeler", aide: "Jamais appelées. Les plus prometteuses d'abord, dans un ordre qui change chaque jour.", ouvert: true, page: 60 },
+    { id: "relance", icone: "refresh-cw", titre: "À relancer", aide: "Déjà appelées, délai écoulé : injoignables, anciens refus, rappels oubliés.", ouvert: false, page: 30 },
+    { id: "attente", icone: "clock", titre: "Appelées récemment", aide: "Délai de rappel en cours.", ouvert: false, page: 30 },
+    { id: "passee", icone: "skip-forward", titre: "Passées", aide: "Retirées de votre liste pour un temps. Ouvrez une fiche pour l'y remettre.", ouvert: false, page: 30 }
   ];
   // Liste en blocs, chaque bloc avec son propre « Afficher plus ».
   function rendreListe(wrap, rows, source) {
@@ -203,10 +211,10 @@
       const reste = lst.length - n;
       const ouvert = g.id in ouverts ? ouverts[g.id] : g.ouvert;
       html.push(`<details class="cmd-groupe cmd-groupe--${g.id}" data-groupe="${g.id}" ${ouvert ? "open" : ""}>
-        <summary><span class="cmd-groupe__titre">${g.titre}</span> <span class="cmd-groupe__nb">${lst.length}</span></summary>
+        <summary>${ic(g.icone)}<span class="cmd-groupe__titre">${esc(g.titre)}</span><span class="cmd-groupe__nb">${lst.length}</span></summary>
         <p class="muted cmd-groupe__aide">${esc(g.aide)}</p>
         ${lst.length ? lst.slice(0, n).map(carte).join("") : `<p class="cmd-empty">Aucune fiche neuve ne correspond aux filtres${filtres.couleur === "prio" ? " : essayez « Toutes les couleurs »" : ""}.</p>`}
-        ${reste > 0 ? `<div class="cmd-row" style="justify-content:center"><button class="btn btn--sm" data-plus="${g.id}">Afficher ${Math.min(g.page, reste)} de plus (${reste} restantes)</button></div>` : ""}
+        ${reste > 0 ? `<div class="cmd-row"><button class="btn btn--ghost btn--sm" data-plus="${g.id}">${ic("chevron-down")}Afficher ${Math.min(g.page, reste)} de plus (${reste} restantes)</button></div>` : ""}
       </details>`);
     }
     wrap.innerHTML = html.join("");
@@ -222,9 +230,14 @@
   }
 
   /* ---------- Onglet « Ma liste » ---------- */
-  function selecteurSemaine() {
-    if (!semaines.length) return "";
-    return `<select id="listeSemaine" class="cmd-sem">${semaines.map(s => `<option value="${s.id}" ${semaine && s.id === semaine.id ? "selected" : ""}>${esc(C().fmtSemaine(s.semaine))}</option>`).join("")}</select>`;
+  // Une seule semaine affichée : celle du commando (ou la dernière publiée en
+  // attendant la publication du lundi). Les rappels passent d'une semaine à l'autre.
+  // Rien à dire quand c'est la semaine en cours (elle est dans l'en-tête du commando).
+  function quandSemaine() {
+    if (!semaine) return "";
+    const cible = C().semaineCible();
+    if (semaine.semaine === cible) return "";
+    return `Listes de la semaine ${C().numSemaine(semaine.semaine)} (${C().periodeSemaine(semaine.semaine)}). Celles de la semaine ${C().numSemaine(cible)} arrivent lundi en fin de matinée.`;
   }
   async function renderListe(el) {
     el.innerHTML = `<div id="listeHead"></div><div id="listeNotifs"></div><div id="listeJeux"></div><div id="listeRdv"></div><div id="listeFiltres"></div><div id="listeBody"></div>`;
@@ -248,7 +261,7 @@
   }
   async function rendreTete(el) {
     const head = el.querySelector("#listeHead");
-    if (!semaine) { head.innerHTML = `<div class="cmd-row"><h3 class="cmd-h">📞 Ma liste</h3></div>`; return; }
+    if (!semaine) { head.innerHTML = ""; return; }
     const [c, pts] = await Promise.all([
       C().rpc("commando_ma_semaine", { _semaine_id: semaine.id }).catch(() => ({})),
       C().rpc("commando_mes_points", { _semaine_id: semaine.id }).catch(() => null)
@@ -257,21 +270,20 @@
     const obj = Number((c || {}).objectif || 5), rdv = Number((c || {}).rdv || 0);
     const pct = Math.min(100, Math.round(rdv / obj * 100));
     const rappels = Number((c || {}).rappels || 0);
+    const quand = quandSemaine();
     head.innerHTML = `<div class="cmd-hero">
-        <div class="cmd-hero__top"><h3 class="cmd-h">📞 Ma liste</h3>${selecteurSemaine()}</div>
-        <button id="btnSession" class="btn btn--primary cmd-hero__go">▶ Démarrer le commando</button>
-        <div class="cmd-hero__aide muted">Les fiches s'enchaînent : appelez, notez le résultat, la suivante s'ouvre toute seule.</div>
+        ${quand ? `<div class="cmd-note">${ic("info")}<span>${esc(quand)}</span></div>` : ""}
+        <button id="btnSession" class="btn btn--primary cmd-hero__go"></button>
+        <p class="cmd-hero__aide">Les fiches s'enchaînent : vous appelez, notez le résultat, la suivante s'ouvre.</p>
         <div class="cmd-hero__stats">
-          <div class="cmd-stat"><b>${Number((c || {}).a_appeler || 0)}</b><span>à appeler${rappels ? ` · ${rappels} rappel${rappels > 1 ? "s" : ""}` : ""}</span></div>
-          <div class="cmd-stat"><b>${rdv}<small>/${obj}</small></b><span>RDV cette semaine</span><div class="cmd-progress"><span style="width:${pct}%"></span></div></div>
-          <div class="cmd-stat"><b>⭐ ${ptsSemaine == null ? "—" : ptsSemaine}</b><span>points cette semaine</span></div>
+          <div class="cmd-stat"><b>${Number((c || {}).a_appeler || 0)}</b><span>à appeler${rappels ? `, dont ${rappels} rappel${rappels > 1 ? "s" : ""}` : ""}</span></div>
+          <div class="cmd-stat"><b>${rdv}<small> / ${obj}</small></b><span>RDV cette semaine</span><div class="cmd-progress"><span style="width:${pct}%"></span></div></div>
+          <div class="cmd-stat"><b>${ptsSemaine == null ? "—" : ptsSemaine}</b><span>points cette semaine</span></div>
           <div class="cmd-stat"><b>${Number((c || {}).appels || 0)}</b><span>appels passés</span></div>
         </div>
       </div>`;
     majBoutonSession();
     head.querySelector("#btnSession").addEventListener("click", demarrerSession);
-    const sel = head.querySelector("#listeSemaine");
-    if (sel) sel.addEventListener("change", async () => { semaine = semaines.find(s => s.id === sel.value); themeActif = null; session.actif = false; await showListe(el); });
   }
   /* ---------- Jeux de l'heure : premier RDV, pronostic, fiches gagnées ---------- */
   function heureCourte(ts) {
@@ -298,7 +310,7 @@
     if (pts && (pts.bareme || {}).actif !== false) {
       const b = pts.bareme || {};
       blocs.push(`<div class="cmd-jeu cmd-jeu--points">
-        <div class="cmd-jeu__titre">⭐ Mes points</div>
+        <div class="cmd-jeu__titre">${ic("star")}Mes points</div>
         <div class="cmd-points"><span class="cmd-points__val">${esc(Number(pts.semaine || 0))}</span><span class="cmd-points__lbl">cette semaine</span>
           <span class="cmd-points__val">${esc(Number(pts.total || 0))}</span><span class="cmd-points__lbl">au total</span></div>
         <details class="cmd-points__bareme"><summary>Comment gagner des points</summary>
@@ -311,12 +323,12 @@
     if (c.en_jeu === false) {
       const hNow = Number(new Date().toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit" }).slice(0, 2));
       const prochaine = heures.find(h => h > hNow);
-      blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">⏰ Hors créneau</div><div class="muted">Les jeux se jouent pendant les créneaux du commando : ${esc(libelleHeures)}. ${prochaine != null ? `Prochain créneau à ${prochaine}h.` : "À demain !"} Les RDV pris en dehors comptent pour la ligue, mais ne rapportent pas de fiches.</div></div>`);
+      blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">${ic("clock")}Hors créneau</div><div class="muted">Les jeux se jouent pendant les créneaux du commando : ${esc(libelleHeures)}. ${prochaine != null ? `Prochain créneau à ${prochaine}h.` : "À demain !"} Les RDV pris en dehors comptent pour la ligue, mais ne rapportent pas de fiches.</div></div>`);
     }
     if (actifs.premier_rdv && c.en_jeu !== false) {
       const p = c.premier_rdv;
       blocs.push(`<div class="cmd-jeu">
-        <div class="cmd-jeu__titre">🥇 Premier RDV de l'heure</div>
+        <div class="cmd-jeu__titre">${ic("medal")}Premier RDV de l'heure</div>
         ${p ? `<div>${p.commercial_id === me ? `<b>C'est vous !</b> RDV à ${esc(heureCourte(p.a))} : vos fiches premium sont dans « Mes fiches gagnées ».` : `<b>${esc(C().prenomDe(p.commercial_id))}</b> à ${esc(heureCourte(p.a))}. Chaque RDV suivant vaut encore une fiche.`}</div>`
             : `<div class="muted">Personne encore sur ce créneau : le premier RDV rapporte 5 fiches premium du secteur libre, les suivants 1 fiche chacun.</div>`}
       </div>`);
@@ -325,7 +337,7 @@
       const pr = c.pronostic;
       let corps;
       if (pr) {
-        corps = `<div>Votre pronostic : <b>${esc(pr.annonce)} RDV</b> · pris sur le créneau : <b>${esc(c.mes_rdv || 0)}</b>${pr.resolu ? (pr.reussi ? ` · <span class="cmd-badge cmd-badge--ok">✔︎ tenu, fiche mystère débloquée</span>` : ` · <span class="cmd-badge cmd-badge--gris">manqué, ça ira mieux au prochain créneau</span>`) : ` · <span class="muted">résultat à la fin du créneau</span>`}</div>`;
+        corps = `<div>Votre pronostic : <b>${esc(pr.annonce)} RDV</b>, pris sur le créneau : <b>${esc(c.mes_rdv || 0)}</b>${pr.resolu ? (pr.reussi ? ` <span class="cmd-badge cmd-badge--ok">Tenu, fiche mystère débloquée</span>` : ` <span class="cmd-badge cmd-badge--gris">Manqué, ça ira mieux au prochain créneau</span>`) : `. <span class="muted">Résultat à la fin du créneau.</span>`}</div>`;
       } else if (c.peut_pronostiquer) {
         corps = `<div class="cmd-row">Combien de RDV sur ce créneau ?
           <select id="jeuProno" class="cmd-sem">${[1, 2, 3, 4, 5].map(v => `<option value="${v}">${v}</option>`).join("")}</select>
@@ -335,25 +347,25 @@
         corps = `<div class="muted">Pronostic fermé pour ce créneau : il se fait dans les ${esc(c.delai_min || 20)} premières minutes, avant votre premier RDV.</div>`;
       }
       const passes = (j.pronostics_jour || []).filter(p => p.resolu);
-      blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">🎲 Pronostic du créneau ${esc(creneauCourt(c.debut))}</div>${corps}
-        ${passes.length ? `<div class="muted" style="margin-top:6px">Aujourd'hui : ${passes.map(p => `${esc(creneauCourt(p.creneau))} ${esc(p.annonce)} annoncé${p.annonce > 1 ? "s" : ""} / ${esc(p.rdv_realises)} pris ${p.reussi ? "✔︎" : "✕"}`).join(" · ")}</div>` : ""}</div>`);
+      blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">${ic("target")}Pronostic du créneau ${esc(creneauCourt(c.debut))}</div>${corps}
+        ${passes.length ? `<div class="muted" style="margin-top:6px">Aujourd'hui : ${passes.map(p => `${esc(creneauCourt(p.creneau))}, ${esc(p.annonce)} annoncé${p.annonce > 1 ? "s" : ""} pour ${esc(p.rdv_realises)} pris (${p.reussi ? "tenu" : "manqué"})`).join(" ; ")}</div>` : ""}</div>`);
     }
     const rec = j.recompenses || [];
-    blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">🎁 Mes fiches gagnées <span class="muted">(${rec.length} · ${esc(j.nb_recompenses_semaine || 0)}/${esc(j.max_fiches_semaine || 15)} cette semaine)</span></div>
+    blocs.push(`<div class="cmd-jeu"><div class="cmd-jeu__titre">${ic("gift")}Mes fiches gagnées <span class="muted">${rec.length}, dont ${esc(j.nb_recompenses_semaine || 0)} sur ${esc(j.max_fiches_semaine || 15)} cette semaine</span></div>
       ${rec.length ? `<div id="jeuRecompenses"></div>` : `<div class="muted">Aucune pour le moment. Les fiches gagnées viennent du secteur libre et vous sont réservées.</div>`}</div>`);
     // Replié par défaut ; ouvert tout seul quand un pronostic attend le commercial.
     const resume = [c.en_jeu === false ? "hors créneau" : `créneau ${creneauCourt(c.debut)}`,
-      actifs.premier_rdv && c.en_jeu !== false ? (c.premier_rdv ? `1er RDV : ${c.premier_rdv.commercial_id === me ? "vous !" : C().prenomDe(c.premier_rdv.commercial_id)}` : "1er RDV à prendre") : "",
+      actifs.premier_rdv && c.en_jeu !== false ? (c.premier_rdv ? `1er RDV : ${c.premier_rdv.commercial_id === me ? "vous" : C().prenomDe(c.premier_rdv.commercial_id)}` : "1er RDV à prendre") : "",
       c.peut_pronostiquer && !c.pronostic ? "pronostic à faire" : "",
-      rec.length ? `${rec.length} fiche${rec.length > 1 ? "s" : ""} gagnée${rec.length > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+      rec.length ? `${rec.length} fiche${rec.length > 1 ? "s" : ""} gagnée${rec.length > 1 ? "s" : ""}` : ""].filter(Boolean).join(", ");
     const ouvert = jeuxOuvert != null ? jeuxOuvert : !!(c.peut_pronostiquer && !c.pronostic);
-    box.innerHTML = `<details class="cmd-card cmd-card--jeux cmd-jeux-det" ${ouvert ? "open" : ""}><summary><b>🎮 Jeux de l'heure</b> <span class="muted">${esc(resume)}</span></summary>${blocs.join("")}</details>`;
+    box.innerHTML = `<details class="cmd-card cmd-card--jeux cmd-jeux-det" ${ouvert ? "open" : ""}><summary><b>${ic("trophy")}Jeux de l'heure</b> <span class="muted">${esc(resume.charAt(0).toUpperCase() + resume.slice(1))}</span></summary>${blocs.join("")}</details>`;
     box.querySelector("details").addEventListener("toggle", (e) => { jeuxOuvert = e.target.open; });
     const btn = box.querySelector("#jeuPronoBtn");
     if (btn) btn.addEventListener("click", async () => {
       try {
         await C().rpc("commando_pronostic", { _semaine_id: semaine.id, _annonce: Number(box.querySelector("#jeuProno").value) });
-        C().toast("Pronostic enregistré, bonne chance !");
+        C().toast("Pronostic enregistré, bonne chance");
         rendreJeux(el);
       } catch (e) { C().toast(C().erreur(e)); }
     });
@@ -376,13 +388,13 @@
     const { data: ents } = await sb().from("commando_entreprises").select("siret, raison_sociale").in("siret", sirets);
     const nom = {}; (ents || []).forEach(e => { nom[e.siret] = e.raison_sociale; });
     box.innerHTML = `<div class="cmd-bandeau">
-      <b>📅 ${list.length} rendez-vous à confirmer</b> — ce RDV a-t-il eu lieu ?
+      <b>${ic("calendar-check")}${list.length} rendez-vous à confirmer</b> <span class="muted">Ce RDV a-t-il eu lieu ?</span>
       ${list.map(a => `<div class="cmd-bandeau__item" data-id="${a.id}">
-        <span><b>${esc(nom[a.siret] || a.siret)}</b> · ${esc(C().fmtDateTime(a.date_rdv))}</span>
+        <span><b>${esc(nom[a.siret] || a.siret)}</b><br><span class="muted">${esc(C().fmtDateTime(a.date_rdv))}</span></span>
         <span class="cmd-bandeau__btns">
-          <button class="btn btn--sm" data-rdv="honore">✔︎ Honoré</button>
-          <button class="btn btn--sm" data-rdv="reporte">↻ Reporté</button>
-          <button class="btn btn--sm btn--danger" data-rdv="annule">✕ Annulé</button>
+          <button class="btn btn--sm" data-rdv="honore">${ic("check")}Honoré</button>
+          <button class="btn btn--sm" data-rdv="reporte">${ic("calendar-clock")}Reporté</button>
+          <button class="btn btn--sm btn--danger" data-rdv="annule">${ic("x")}Annulé</button>
         </span></div>`).join("")}
     </div>`;
     $$("[data-rdv]", box).forEach(b => b.addEventListener("click", async () => {
@@ -408,15 +420,14 @@
   }
   async function showThemes(el) {
     if (!semaine || !thematiques.length) { await chargerSemaines(); await chargerSemaine(); }
-    el.querySelector("#themHead").innerHTML = `<div class="cmd-row"><h3 class="cmd-h">🗂️ Par thématique</h3>${selecteurSemaine()}</div>`;
-    const sel = el.querySelector("#listeSemaine");
-    if (sel) sel.addEventListener("change", async () => { semaine = semaines.find(s => s.id === sel.value); themeActif = null; await chargerSemaine(); await showThemes(el); });
+    const quand = quandSemaine();
+    el.querySelector("#themHead").innerHTML = quand ? `<div class="cmd-note">${ic("info")}<span>${esc(quand)}</span></div>` : "";
     if (!semaine) { el.querySelector("#themBody").innerHTML = `<p class="cmd-empty">Aucune semaine publiée pour le moment.</p>`; return; }
     el.querySelector("#themTabs").innerHTML = thematiques.map(t => `<button class="tab ${t.id === themeActif ? "tab--active" : ""}" data-theme="${t.id}">${esc(t.titre)}</button>`).join("");
     $$("[data-theme]", el).forEach(b => b.addEventListener("click", () => { themeActif = b.dataset.theme; showThemes(el); }));
     const t = thematiques.find(x => x.id === themeActif);
     if (!t) { el.querySelector("#themBody").innerHTML = `<p class="cmd-empty">Aucune thématique retenue.</p>`; return; }
-    el.querySelector("#themIntro").innerHTML = `<div class="cmd-card cmd-card--theme"><h3>${esc(t.titre)}</h3><p class="muted"><b>Offre Rex :</b> ${esc(t.offre_rex)}</p><p>${C().gras(t.pourquoi_maintenant)}</p></div>`;
+    el.querySelector("#themIntro").innerHTML = `<div class="cmd-card cmd-card--theme"><h3>${esc(t.titre)}</h3>${t.offre_rex ? `<div class="cmd-offre">${ic("target")}Offre Rex : ${esc(t.offre_rex)}</div>` : ""}<p>${C().gras(t.pourquoi_maintenant)}</p></div>`;
     el.querySelector("#themFiltres").innerHTML = barreFiltres(false);
     const body = el.querySelector("#themBody");
     body.innerHTML = `<p class="cmd-empty"><span class="cmd-spin"></span>Chargement…</p>`;
@@ -482,16 +493,16 @@
       const extra = { date_rdv: ($("#mailDate", box) || {}).value || dateRdv || "{date_rdv}", creneaux: ($("#mailCreneaux", box) || {}).value || CRENEAUX_DEFAUT };
       const objet = texteMail(m.objet, r, extra), corps = texteMail(m.corps, r, extra);
       box.innerHTML = `<div class="cmd-mail">
-        <div class="cmd-row"><b>✉️ Mail de suivi</b>
+        <div class="cmd-row"><b>${ic("mail")}Mail de suivi</b>
           <select id="mailVariante" class="cmd-sem">${mails.rdv ? `<option value="rdv" ${variante === "rdv" ? "selected" : ""}>RDV confirmé</option>` : ""}${mails.suite ? `<option value="suite" ${variante === "suite" ? "selected" : ""}>Suite à notre échange</option>` : ""}</select>
           ${variante === "rdv" ? `<input id="mailDate" type="text" class="cmd-mail__champ" value="${esc(extra.date_rdv === "{date_rdv}" ? "" : extra.date_rdv)}" placeholder="date et heure du RDV" />` : `<input id="mailCreneaux" type="text" class="cmd-mail__champ" value="${esc(extra.creneaux)}" placeholder="deux créneaux proposés" />`}
         </div>
         <div class="cmd-mail__apercu"><div class="cmd-mail__objet">Objet : ${esc(objet)}</div><pre class="cmd-mail__corps">${esc(corps)}</pre></div>
         <div class="cmd-row">
-          <button id="mailOuvrir" class="btn btn--primary btn--sm" ${r.email ? "" : "disabled"}>✉️ Ouvrir dans ma messagerie</button>
-          <span class="muted">${r.email ? `À : ${esc(r.email)} · le mail part de votre boîte, relisez avant d'envoyer.` : "Saisissez l'e-mail du contact ci-dessus pour activer l'envoi."}</span>
+          <button id="mailOuvrir" class="btn btn--primary btn--sm" ${r.email ? "" : "disabled"}>${ic("mail")}Ouvrir dans ma messagerie</button>
+          <span class="muted">${r.email ? `À ${esc(r.email)}. Le mail part de votre boîte : relisez-le avant d'envoyer.` : "Saisissez l'e-mail du contact (Entreprise et coordonnées) pour activer l'envoi."}</span>
         </div>
-        ${a && a.mail_prepare_le ? `<div class="muted">✔︎ Mail ${a.mail_variante === "rdv" ? "de confirmation" : "de suivi"} déjà ouvert le ${esc(C().fmtDateTime(a.mail_prepare_le))}.</div>` : ""}
+        ${a && a.mail_prepare_le ? `<div class="muted">${ic("check")} Mail ${a.mail_variante === "rdv" ? "de confirmation" : "de suivi"} déjà ouvert le ${esc(C().fmtDateTime(a.mail_prepare_le))}.</div>` : ""}
       </div>`;
       $("#mailVariante", box).addEventListener("change", (e) => { variante = e.target.value; dessiner(); });
       const champ = $("#mailDate", box) || $("#mailCreneaux", box);
@@ -543,19 +554,21 @@
     if (!session.actif) return;
     session.actif = false;
     fermerFiche();
-    C().toast((fini ? "🏁 Liste terminée, bravo ! " : "Session terminée : ") + `${session.appels} appel${session.appels > 1 ? "s" : ""}, ${session.rdv} RDV${session.points ? `, +${session.points} points` : ""}`);
+    C().toast((fini ? "Liste terminée, bravo : " : "Session terminée : ") + `${session.appels} appel${session.appels > 1 ? "s" : ""}, ${session.rdv} RDV${session.points ? `, +${session.points} points` : ""}`);
     majBoutonSession();
   }
   function majBoutonSession() {
     const b = document.querySelector("#btnSession"); if (!b) return;
-    b.textContent = session.actif ? `▶ Reprendre le commando · fiche ${Math.min(session.index + 1, session.file.length)}/${session.file.length}` : "▶ Démarrer le commando";
+    b.innerHTML = ic("play") + (session.actif ? `<span>Reprendre le commando, fiche ${Math.min(session.index + 1, session.file.length)} sur ${session.file.length}</span>` : "<span>Démarrer le commando</span>");
   }
   function barreSession() {
     if (!session.actif) return "";
     const n = session.file.length, i = Math.min(session.index + 1, n);
-    return `<div class="cmd-session" role="status">
-      <div class="cmd-session__info"><b>▶ Commando</b> · fiche ${i}/${n}<span class="cmd-session__stats">☎︎ ${session.appels} · 📅 ${session.rdv}${session.points ? ` · ⭐ +${session.points}` : ""}</span></div>
-      <div class="cmd-session__btns"><button class="btn btn--sm" data-session="suivante">Suivante ▶</button><button class="btn btn--ghost btn--sm" data-session="fin">Terminer</button></div>
+    return `<div class="cmd-session" role="status" aria-label="Session d'appels en cours">
+      <div class="cmd-session__info"><span class="cmd-session__live" aria-hidden="true"></span><span class="cmd-session__pos">Fiche ${i} sur ${n}</span>
+        <span class="cmd-session__stats"><span title="Appels">${ic("phone")}${session.appels}</span><span title="RDV">${ic("calendar-check")}${session.rdv}</span>${session.points ? `<span title="Points">${ic("star")}+${session.points}</span>` : ""}</span></div>
+      <div class="cmd-session__btns"><button class="btn btn--sm" data-session="suivante">${ic("skip-forward")}Suivante</button><button class="btn btn--sm" data-session="fin">${ic("square")}Terminer</button></div>
+      <span class="cmd-session__prog" style="width:${Math.round(i / Math.max(1, n) * 100)}%"></span>
     </div>`;
   }
   // Points crédités tout de suite après un appel : renvoie le gain depuis le dernier relevé.
@@ -580,7 +593,7 @@
     const me = C().me();
     if (!ficheEl) {
       ficheEl = document.createElement("div");
-      ficheEl.className = "modal"; ficheEl.id = "ficheModal";
+      ficheEl.className = "modal cmd-ui"; ficheEl.id = "ficheModal";
       document.body.appendChild(ficheEl);
     }
     const regleTxt = r.couleur
@@ -595,24 +608,24 @@
         <div class="modal__header">
           <div class="cmd-fiche__titre">
             <h2>${esc(r.raison_sociale)}</h2>
-            <div class="cmd-fiche__sub">${r.complement ? `<span class="cmd-badge cmd-badge--compl">Complément</span>` : badgeCouleur(r.couleur)}${r.est_nouvelle ? ` <span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${r.signal ? ` ${badgeSignal(r)}` : ""}</div>
-            <div class="cmd-fiche__qui">👤 ${esc(qui || "Dirigeant non renseigné")} · 📍 ${esc(r.commune || r.code_postal || "")}${r.naf_libelle ? ` · ${esc(r.naf_libelle)}` : ""}</div>
+            <div class="cmd-fiche__sub">${r.complement ? `<span class="cmd-badge cmd-badge--compl">Complément</span>` : badgeCouleur(r.couleur)}${r.est_nouvelle ? `<span class="cmd-badge cmd-badge--info">Nouvelle</span>` : ""}${r.signal ? badgeSignal(r) : ""}</div>
+            <div class="cmd-fiche__qui"><span>${ic("user")}${esc(qui || "Dirigeant non renseigné")}</span><span>${ic("map-pin")}${esc(r.commune || r.code_postal || "")}</span>${r.naf_libelle ? `<span>${ic("building-2")}${esc(r.naf_libelle)}</span>` : ""}</div>
           </div>
-          <button class="modal__close" data-fiche-close aria-label="Fermer">✕</button>
+          <button class="modal__close" data-fiche-close aria-label="Fermer">${ic("x")}</button>
         </div>
         ${barreSession()}
         <div class="modal__body cmd-fiche">
           <div id="ficheAppel" class="cmd-appel"></div>
           <div id="ficheTelSource" class="muted cmd-appel__source"></div>
-          ${r.bloc === "rappel" ? `<div class="cmd-item__warn cmd-item__warn--rappel">🔁 Rappel prévu le ${esc(C().fmtDate(r.bloquee_jusqua))} (appel du ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}).</div>` : ""}
-          ${r.deja_appelee ? `<div class="cmd-item__warn">☎︎ Déjà appelée : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}. Rappel possible à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}.</div>` : ""}
-          ${r.signal ? `<div class="cmd-signal">📰 <b>${esc(r.signal)}</b> · BODACC du ${esc(C().fmtDate(r.signal_le))}${r.signal_url ? ` · <a href="${esc(r.signal_url)}" target="_blank" rel="noopener">voir l'annonce</a>` : ""}${CONSEIL_SIGNAL[r.signal_type] ? `<div class="muted">${esc(CONSEIL_SIGNAL[r.signal_type])}</div>` : ""}</div>` : ""}
-          <h3 class="output-title cmd-fiche__sujet">🎯 ${esc(r.thematique_titre || "Trame d'appel")}</h3>
+          ${r.bloc === "rappel" ? `<div class="cmd-item__warn cmd-item__warn--rappel">${ic("rotate-ccw")}<span>Rappel prévu le ${esc(C().fmtDate(r.bloquee_jusqua))} (appel du ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}).</span></div>` : ""}
+          ${r.deja_appelee ? `<div class="cmd-item__warn">${ic("phone")}<span>Déjà appelée : ${esc(STATUTS[r.dernier_appel_statut] || "")} le ${esc(C().fmtDate(r.dernier_appel_le))} par ${esc(C().prenomDe(r.dernier_appel_par))}. Rappel possible à partir du ${esc(C().fmtDate(r.bloquee_jusqua))}.</span></div>` : ""}
+          ${r.signal ? `<div class="cmd-signal"><b>${ic("newspaper")}${esc(r.signal)}</b> <span class="muted" style="display:inline">BODACC du ${esc(C().fmtDate(r.signal_le))}</span>${r.signal_url ? ` <a href="${esc(r.signal_url)}" target="_blank" rel="noopener">Voir l'annonce</a>` : ""}${CONSEIL_SIGNAL[r.signal_type] ? `<div class="muted">${esc(CONSEIL_SIGNAL[r.signal_type])}</div>` : ""}</div>` : ""}
+          <h3 class="output-title cmd-fiche__sujet">${ic("target")}${esc(r.thematique_titre || "Trame d'appel")}</h3>
           ${trameHtml(t, r.couleur, r)}
           ${objectionsHtml(t)}
           <div id="ficheMailBloc"></div>
           <details class="cmd-fiche__det">
-            <summary>🏢 Entreprise et coordonnées</summary>
+            <summary>${ic("building-2")}Entreprise et coordonnées</summary>
             <div class="cmd-fiche__grid">
               <div><small>Activité</small>${esc(r.naf_libelle || "—")} <span class="muted">(${esc(r.naf_code || "")})</span></div>
               <div><small>Effectif</small>${esc(trancheLabel(r.tranche_effectif, r.annee_effectif))}</div>
@@ -623,10 +636,10 @@
               <div><small>Téléphone</small><input id="ficheTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></div>
               <div><small>E-mail</small><input id="ficheMail" type="email" value="${esc(r.email || "")}" placeholder="contact@…" /></div>
             </div>
-            <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button><button id="ficheOppo" class="btn btn--ghost btn--sm">🚫 Ne plus contacter (opposition)</button></div>
+            <div class="cmd-row"><button id="ficheSaveContact" class="btn btn--sm">Enregistrer les coordonnées</button><button id="ficheOppo" class="btn btn--ghost btn--sm">${ic("ban")}Ne plus contacter (opposition)</button></div>
           </details>
-          <details class="cmd-fiche__det"><summary>❓ Pourquoi cette fiche</summary><p class="cmd-regle">${regleTxt}</p></details>
-          <details class="cmd-fiche__det"><summary>🕘 Historique des appels <span id="ficheHistNb" class="muted"></span></summary><div id="ficheHist"><span class="cmd-spin"></span></div></details>
+          <details class="cmd-fiche__det"><summary>${ic("info")}Pourquoi cette fiche</summary><p class="cmd-regle">${regleTxt}</p></details>
+          <details class="cmd-fiche__det"><summary>${ic("history")}Historique des appels <span id="ficheHistNb" class="muted"></span></summary><div id="ficheHist"><span class="cmd-spin"></span></div></details>
           <div id="fichePasser" class="cmd-passer"></div>
         </div>
         <div class="cmd-resultat cmd-resultat--fixe">
@@ -636,13 +649,13 @@
             <label>Numéro composé <span class="muted">(gardé sur la fiche pour toute l'équipe)</span><input id="resTel" type="tel" value="${esc(r.telephone || "")}" placeholder="05 49 …" /></label>
             ${r.email ? "" : `<label>E-mail du contact <span class="muted">(pour le mail de suivi, demandez-le en fin d'appel)</span><input id="resMail" type="email" placeholder="prenom.nom@entreprise.fr" /></label>`}
             <label>Note (facultatif)<textarea id="resNote" rows="2" placeholder="Interlocuteur, contexte, prochaine étape…"></textarea></label>
-            <div class="cmd-row"><button id="resSave" class="btn btn--primary">${session.actif ? "Enregistrer et passer à la suivante ▶" : "Enregistrer"}</button><span id="resErr" class="cmd-err" hidden></span></div>
+            <div class="cmd-row"><button id="resSave" class="btn btn--primary">${session.actif ? `Enregistrer et passer à la suivante${ic("skip-forward")}` : "Enregistrer"}</button><span id="resErr" class="cmd-err" hidden></span></div>
           </div>
           <div class="cmd-resultat__btns" role="group" aria-label="Résultat de l'appel">
-            <button class="btn" data-statut="injoignable">📵 Injoignable</button>
-            <button class="btn" data-statut="rappeler">🔁 Rappeler</button>
-            <button class="btn" data-statut="refus">✕ Refus</button>
-            <button class="btn btn--rdv" data-statut="rdv">📅 RDV</button>
+            <button class="btn" data-statut="injoignable">${ic("phone-missed")}<span>Injoignable</span></button>
+            <button class="btn" data-statut="rappeler">${ic("rotate-ccw")}<span>Rappeler</span></button>
+            <button class="btn" data-statut="refus">${ic("x")}<span>Refus</span></button>
+            <button class="btn btn--rdv" data-statut="rdv">${ic("calendar-check")}<span>RDV</span></button>
           </div>
         </div>
       </div>`;
@@ -657,10 +670,10 @@
       const tel = r.telephone || "";
       const href = lienTel(tel);
       box.innerHTML = href
-        ? `<a class="btn btn--appel" href="${esc(href)}">📞 Appeler · ${esc(tel)}</a>`
-        : `<div class="cmd-appel__vide"><b>Pas encore de numéro.</b> Trouvez-le puis collez-le ici : il servira à toute l'équipe.
-            <div class="cmd-row"><input id="appelTel" type="tel" placeholder="05 49 …" /><button id="appelTelOk" class="btn btn--sm">OK</button></div>
-            <div class="cmd-row"><button id="ficheTelOsm" class="btn btn--ghost btn--sm" title="Recherche gratuite dans OpenStreetMap">🔎 Chercher (OpenStreetMap)</button><a class="btn btn--ghost btn--sm" target="_blank" rel="noopener" href="${esc(rechercheWeb)}">🌐 Chercher sur le web</a></div></div>`;
+        ? `<a class="btn btn--appel" href="${esc(href)}">${ic("phone")}<span>Appeler</span><span class="cmd-appel__num">${esc(tel)}</span></a>`
+        : `<div class="cmd-appel__vide"><span><b>Pas encore de numéro.</b> Trouvez-le puis collez-le ici : il servira à toute l'équipe.</span>
+            <div class="cmd-row"><input id="appelTel" type="tel" placeholder="05 49 …" aria-label="Numéro de téléphone" /><button id="appelTelOk" class="btn btn--sm">Enregistrer</button></div>
+            <div class="cmd-row"><button id="ficheTelOsm" class="btn btn--sm" title="Recherche gratuite dans OpenStreetMap">${ic("search")}Chercher dans OpenStreetMap</button><a class="btn btn--ghost btn--sm" target="_blank" rel="noopener" href="${esc(rechercheWeb)}">${ic("globe")}Chercher sur le web</a></div></div>`;
       const ok = $("#appelTelOk", box);
       if (ok) ok.addEventListener("click", async () => {
         const v = $("#appelTel", box).value.trim();
@@ -682,7 +695,7 @@
             $("#ficheTelSource", ficheEl).textContent = "Téléphone trouvé dans OpenStreetMap (© les contributeurs OpenStreetMap)" + (c.site_web ? " · site : " + c.site_web : "") + " — à confirmer au premier appel.";
             C().toast("Téléphone trouvé"); majAppel();
           } else { telOsm.textContent = "Introuvable dans OpenStreetMap"; }
-        } catch (e) { telOsm.disabled = false; telOsm.textContent = "🔎 Chercher (OpenStreetMap)"; C().toast(C().erreur(e)); }
+        } catch (e) { telOsm.disabled = false; telOsm.innerHTML = ic("search") + "Chercher dans OpenStreetMap"; C().toast(C().erreur(e)); }
       });
     };
     majAppel();
@@ -761,13 +774,13 @@
       dernierAppelMoi = { statut, date_rdv: row.date_rdv || null, created_at: new Date().toISOString() };
       const gain = await gainPoints();
       if (session.actif) { session.appels++; if (statut === "rdv") session.rdv++; session.points += gain; }
-      const bravo = statut === "rdv" ? "📅 RDV enregistré, bravo !" : "Appel enregistré";
-      const pts = gain ? ` · ⭐ +${gain} point${gain > 1 ? "s" : ""}` : "";
+      const bravo = statut === "rdv" ? "RDV enregistré, bravo" : "Appel enregistré";
+      const pts = gain ? `, +${gain} point${gain > 1 ? "s" : ""}` : "";
       await rafraichir();
       b.disabled = false;
       // Mail de suivi : si la thématique en a un et que l'e-mail est connu, on reste sur la fiche pour l'envoyer.
       if (t && t.mails && (t.mails.rdv || t.mails.suite) && r.email) {
-        C().toast(bravo + pts + " · un mail de suivi est prêt ✉️");
+        C().toast(bravo + pts + ". Le mail de suivi est prêt.");
         $("#resExtra", ficheEl).hidden = true;
         $$("[data-statut]", ficheEl).forEach(x => x.disabled = true);
         rendreMail(ficheEl, t, r);
@@ -787,20 +800,20 @@
     const h = $("#ficheHist", ficheEl);
     if (!h) return;
     const nb = $("#ficheHistNb", ficheEl); if (nb) nb.textContent = (hist || []).length ? `(${hist.length})` : "(jamais appelée)";
-    h.innerHTML = (hist || []).length ? `<ul class="cmd-hist">${hist.map(a => `<li><b>${esc(STATUTS[a.statut] || a.statut)}</b>${a.statut === "rdv" ? ` (${esc(C().fmtDateTime(a.date_rdv))}, ${esc(RDV_STATUTS[a.rdv_statut] || "")})` : ""}${a.statut === "rappeler" && a.date_rappel ? ` (le ${esc(C().fmtDate(a.date_rappel))})` : ""} · ${esc(C().fmtDateTime(a.created_at))} · ${esc(C().prenomDe(a.commercial_id))}${a.couleur_au_moment ? ` · ${esc(COULEUR_LABEL[a.couleur_au_moment])}` : ""}${a.mail_prepare_le ? ` · ✉️ mail ${a.mail_variante === "rdv" ? "de confirmation" : "de suivi"}` : ""}${a.note ? `<br><span class="muted">${esc(a.note)}</span>` : ""}</li>`).join("")}</ul>` : `<p class="muted">Jamais appelée.</p>`;
+    h.innerHTML = (hist || []).length ? `<ul class="cmd-hist">${hist.map(a => `<li><b>${esc(STATUTS[a.statut] || a.statut)}</b>${a.statut === "rdv" ? ` (${esc(C().fmtDateTime(a.date_rdv))}, ${esc(RDV_STATUTS[a.rdv_statut] || "")})` : ""}${a.statut === "rappeler" && a.date_rappel ? ` (le ${esc(C().fmtDate(a.date_rappel))})` : ""}<br><span class="muted">${esc(C().fmtDateTime(a.created_at))}, ${esc(C().prenomDe(a.commercial_id))}${a.couleur_au_moment ? `, cible ${esc(COULEUR_LABEL[a.couleur_au_moment].toLowerCase())}` : ""}${a.mail_prepare_le ? `, mail ${a.mail_variante === "rdv" ? "de confirmation" : "de suivi"} envoyé` : ""}</span>${a.note ? `<br>${esc(a.note)}` : ""}</li>`).join("")}</ul>` : `<p class="muted">Jamais appelée.</p>`;
   }
   // « Passer » : la fiche quitte la liste (8 semaines, 52 si fermée ou doublon).
   function rendrePasser(r) {
     const box = $("#fichePasser", ficheEl); if (!box) return;
     if (r.bloc === "passee") {
-      box.innerHTML = `<div class="cmd-row"><span class="muted">⏭ Fiche passée (${esc(RAISONS_PASSER[r.passee_raison] || "")}) jusqu'au ${esc(C().fmtDate(r.passee_jusqua))}.</span><button id="passerAnnuler" class="btn btn--ghost btn--sm">↩︎ Remettre dans ma liste</button></div>`;
+      box.innerHTML = `<div class="cmd-row"><span class="muted">Fiche passée (${esc(RAISONS_PASSER[r.passee_raison] || "")}) jusqu'au ${esc(C().fmtDate(r.passee_jusqua))}.</span><button id="passerAnnuler" class="btn btn--sm">${ic("undo-2")}Remettre dans ma liste</button></div>`;
       $("#passerAnnuler", box).addEventListener("click", async () => {
         try { await C().rpc("commando_passer_annuler", { _siret: r.siret }); } catch (e) { C().toast(C().erreur(e)); return; }
         C().toast("Fiche remise dans votre liste"); fermerFiche(); rafraichir();
       });
       return;
     }
-    box.innerHTML = `<details class="cmd-passer__det"><summary>⏭ Passer cette fiche</summary>
+    box.innerHTML = `<details class="cmd-passer__det"><summary>${ic("skip-forward")}Passer cette fiche</summary>
       <div class="cmd-row"><select id="passerRaison" class="cmd-sem">${Object.entries(RAISONS_PASSER).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select>
       <button id="passerOk" class="btn btn--sm">Passer</button>
       <span class="muted">Elle disparaît de votre liste pendant 8 semaines (un an si fermée ou doublon).</span></div></details>`;
@@ -829,7 +842,7 @@
     if (th && th.classList.contains("cmd__pane--active")) await showThemes(th);
   }
 
-  C().registerTab({ id: "liste", label: "📞 Ma liste", render: renderListe, onShow: showListe });
-  C().registerTab({ id: "thematiques", label: "🗂️ Par thématique", render: renderThemes, onShow: showThemes });
+  C().registerTab({ id: "liste", label: "Ma liste", icone: "list", render: renderListe, onShow: showListe });
+  C().registerTab({ id: "thematiques", label: "Thématiques", icone: "layers", render: renderThemes, onShow: showThemes });
   window.RexCommandoListe = { rafraichir };
 })();

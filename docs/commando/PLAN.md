@@ -549,3 +549,23 @@ Même principe que Flash Live PO : Web Push, sans application à installer en de
 - `commando_notifications` : la file, avec l'état de chaque envoi.
 - Les déclencheurs ne bloquent jamais l'action d'origine : une erreur de notification est seulement journalisée.
 - Les messages restés en attente sont relancés jusqu'à 3 fois.
+
+## Refonte de l'interface et semaine en cours (v42)
+
+Retour de Scott : « un peu fouillis », « ça ressemble beaucoup à de l'IA ». Le système visuel est décrit dans `docs/commando/DESIGN.md` ; il s'appuie sur les jetons de Twenty (CRM open source), sur les outils d'appel du marché et sur les icônes Lucide.
+
+**La semaine en cours seulement**
+- Plus de liste de semaines dans Ma liste, Thématiques et Ligue : la semaine du commando, ou la dernière publiée avec une phrase qui annonce la suivante. Les rappels passent toujours d'une semaine à l'autre (la liste part du dernier appel de chaque entreprise).
+- Onglet Semaine :
+  - en préparation, il montre les propositions actives ; les écartées sont repliées ;
+  - une fois publiée, il ne garde que les 3 sujets retenus, en version compacte, et range le reste sous « Propositions non retenues » ; la veille, le vote clos et les nouvelles entreprises sont repliés ;
+  - « Semaines précédentes » liste les semaines passées (sujets, appels, RDV) ; une semaine s'ouvre en lecture seule, avec un bouton pour revenir à la semaine en cours.
+- L'onglet Vote n'apparaît que pendant le vote et le jour de sa clôture ; une pastille signale le vote à faire.
+
+**Aspect**
+- Les 250 émojis de l'interface sont remplacés par des icônes Lucide (`js/commando-icones.js`, 73 icônes, licence ISC).
+- Jetons de couleur, de texte et d'espacement propres au commando (`.cmd-ui`), sans dégradé ni ombre sur les blocs ; RexSeller n'est pas touché.
+- Ma liste : lignes d'entreprise avec barre de cible, activité, effectif, ville, numéro ; bandeau de chiffres d'un seul tenant.
+- Fiche : barre d'appel sombre pendant la session (fiche n sur N, appels, RDV, points, progression), bouton « Appeler » vert, trame lisible, 4 résultats en pied de fiche.
+- Ligue : classement en liste (points, appels, RDV, taux, badges) au lieu d'un tableau de 11 colonnes.
+- Semaine : frise horizontale sur ordinateur, verticale sur téléphone ; « Maintenant » en une phrase.

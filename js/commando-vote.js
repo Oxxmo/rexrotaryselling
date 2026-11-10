@@ -17,6 +17,7 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const C = () => window.RexCommando;
   const esc = (s) => C().esc(s);
+  const ic = (x) => C().ic(x);
   const FAMILLES = { impression: "Impression et copieurs", ged: "Gestion documentaire", cyber: "Cybersécurité et réseau", telephonie: "Téléphonie", informatique: "Informatique" };
 
   let etat = null;            // dernier état renvoyé par commando_vote_etat
@@ -47,12 +48,15 @@
     const btn = $("#btnCommando");
     if (btn) {
       let dot = btn.querySelector(".appbar__dot");
-      if (aFaire && !dot) { dot = document.createElement("span"); dot.className = "appbar__dot"; dot.textContent = "🗳️ à voter"; btn.appendChild(dot); }
+      if (aFaire && !dot) { dot = document.createElement("span"); dot.className = "appbar__dot"; dot.textContent = "à voter"; btn.appendChild(dot); }
       if (!aFaire && dot) dot.remove();
       btn.title = aFaire ? "Rex Commando : un vote des sujets vous attend" : "Rex Commando";
     }
-    const ouvert = !!(etat && etat.vote && etat.ouvert);
-    C().setLabel("vote", aFaire ? "🗳️ Vote · à faire" : ouvert ? "🗳️ Vote en cours" : "🗳️ Vote");
+    // L'onglet Vote n'apparaît que pendant le vote et le jour de sa clôture.
+    const v = etat && etat.vote;
+    const recent = v && etat.clos_le && (Date.now() - new Date(etat.clos_le).getTime()) < 12 * 3600000;
+    C().setVisible("vote", !!(v && (etat.ouvert || etat.en_cloture || recent)));
+    C().setPastille("vote", aFaire ? "1" : "");
     C().preferer(aFaire ? "vote" : null);
   }
   async function charger() {
@@ -76,11 +80,11 @@
       <div class="cmd-vote__tete">
         <div>
           ${s.famille ? `<span class="cmd-badge cmd-badge--info">${esc(FAMILLES[s.famille] || s.famille)}</span>` : ""}
-          ${retenu ? `<span class="cmd-badge cmd-badge--ok">✔︎ retenu</span>` : ""}
+          ${retenu ? `<span class="cmd-badge cmd-badge--ok">${ic("check")}Retenu</span>` : ""}
           ${voir && s.rang ? `<span class="cmd-badge">n° ${esc(s.rang)}</span>` : ""}
           <h4>${esc(s.titre)}</h4>
         </div>
-        ${ouvert ? `<button class="btn ${choisi ? "btn--primary" : "btn--ghost"} btn--sm" data-choisir="${esc(s.id)}" ${plein ? "disabled title=\"Retirez d'abord un autre choix\"" : ""}>${choisi ? "★ Mon choix" : "☆ Je vote"}</button>` : ""}
+        ${ouvert ? `<button class="btn ${choisi ? "btn--primary" : ""} btn--sm" data-choisir="${esc(s.id)}" aria-pressed="${choisi}" ${plein ? "disabled title=\"Retirez d'abord un autre choix\"" : ""}>${choisi ? ic("check") + "Mon choix" : ic("plus") + "Je vote"}</button>` : ""}
       </div>
       ${s.pourquoi_maintenant ? `<p class="cmd-vote__pourquoi">${C().gras(s.pourquoi_maintenant)}</p>` : ""}
       ${(s.points_cles || []).length ? `<ul class="cmd-trame__cles">${s.points_cles.map(k => `<li>${C().gras(k)}</li>`).join("")}</ul>` : ""}
@@ -88,7 +92,7 @@
         ${s.accroche ? `<p><b>Accroche</b> ${C().gras(s.accroche)}</p>` : ""}${s.argument ? `<p><b>Argument</b> ${C().gras(s.argument)}</p>` : ""}
         ${s.offre_rex ? `<p class="muted"><b>Offre Rex</b> ${esc(s.offre_rex)}</p>` : ""}</details>` : ""}
       ${voir && s.votes != null ? `<div class="cmd-vote__res"><div class="cmd-vote__barre"><span style="width:${pct}%"></span></div>
-        <span class="cmd-vote__nb"><b>${esc(s.votes)}</b> vote${Number(s.votes) > 1 ? "s" : ""}${etat.responsable && (s.votants || []).length ? ` · ${esc(s.votants.map(id => C().prenomDe(id)).join(", "))}` : ""}</span></div>` : ""}
+        <span class="cmd-vote__nb"><b>${esc(s.votes)}</b> vote${Number(s.votes) > 1 ? "s" : ""}${etat.responsable && (s.votants || []).length ? ` (${esc(s.votants.map(id => C().prenomDe(id)).join(", "))})` : ""}</span></div>` : ""}
     </div>`;
   }
   function resultatHtml() {
@@ -102,13 +106,13 @@
     let extra = "";
     if (etat.responsable && r.note) extra += `<div class="muted">${esc(r.note)}</div>`;
     if (etat.responsable && r.erreur_publication) extra += `<div class="cmd-err">Publication automatique impossible : ${esc(r.erreur_publication)}. Publiez depuis l'onglet Semaine.</div>`;
-    return `<div class="cmd-ok">🗳️ Vote clos le ${esc(C().fmtDateTime(etat.clos_le))}. ${txt}</div>${extra}`;
+    return `<div class="cmd-ok">${ic("circle-check")}<span>Vote clos le ${esc(C().fmtDateTime(etat.clos_le))}. ${txt}</span></div>${extra}`;
   }
   function dessiner() {
     const el = paneEl; if (!el) return;
     const body = $("#voteBody", el);
     if (!etat || !etat.vote) {
-      body.innerHTML = `<div class="cmd-card"><h3>🗳️ Vote des sujets</h3><p class="cmd-empty">${C().isResponsable()
+      body.innerHTML = `<div class="cmd-card"><h3>${ic("vote")}Vote des sujets</h3><p class="cmd-empty">${C().isResponsable()
         ? "Aucun vote en cours. Le lundi, soumettez les sujets de la semaine au vote depuis l'onglet « Semaine » (bloc « Vote de l'équipe »)."
         : "Pas de vote en cours. Quand le responsable soumettra les sujets de la semaine, vous pourrez choisir vos préférés ici."}</p></div>`;
       return;
@@ -117,13 +121,12 @@
     const voir = !!etat.resultats_visibles;
     const ouvertCommercial = etat.ouvert && estCommercial();
     const statut = etat.ouvert
-      ? `<span class="cmd-badge cmd-badge--warn">ouvert</span> Clôture <b>${esc(heureFin(etat.fin))}</b> · ${esc(restant(etat.fin))}`
-      : `<span class="cmd-badge cmd-badge--gris">clos</span>`;
+      ? `<span class="cmd-badge cmd-badge--warn">${ic("clock")}Ouvert</span> Clôture <b>${esc(heureFin(etat.fin))}</b>, ${esc(restant(etat.fin))}`
+      : `<span class="cmd-badge cmd-badge--gris">Clos</span>`;
     body.innerHTML = `<div class="cmd-card cmd-vote">
-        <div class="cmd-row"><h3 class="cmd-h">🗳️ Vote des sujets · ${esc(C().fmtSemaine(etat.semaine))}</h3><span class="grow"></span>
-          <span class="muted">${esc(p.votants || 0)} / ${esc(p.commerciaux || 0)} commerciaux ont voté</span></div>
-        <p>${statut}</p>
-        ${etat.message ? `<div class="cmd-bandeau">💬 <b>Le responsable</b> : ${esc(etat.message)}</div>` : ""}
+        <h3>${ic("vote")}Vote des sujets de la semaine ${esc(C().numSemaine(etat.semaine))}</h3>
+        <p class="cmd-vote__statut">${statut}<span class="grow"></span>${esc(p.votants || 0)} sur ${esc(p.commerciaux || 0)} commerciaux ont voté</p>
+        ${etat.message ? `<div class="cmd-note">${ic("message-square")}<span><b>Le responsable :</b> ${esc(etat.message)}</span></div>` : ""}
         ${ouvertCommercial ? `<p class="muted">Choisissez jusqu'à <b>${esc(etat.nb_choix)}</b> sujet${etat.nb_choix > 1 ? "s" : ""} que vous avez envie d'appeler cet après-midi. Vous pouvez changer d'avis jusqu'à la clôture.${voir ? "" : " Les résultats s'affichent une fois votre vote enregistré."}</p>` : ""}
         ${resultatHtml()}
       </div>
@@ -133,7 +136,7 @@
           <textarea id="voteCommentaire" rows="2" maxlength="500" placeholder="Pourquoi ces sujets, un retour de vos clients…">${esc(commentaire)}</textarea></label>
         <div class="cmd-row">
           <button id="voteValider" class="btn btn--primary" ${choix.size ? "" : "disabled"}>${etat.a_vote ? "Mettre à jour mon vote" : "Valider mon vote"} (${choix.size}/${esc(etat.nb_choix)})</button>
-          <span id="voteMsg" class="muted">${etat.a_vote && !modifie ? "✔︎ Vote enregistré, modifiable jusqu'à la clôture." : modifie ? "Choix non enregistré." : ""}</span>
+          <span id="voteMsg" class="muted" style="margin:0">${etat.a_vote && !modifie ? "Vote enregistré, modifiable jusqu'à la clôture." : modifie ? "Choix non enregistré." : ""}</span>
         </div></div>` : ""}
       ${etat.responsable ? `<div class="cmd-card"><h3>Commentaires de l'équipe</h3>
         ${(etat.votants || []).filter(v => v.commentaire).length ? `<ul class="cmd-hist">${etat.votants.filter(v => v.commentaire).map(v => `<li><b>${esc(C().prenomDe(v.commercial_id))}</b> : ${esc(v.commentaire)}</li>`).join("")}</ul>` : `<p class="muted">Aucun commentaire pour le moment.</p>`}
@@ -160,7 +163,7 @@
       modifie = false;
       choix = new Set(etat.mes_choix || []);
       commentaire = etat.mon_commentaire || "";
-      C().toast(premierVote ? "Vote enregistré, merci ! Les résultats s'affichent." : "Vote mis à jour");
+      C().toast(premierVote ? "Vote enregistré, merci. Les résultats s'affichent." : "Vote mis à jour");
     } catch (e) { C().toast(C().erreur(e)); }
     dessiner(); signaler();
   }
@@ -179,7 +182,7 @@
       await charger(); dessiner(); signaler();
     }, 20000);
   }
-  C().registerTab({ id: "vote", label: "🗳️ Vote", render, onShow: show });
+  C().registerTab({ id: "vote", label: "Vote", icone: "vote", render, onShow: show });
 
   // Au démarrage puis toutes les 2 minutes : pastille sur le bouton Commando.
   let timer = null;

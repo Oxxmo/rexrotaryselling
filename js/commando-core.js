@@ -63,8 +63,20 @@
   function fmtDateTime(s) { if (!s) return "—"; try { return new Date(s).toLocaleString("fr-FR", { timeZone: "Europe/Paris", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch (e) { return "—"; } }
   function fmtSemaine(s) {
     const l = lundiDe(s); if (!l) return s || "—";
-    return `${s} · lundi ${l.toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" })}`;
+    return `Semaine ${Number(s.slice(-2))}, lundi ${l.toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" })}`;
   }
+  // « Semaine 46 » et « du 9 au 13 nov. » (lundi à vendredi), pour les en-têtes.
+  function numSemaine(s) { const m = /W(\d{2})$/.exec(s || ""); return m ? Number(m[1]) : null; }
+  function periodeSemaine(s) {
+    const l = lundiDe(s); if (!l) return "";
+    const v = new Date(l); v.setUTCDate(l.getUTCDate() + 4);
+    const f = (d, o) => d.toLocaleDateString("fr-FR", Object.assign({ timeZone: "UTC" }, o));
+    return l.getUTCMonth() === v.getUTCMonth()
+      ? `du ${f(l, { day: "numeric" })} au ${f(v, { day: "numeric", month: "short" })}`
+      : `du ${f(l, { day: "numeric", month: "short" })} au ${f(v, { day: "numeric", month: "short" })}`;
+  }
+  // Icône Lucide (js/commando-icones.js) ; rien si le module manque.
+  function ic(nom, cls) { return window.RexIcones ? window.RexIcones.ic(nom, cls) : ""; }
 
   /* ---------- Accès aux données ---------- */
   async function rpc(name, args) {
@@ -89,28 +101,32 @@
   function erreur(e) { return (e && e.message) ? e.message : String(e); }
 
   /* ---------- Navigation ---------- */
+  // Un onglet : { id, label, icone, roles, groupe, render(el), onShow(el) }.
+  // Un module peut masquer son onglet (setVisible) ou y mettre une pastille (setPastille).
   function registerTab(tab) {
-    tabs.push(Object.assign({ roles: ["responsable", "commercial"], rendered: false }, tab));
+    tabs.push(Object.assign({ roles: ["responsable", "commercial"], rendered: false, masque: false, pastille: "" }, tab));
   }
   function visibleTabs() {
     if (!membre) return [];
-    return tabs.filter(t => t.roles.includes(membre.role));
+    return tabs.filter(t => t.roles.includes(membre.role) && !t.masque);
   }
   // Les onglets d'administration (groupe « reglages ») sont rangés sous un
-  // seul onglet « ⚙️ Réglages », avec une seconde rangée quand on y est.
-  const GROUPES = { reglages: "⚙️ Réglages" };
+  // seul onglet « Réglages », avec une seconde rangée quand on y est.
+  const GROUPES = { reglages: { label: "Réglages", icone: "settings" } };
   function renderNav() {
     const nav = $("#cmdTabs"); if (!nav) return;
     const vis = visibleTabs();
     const actif = vis.find(t => t.id === activeId);
     const groupeActif = actif && actif.groupe;
-    const btn = (t) => `<button class="tab ${t.id === activeId ? "tab--active" : ""}" data-cmd-tab="${esc(t.id)}">${esc(t.label)}</button>`;
+    const contenu = (t) => `${t.icone ? ic(t.icone) : ""}<span>${esc(t.label)}</span>${t.pastille ? `<span class="cmd-tab__pastille">${esc(t.pastille)}</span>` : ""}`;
+    const btn = (t) => `<button class="tab ${t.id === activeId ? "tab--active" : ""}" data-cmd-tab="${esc(t.id)}" ${t.id === activeId ? 'aria-current="page"' : ""}>${contenu(t)}</button>`;
     const principaux = vis.filter(t => !t.groupe).map(btn);
     Object.keys(GROUPES).forEach(g => {
       const membres = vis.filter(t => t.groupe === g);
-      if (membres.length) principaux.push(`<button class="tab ${groupeActif === g ? "tab--active" : ""}" data-cmd-tab="${esc(membres[0].id)}">${esc(GROUPES[g])}</button>`);
+      if (membres.length) principaux.push(`<button class="tab ${groupeActif === g ? "tab--active" : ""}" data-cmd-tab="${esc(membres[0].id)}">${contenu(GROUPES[g])}</button>`);
     });
-    const sous = groupeActif ? `<div class="cmd__subtabs">${vis.filter(t => t.groupe === groupeActif).map(btn).join("")}</div>` : "";
+    const sousBtn = (t) => `<button class="tab ${t.id === activeId ? "tab--active" : ""}" data-cmd-tab="${esc(t.id)}">${esc(t.label)}</button>`;
+    const sous = groupeActif ? `<div class="cmd__subtabs">${vis.filter(t => t.groupe === groupeActif).map(sousBtn).join("")}</div>` : "";
     nav.innerHTML = `<div class="cmd__tabs-row">${principaux.join("")}</div>${sous}`;
     $$("[data-cmd-tab]", nav).forEach(b => b.addEventListener("click", () => show(b.dataset.cmdTab)));
   }
@@ -138,14 +154,24 @@
   function open(id) {
     document.body.classList.add("cmd-mode");
     const v = $("#commandoView"); if (v) v.hidden = false;
-    const sem = $("#cmdSemaine"); if (sem) sem.textContent = "Semaine " + semaineCible();
+    const sem = $("#cmdSemaine"); if (sem) { const c = semaineCible(); sem.textContent = `Semaine ${numSemaine(c)}, ${periodeSemaine(c)}`; }
     window.scrollTo({ top: 0 });
     show(id || ongletPrefere || activeId || (visibleTabs()[0] || {}).id);
   }
-  // Libellé d'onglet dynamique (pastille « à faire ») et onglet préféré à l'ouverture.
+  // Libellé, pastille et visibilité d'un onglet ; onglet préféré à l'ouverture.
   function setLabel(id, label) {
     const t = tabs.find(x => x.id === id); if (!t || t.label === label) return;
     t.label = label; renderNav();
+  }
+  function setPastille(id, txt) {
+    const t = tabs.find(x => x.id === id); if (!t || t.pastille === (txt || "")) return;
+    t.pastille = txt || ""; renderNav();
+  }
+  function setVisible(id, visible) {
+    const t = tabs.find(x => x.id === id); if (!t || t.masque === !visible) return;
+    t.masque = !visible;
+    if (!visible && activeId === id && document.body.classList.contains("cmd-mode")) { show((visibleTabs()[0] || {}).id); return; }
+    renderNav();
   }
   function preferer(id) { ongletPrefere = id || null; }
   function apresBoot(fnc) { bootHooks.push(fnc); if (membre) { try { fnc(); } catch (e) { /* module facultatif */ } } }
@@ -158,7 +184,7 @@
   function wire() {
     if (wired) return; wired = true;
     const b = $("#btnCommando"); if (b) b.addEventListener("click", () => open());
-    const back = $("#cmdBack"); if (back) back.addEventListener("click", close);
+    const back = $("#cmdBack"); if (back) { back.innerHTML = ic("arrow-left") + "<span>Livret</span>"; back.addEventListener("click", close); }
   }
 
   /* ---------- Démarrage (appelé par app.js après connexion) ---------- */
@@ -191,8 +217,8 @@
   }
 
   window.RexCommando = {
-    registerTab, onBoot, open, close, show, rpc, fn, sb, toast, esc, gras, erreur, setLabel, preferer, apresBoot,
-    semaineIso, semaineCible, lundiDe, fmtDate, fmtDateTime, fmtSemaine, nomDe, prenomDe,
+    registerTab, onBoot, open, close, show, rpc, fn, sb, toast, esc, gras, erreur, setLabel, setPastille, setVisible, preferer, apresBoot,
+    semaineIso, semaineCible, lundiDe, fmtDate, fmtDateTime, fmtSemaine, numSemaine, periodeSemaine, nomDe, prenomDe, ic,
     role() { return membre ? membre.role : null; },
     isResponsable() { return !!membre && membre.role === "responsable"; },
     me() { return window.RexDB.me(); },

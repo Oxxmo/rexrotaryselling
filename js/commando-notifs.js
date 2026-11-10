@@ -74,26 +74,28 @@
   }
 
   function html(e) {
-    const esc = C().esc;
+    const esc = C().esc, ic = C().ic;
     if (e === "actif") {
       return `<div class="cmd-notifs cmd-notifs--ok">
-          <span>🔔 Notifications activées sur cet appareil</span>
+          <span>${ic("bell")}Notifications activées sur cet appareil</span>
           <span class="cmd-notifs__act"><button class="btn btn--ghost btn--sm" data-notif="tester">Tester</button><button class="btn btn--ghost btn--sm" data-notif="couper">Désactiver</button></span>
         </div>`;
     }
     if (plusTard()) return "";
     if (e === "inactif") {
       return `<div class="cmd-notifs">
-          <div class="cmd-notifs__titre">🔔 Soyez prévenu en direct</div>
-          <div class="cmd-notifs__liste">🎉 les RDV de l'équipe · 🗳️ l'ouverture du vote · 📋 vos listes prêtes · ⏰ le début du commando</div>
+          <span class="cmd-notifs__ico">${ic("bell")}</span>
+          <div class="cmd-notifs__titre">Soyez prévenu en direct</div>
+          <div class="cmd-notifs__liste">Les RDV de l'équipe, l'ouverture du vote, vos listes prêtes et le début du commando, sur votre téléphone.</div>
           <div class="cmd-notifs__act"><button class="btn btn--primary btn--sm" data-notif="activer">Activer les notifications</button><button class="btn btn--ghost btn--sm" data-notif="tard">Plus tard</button></div>
         </div>`;
     }
     if (e === "ios") {
       return `<div class="cmd-notifs">
-          <div class="cmd-notifs__titre">🔔 Notifications sur iPhone</div>
+          <span class="cmd-notifs__ico">${ic("bell")}</span>
+          <div class="cmd-notifs__titre">Notifications sur iPhone</div>
           <ol class="cmd-notifs__etapes">
-            <li>Dans Safari, touchez <b>Partager</b> <span aria-hidden="true">⬆️</span> puis <b>Sur l'écran d'accueil</b>.</li>
+            <li>Dans Safari, touchez <b>Partager</b> puis <b>Sur l'écran d'accueil</b>.</li>
             <li>Ouvrez Rex Seller <b>depuis l'icône</b> et revenez ici.</li>
             <li>Touchez <b>Activer les notifications</b>.</li>
           </ol>
@@ -102,7 +104,7 @@
     }
     if (e === "bloque") {
       return `<div class="cmd-notifs cmd-notifs--off">
-          <span>🔕 Notifications bloquées : autorisez-les pour ${esc(location.host)} dans les réglages du téléphone ou du navigateur.</span>
+          <span>${ic("bell-off")}Notifications bloquées : autorisez-les pour ${esc(location.host)} dans les réglages du téléphone ou du navigateur.</span>
           <span class="cmd-notifs__act"><button class="btn btn--ghost btn--sm" data-notif="tard">OK</button></span>
         </div>`;
     }
@@ -144,7 +146,7 @@
         const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: octets(cle) });
         await enregistrer(sub);
         resynchro = true;
-        C().toast("🔔 Notifications activées");
+        C().toast("Notifications activées");
         C().fn("commando-notifier", { action: "test" }).catch(() => { /* l'essai est facultatif */ });
       } else if (action === "tester") {
         const r = await C().fn("commando-notifier", { action: "test" });
@@ -155,7 +157,7 @@
           await C().rpc("commando_push_desabonner", { _endpoint: sub.endpoint }).catch(() => {});
           await sub.unsubscribe().catch(() => {});
         }
-        C().toast("🔕 Notifications désactivées sur cet appareil");
+        C().toast("Notifications désactivées sur cet appareil");
       } else if (action === "tard") {
         masquer(7);
       }

@@ -134,7 +134,7 @@
     $("#cpBody", el).innerHTML = rows.map(c => `<tr data-cp="${esc(c.code_postal)}">
       <td style="width:110px"><b>${esc(c.code_postal)}</b></td><td>${esc(c.ville)}</td>
       <td style="width:220px"><select data-f="secteur_code">${optionsSecteurs(c.secteur_code)}</select></td>
-      <td style="width:60px"><button class="btn btn--danger btn--sm" data-del title="Retirer de la liste">✕</button></td></tr>`).join("");
+      <td style="width:60px"><button class="btn btn--danger btn--sm" data-del title="Retirer de la liste" aria-label="Retirer de la liste">${C().ic("x")}</button></td></tr>`).join("");
     $$("#cpBody tr", el).forEach(tr => {
       $("select", tr).addEventListener("change", async (e) => {
         const { error } = await sb().from("commando_codes_postaux").update({ secteur_code: e.target.value }).eq("code_postal", tr.dataset.cp);
@@ -233,7 +233,7 @@
     const dejà = new Set(membres.map(m => m.user_id));
     const candidats = (window.RexDB.profiles() || []).filter(p => !dejà.has(p.id)).sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
     $("#membNew", el).innerHTML = `<option value="">— Choisir une personne —</option>` + candidats.map(p =>
-      `<option value="${p.id}">${esc(p.full_name || p.email)}${p.agence ? " · " + esc(p.agence) : ""}</option>`).join("");
+      `<option value="${p.id}">${esc(p.full_name || p.email)}${p.agence ? ", " + esc(p.agence) : ""}</option>`).join("");
   }
 
   /* ============================================================
@@ -246,26 +246,26 @@
         <p class="muted">Le job automatique tourne chaque dimanche soir. Vous pouvez aussi lancer un import à la main. Relancer un import ne crée jamais de doublon ; les établissements disparus sont archivés, jamais supprimés.</p>
         <div id="impMsg"></div>
         <div class="cmd-row">
-          <button id="impTest" class="btn btn--sm">🔎 Tester sur 86000 (sans écriture)</button>
+          <button id="impTest" class="btn btn--sm">${C().ic("search")}Tester sur 86000 (sans écriture)</button>
           <button id="imp86000" class="btn btn--sm">Importer 86000 seulement</button>
-          <button id="impFull" class="btn btn--primary btn--sm">⬇️ Lancer l'import complet (tous les codes postaux)</button>
+          <button id="impFull" class="btn btn--primary btn--sm">${C().ic("refresh-cw")}Lancer l'import complet (tous les codes postaux)</button>
           <button id="impRefresh" class="btn btn--ghost btn--sm">↻ Actualiser</button>
         </div>
         <div id="impRapport" class="import-detail"></div>
       </div>
       <div class="cmd-card">
-        <h3>☎︎ Téléphones (OpenStreetMap, gratuit)</h3>
+        <h3>${C().ic("phone")}Téléphones (OpenStreetMap, gratuit)</h3>
         <p class="muted">La base Sirene ne contient aucun numéro. On récupère une fois par semaine tous les lieux de la Vienne qui portent un téléphone dans OpenStreetMap (mise à jour automatique le lundi à 3 h, ou à la demande), puis on les rapproche de nos entreprises par nom et numéro de voie. Seules les fiches sans téléphone saisi sont remplies. Données © les contributeurs OpenStreetMap.</p>
         <p id="telEtat" class="muted"></p>
         <div class="cmd-row">
           <button id="telMaj" class="btn btn--ghost btn--sm" title="Une requête vers OpenStreetMap (serveurs publics, parfois saturés)">↻ Mettre à jour les lieux OpenStreetMap</button>
-          <button id="telTest" class="btn btn--sm">🔎 Rapprocher 86000</button>
-          <button id="telFull" class="btn btn--primary btn--sm">☎︎ Rapprocher les 51 codes postaux</button>
+          <button id="telTest" class="btn btn--sm">${C().ic("search")}Rapprocher 86000</button>
+          <button id="telFull" class="btn btn--primary btn--sm">${C().ic("phone")}Rapprocher les 51 codes postaux</button>
         </div>
         <div id="telMsg"></div>
       </div>
       <div class="cmd-card">
-        <h3>📚 Annuaires publics (gratuits)</h3>
+        <h3>${C().ic("inbox")}Annuaires publics (gratuits)</h3>
         <p class="muted">Chaque lundi à 3 h 30, l'outil interroge trois sources officielles : l'annuaire RGE de l'ADEME et le fichier FINESS (numéros de téléphone d'artisans du bâtiment et d'établissements de santé), et le BODACC (changement de dirigeant, déménagement, rachat… et entreprises en redressement, en liquidation ou dissoutes, retirées des listes). Un numéro déjà connu n'est jamais remplacé.</p>
         <div id="srcEtat" class="muted"></div>
         <div class="cmd-row"><button id="srcMaj" class="btn btn--sm">↻ Mettre à jour maintenant</button><button id="srcRefresh" class="btn btn--ghost btn--sm">Actualiser</button></div>
@@ -346,7 +346,7 @@
   function rapportHtml(imp) {
     const c = imp.compteurs || {}; const t = c.total || {};
     const card = (v, l) => `<div class="pilot-card"><div class="pilot-card__val">${v}</div><div class="pilot-card__lbl">${esc(l)}</div></div>`;
-    const excl = Object.entries(t.exclues || {}).map(([k, v]) => `${EXCLUSIONS[k] || k} : <b>${v}</b>`).join(" · ") || "aucune";
+    const excl = Object.entries(t.exclues || {}).map(([k, v]) => `${EXCLUSIONS[k] || k} : <b>${v}</b>`).join(", ") || "aucune";
     const sect = Object.entries(c.par_secteur || {}).map(([code, s]) =>
       `<tr><td><b>${esc(code)}</b></td><td class="num">${n(s.vues)}</td><td class="num">${n(s.importees)}</td><td class="num">${n(s.ajoutees)}</td><td class="num">${n(s.reactivees)}</td><td class="num">${n(s.mises_a_jour)}</td><td class="num">${n(s.archivees)}</td><td class="num">${n(s.clients)}</td><td class="num">${n(s.effectif_non_renseigne)}</td><td>${esc(Object.entries(s.exclues || {}).map(([k, v]) => `${EXCLUSIONS[k] || k} ${v}`).join(", "))}</td></tr>`).join("");
     const anomalies = (imp.anomalies || []).length
@@ -381,9 +381,9 @@
     try { e = await C().rpc("commando_sources_etat"); } catch (err) { box.textContent = ""; return; }
     const tel = e.telephones || {};
     const ev = Object.entries(e.evenements || {}).filter(([k]) => !["procedure", "fermeture", "autre"].includes(k));
-    box.innerHTML = `<p>Numéros connus : ${["osm", "rge", "finess", "manuel"].map(k => `${{ osm: "OpenStreetMap", rge: "RGE", finess: "FINESS", manuel: "saisis par l'équipe" }[k]} <b>${n(tel[k])}</b>`).join(" · ")}</p>
-      <p>Actualités BODACC des 90 derniers jours : ${ev.length ? ev.map(([k, v]) => `${esc(EV_NOM[k] || k)} <b>${n(v)}</b>`).join(" · ") : "aucune"} · entreprises retirées des listes (procédure collective ou dissolution) : <b>${n(e.exclues)}</b></p>
-      ${(e.requetes || []).length ? `<ul>${e.requetes.slice(0, 3).map(q => `<li>${esc(SRC_NOM[q.source] || q.source)} · ${esc(C().fmtDateTime(q.demande_le))} : ${esc(resumeSource(q))}</li>`).join("")}</ul>` : ""}`;
+    box.innerHTML = `<p>Numéros connus : ${["osm", "rge", "finess", "manuel"].map(k => `${{ osm: "OpenStreetMap", rge: "RGE", finess: "FINESS", manuel: "saisis par l'équipe" }[k]} <b>${n(tel[k])}</b>`).join(", ")}</p>
+      <p>Actualités BODACC des 90 derniers jours : ${ev.length ? ev.map(([k, v]) => `${esc(EV_NOM[k] || k)} <b>${n(v)}</b>`).join(", ") : "aucune"}. Entreprises retirées des listes (procédure collective ou dissolution) : <b>${n(e.exclues)}</b></p>
+      ${(e.requetes || []).length ? `<ul>${e.requetes.slice(0, 3).map(q => `<li>${esc(SRC_NOM[q.source] || q.source)}, ${esc(C().fmtDateTime(q.demande_le))} : ${esc(resumeSource(q))}</li>`).join("")}</ul>` : ""}`;
   }
   async function majSources(el) {
     const msg = $("#srcMsg", el), btn = $("#srcMaj", el);
@@ -406,7 +406,7 @@
     try {
       const r = await C().fn("commando-telephones", { rafraichir: true });
       const x = r.rafraichi || {};
-      msg.innerHTML = `<div class="cmd-note">✔︎ ${n(x.lieux)} lieux avec téléphone trouvés dans la Vienne, ${n(x.avec_code_postal)} avec un code postal (utilisables). Lancez maintenant le rapprochement.</div>`;
+      msg.innerHTML = `<div class="cmd-ok">${n(x.lieux)} lieux avec téléphone trouvés dans la Vienne, ${n(x.avec_code_postal)} avec un code postal (utilisables). Lancez maintenant le rapprochement.</div>`;
     } catch (e) { msg.innerHTML = `<div class="cmd-err">${esc(C().erreur(e))}</div>`; }
     btn.disabled = false;
     etatTelephones(el);
@@ -431,7 +431,7 @@
       } catch (e) { erreurs.push(cps.join(", ") + " : " + C().erreur(e)); if (/cache|mise à jour/i.test(C().erreur(e))) break; }
     }
     if (restants.length) erreurs.push(restants.join(", ") + " : non traités, à relancer");
-    msg.innerHTML = `<div class="cmd-note">✔︎ ${trouves} téléphone${trouves > 1 ? "s" : ""} ajouté${trouves > 1 ? "s" : ""} (${lieux} lieux OpenStreetMap avec téléphone comparés sur ${codes.length} code${codes.length > 1 ? "s" : ""} postal${codes.length > 1 ? "aux" : ""}).${erreurs.length ? `<br>Erreurs : ${esc(erreurs.join(" · "))}` : ""}</div>`;
+    msg.innerHTML = `<div class="cmd-ok">${trouves} téléphone${trouves > 1 ? "s" : ""} ajouté${trouves > 1 ? "s" : ""} (${lieux} lieux OpenStreetMap avec téléphone comparés sur ${codes.length} code${codes.length > 1 ? "s" : ""} postal${codes.length > 1 ? "aux" : ""}).${erreurs.length ? `<br>Erreurs : ${esc(erreurs.join(" · "))}` : ""}</div>`;
   }
   async function showImports(el) {
     if (!el.dataset.telWired) {
@@ -458,7 +458,7 @@
       return `<div class="import-line" data-id="${i.id}">
         <span class="import-line__when">${esc(C().fmtDateTime(i.lance_le))}</span>
         ${badge}<span class="cmd-badge">${i.declencheur === "cron" ? "automatique" : "manuel"}</span>${i.dry_run ? `<span class="cmd-badge cmd-badge--warn">test</span>` : ""}
-        <span class="import-line__sum">${(i.codes_postaux || []).length} CP · vus ${n(t.vues)} · ajoutés ${n(t.ajoutees)} · archivés ${n(t.archivees)}${i.erreur ? " · " + esc(i.erreur) : ""}</span>
+        <span class="import-line__sum">${(i.codes_postaux || []).length} codes postaux, ${n(t.vues)} vus, ${n(t.ajoutees)} ajoutés, ${n(t.archivees)} archivés${i.erreur ? ". " + esc(i.erreur) : ""}</span>
         <button class="btn btn--ghost btn--sm" data-detail>Détail</button>
       </div><div class="import-detail" data-detail-for="${i.id}" hidden></div>`;
     }).join("");
@@ -528,7 +528,7 @@
         <label class="wide">Fiche Rex-Rotary validée (offres, services, offre d'entrée) <span id="ficheEtat" class="muted"></span><textarea name="fiche_rex" rows="10" placeholder="Rédigée par la veille au premier lancement, puis corrigée et validée ici."></textarea></label>
         <div class="wide cmd-row">
           <button type="submit" class="btn btn--primary">Enregistrer les paramètres</button>
-          <button type="button" id="ficheValider" class="btn">✔︎ Valider la fiche Rex telle qu'affichée</button>
+          <button type="button" id="ficheValider" class="btn">${C().ic("check")}Valider la fiche Rex telle qu'affichée</button>
         </div>
       </form>
     </div>`;
@@ -606,9 +606,9 @@
 
   /* ---------- Enregistrement des onglets (responsable) ---------- */
   const R = ["responsable"];
-  C().registerTab({ groupe: "reglages", id: "base", label: "📚 Base", roles: R, render: renderBase, onShow: showBase });
-  C().registerTab({ groupe: "reglages", id: "secteurs", label: "🗺️ Secteurs", roles: R, render: renderSecteurs, onShow: showSecteurs });
-  C().registerTab({ groupe: "reglages", id: "membres", label: "👥 Membres", roles: R, render: renderMembres, onShow: showMembres });
-  C().registerTab({ groupe: "reglages", id: "imports", label: "⬇️ Imports", roles: R, render: renderImports, onShow: showImports });
-  C().registerTab({ groupe: "reglages", id: "parametres", label: "⚙️ Paramètres", roles: R, render: renderParametres, onShow: showParametres });
+  C().registerTab({ groupe: "reglages", id: "base", label: "Base", roles: R, render: renderBase, onShow: showBase });
+  C().registerTab({ groupe: "reglages", id: "secteurs", label: "Secteurs", roles: R, render: renderSecteurs, onShow: showSecteurs });
+  C().registerTab({ groupe: "reglages", id: "membres", label: "Membres", roles: R, render: renderMembres, onShow: showMembres });
+  C().registerTab({ groupe: "reglages", id: "imports", label: "Imports", roles: R, render: renderImports, onShow: showImports });
+  C().registerTab({ groupe: "reglages", id: "parametres", label: "Paramètres", roles: R, render: renderParametres, onShow: showParametres });
 })();
