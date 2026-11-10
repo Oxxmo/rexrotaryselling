@@ -1434,6 +1434,7 @@ Soit je suis en mesure de le faire seul, soit nous passerons par un audit réali
     if (window.RexTickets && window.RexTickets.onBoot) window.RexTickets.onBoot();
     if (window.RexPilotage && window.RexPilotage.onBoot) window.RexPilotage.onBoot();
     if (window.RexCommando && window.RexCommando.onBoot) window.RexCommando.onBoot();
+    if (window.RexFdr && window.RexFdr.onBoot) window.RexFdr.onBoot();
     // Resynchronise les saisies hors-ligne éventuelles dès qu'on est en ligne.
     if (navigator.onLine) window.RexOffline.flush().then(updateSyncIndicator);
     // Message « Nouveautés » après une mise à jour (une fois par appareil).
