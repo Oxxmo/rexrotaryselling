@@ -154,8 +154,8 @@ js/data.js               Structure du livret + critères de l'affaire
 js/app.js                Logique (saisie, sauvegarde en base, synthèses)
 supabase/schema.sql      Schéma de la base + règles de visibilité hiérarchique
 supabase/functions/      Edge Functions : manage-users, commando-import, commando-veille
-supabase/migrations/     Migrations Rex Commando
-supabase/tests/          Tests SQL (accès, moteur de couleurs)
+supabase/migrations/     Migrations Rex Commando (commando_*) et Feuille de route (fdr_*)
+supabase/tests/          Tests SQL (accès, moteur de couleurs, droits de la feuille de route)
 manifest.webmanifest     Manifeste PWA (installation)
 sw.js                    Service worker (cache de l'app ; données toujours en ligne)
 assets/icon.svg          Icône
