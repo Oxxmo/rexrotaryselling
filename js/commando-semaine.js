@@ -86,7 +86,9 @@
   }
 
   /* ---------- Cockpit : la semaine en 5 étapes + pilote automatique ---------- */
-  const PILOTE_DEFAUT = { actif: false, jour: 1, heure_veille: "07:00", cloture_vote: "13:30", nb_choix: 3, auto_publier: true };
+  const PILOTE_DEFAUT = { actif: false, jour: 1, heure_veille: "07:00", cloture_vote: "13:30", nb_choix: 3, nb_sujets: 6, auto_publier: true };
+  const NB_SUJETS = [4, 5, 6, 8, 10, 12];
+  let nbVeille = null;   // nombre de sujets choisi pour la prochaine veille manuelle
   const heureTxt = (h) => String(h || "").replace(":", "h");
   const pilote = () => Object.assign({}, PILOTE_DEFAUT, (parametres || {}).pilote || {});
   async function rendreCockpit(el) {
@@ -112,7 +114,7 @@
     const etapes = [];
     // ① Veille
     if (gen && gen.statut === "en_cours") etapes.push({ titre: "Veille", etat: "encours", txt: `En cours, étape ${(gen.etat && gen.etat.etape) || 1} sur ${(gen.etat && gen.etat.total) || 6}` });
-    else if (gen && gen.statut === "erreur" && !nbSujets) etapes.push({ titre: "Veille", etat: "alerte", txt: "Erreur : relancez-la ci-dessous" });
+    else if (gen && gen.statut === "erreur" && !nbSujets) etapes.push({ titre: "Veille", etat: "alerte", txt: pil.actif && generations.filter(g => g.type === "veille" && g.statut === "erreur").length < 3 ? "Échec : le pilote la relance dans 10 minutes" : "Erreur : relancez-la ci-dessous" });
     else if (nbSujets) etapes.push({ titre: "Veille", etat: "fait", txt: `${nbSujets} sujet${nbSujets > 1 ? "s" : ""} proposé${nbSujets > 1 ? "s" : ""}` });
     else etapes.push({ titre: "Veille", etat: pil.actif ? "auto" : "afaire", txt: pil.actif ? `Automatique lundi à ${heureTxt(pil.heure_veille)}` : "À lancer" });
     // ② Vote
@@ -138,18 +140,19 @@
       else if (pil.actif && nbSujets >= 4 && !nbRetenues) action = "Le vote va s'ouvrir tout seul dans quelques minutes. Écartez d'abord les sujets qui ne vous plaisent pas si besoin.";
       else action = `Retenez 3 sujets (${nbRetenues} sur 3) puis publiez, ou ouvrez un vote.`;
     } else action = appels ? "La semaine est lancée. Suivez la ligue et validez les RDV honorés quand ils ont eu lieu." : "Tout est prêt : les commerciaux ont leurs listes.";
-    const JOURNAL = { veille_lancee: "Veille lancée automatiquement", vote_ouvert: "Vote ouvert automatiquement", veille_impossible: "Veille automatique impossible", vote_impossible: "Vote automatique impossible" };
+    const JOURNAL = { veille_lancee: "Veille lancée automatiquement", veille_relancee: "Veille relancée automatiquement après un échec", vote_ouvert: "Vote ouvert automatiquement", veille_impossible: "Veille automatique impossible", vote_impossible: "Vote automatique impossible" };
     const dernier = journal.find(j => j.semaine === semaine.semaine);
     box.innerHTML = `<div class="cmd-card cmd-cockpit">
       <ol class="cmd-etapes">${etapes.map((e, i) => `<li class="cmd-etape cmd-etape--${e.etat}"><span class="cmd-etape__num">${e.etat === "fait" ? ic("check") : i + 1}</span><div><b>${esc(e.titre)}</b><small>${esc(e.txt)}</small></div></li>`).join("")}</ol>
       <div class="cmd-cockpit__action">${ic("arrow-up-right")}<span><b>Maintenant :</b> ${esc(action)}</span></div>
       <div class="cmd-pilote ${pil.actif ? "cmd-pilote--on" : ""}">
         <label class="cmd-switch"><input type="checkbox" id="piloteActif" ${pil.actif ? "checked" : ""} /><span></span><b>${ic("bot")}Pilote automatique du lundi</b></label>
-        <p class="muted">${pil.actif ? `Veille à ${esc(heureTxt(pil.heure_veille))}, vote jusqu'à ${esc(heureTxt(pil.cloture_vote))}, les 3 sujets les plus votés retenus${pil.auto_publier ? " et publiés" : ""}. Vous gardez la main à tout moment.` : "Désactivé : vous lancez la veille, le vote et la publication à la main."}</p>
+        <p class="muted">${pil.actif ? `Veille à ${esc(heureTxt(pil.heure_veille))} (${esc(pil.nb_sujets)} sujets, relancée seule en cas d'échec), vote jusqu'à ${esc(heureTxt(pil.cloture_vote))}, les 3 sujets les plus votés retenus${pil.auto_publier ? " et publiés" : ""}. Vous gardez la main à tout moment.` : "Désactivé : vous lancez la veille, le vote et la publication à la main."}</p>
         <details class="cmd-pilote__det"><summary>Réglages du pilote</summary>
           <div class="cmd-row">
             <label>Veille à <input type="time" id="piloteVeille" value="${esc(pil.heure_veille)}" /></label>
             <label>Clôture du vote <input type="time" id="piloteCloture" value="${esc(pil.cloture_vote)}" /></label>
+            <label>Sujets proposés <select id="piloteSujets">${NB_SUJETS.map(n => `<option ${Number(pil.nb_sujets) === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
             <label>Choix par commercial <select id="piloteChoix">${[1, 2, 3].map(n => `<option ${Number(pil.nb_choix) === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
             <label class="cmd-check"><input type="checkbox" id="pilotePublier" ${pil.auto_publier ? "checked" : ""} /> Publier à la clôture</label>
             <button id="piloteSave" class="btn btn--sm">Enregistrer</button>
@@ -169,7 +172,7 @@
     $("#piloteActif", box).addEventListener("change", (e) => enregistrer({ actif: e.target.checked }));
     $("#piloteSave", box).addEventListener("click", () => enregistrer({
       heure_veille: $("#piloteVeille", box).value || "07:00", cloture_vote: $("#piloteCloture", box).value || "13:30",
-      nb_choix: Number($("#piloteChoix", box).value) || 3, auto_publier: $("#pilotePublier", box).checked
+      nb_choix: Number($("#piloteChoix", box).value) || 3, nb_sujets: Number($("#piloteSujets", box).value) || 6, auto_publier: $("#pilotePublier", box).checked
     }));
   }
 
@@ -384,7 +387,11 @@
     if (!semaine || consultation) { box.innerHTML = ""; return; }
     const publiee = semaine.statut === "publiee";
     const enCours = generations.find(g => g.statut === "en_cours");
-    const nbSemaine = generations.filter(g => g.type !== "fiche_rex").length;
+    const nbSemaine = generations.filter(g => g.type !== "fiche_rex" && g.statut !== "erreur").length;   // les veilles en erreur ne comptent pas
+    const dejaLa = thematiques.filter(t => t.statut !== "ecartee").length;
+    if (nbVeille == null) nbVeille = dejaLa ? 3 : Number(pilote().nb_sujets) || 6;
+    const choixNb = dejaLa ? [2, 3, 4, 5, 6, 8] : NB_SUJETS;
+    if (!choixNb.includes(nbVeille)) nbVeille = choixNb[1];
     const limite = Number((parametres || {}).limite_generations_semaine || 5);
     const fiche = parametres && parametres.fiche_rex && parametres.fiche_rex_validee_le;
     const ETAT = (g) => g.statut === "en_cours"
@@ -408,11 +415,12 @@
     } else {
       box.innerHTML = `<div class="cmd-card">
         <h3>${ic("radar")}Veille IA</h3>
-        <p class="muted">La veille cherche l'actualité des 14 derniers jours, la relie aux offres de la fiche Rex et propose 5 thématiques avec règles de ciblage et trames. Modèle : ${esc((parametres || {}).modele || "")}. Générations cette semaine : ${nbSemaine} sur ${limite}.</p>
+        <p class="muted">La veille cherche l'actualité des 14 derniers jours, la relie aux offres de la fiche Rex et propose le nombre de thématiques que vous choisissez, avec règles de ciblage et trames. Comptez environ 2 minutes par thématique. ${dejaLa ? `Les nouvelles s'ajoutent aux ${dejaLa} déjà proposées${voteActif() ? " et entrent dans le vote en cours" : ""}. ` : ""}Générations abouties cette semaine : ${nbSemaine} sur ${limite}.</p>
         ${fiche ? "" : `<div class="cmd-note">${ic("info")}<span>La fiche Rex-Rotary n'est pas encore validée. Lancez d'abord « Rédiger la fiche Rex » (recherche sur le site public), puis corrigez et validez la fiche dans Réglages, Paramètres. La veille hebdomadaire n'utilise que la fiche validée.</span></div>`}
         <div id="veilleMsg"></div>
         <div class="cmd-row">
-          <button id="veilleLancer" class="btn btn--primary" ${enCours || !fiche || nbSemaine >= limite ? "disabled" : ""}>${ic("radar")}Lancer la veille (5 propositions)</button>
+          <label class="cmd-check">Nombre de sujets <select id="veilleNb" class="cmd-sem">${choixNb.map(n => `<option ${n === nbVeille ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+          <button id="veilleLancer" class="btn btn--primary" ${enCours || !fiche || nbSemaine >= limite ? "disabled" : ""}>${ic("radar")}<span id="veilleLancerTxt">${dejaLa ? `Ajouter ${nbVeille} sujets` : `Lancer la veille (${nbVeille} sujets)`}</span></button>
         </div>
         <details class="cmd-plus"><summary>${ic("ellipsis")}Autres actions</summary>${outils}</details>
         ${historique}
@@ -433,7 +441,12 @@
       redigerMails(el, cibles);
     });
     const lancer = $("#veilleLancer", el);
-    if (lancer) lancer.addEventListener("click", () => lancerVeille(el, { type: "veille" }, "Veille lancée en 6 étapes (recherche, puis une thématique à la fois) : comptez 8 à 12 minutes. Les propositions apparaissent au fur et à mesure, la page se met à jour toute seule."));
+    const selNb = $("#veilleNb", el);
+    if (selNb) selNb.addEventListener("change", () => {
+      nbVeille = Number(selNb.value);
+      $("#veilleLancerTxt", el).textContent = dejaLa ? `Ajouter ${nbVeille} sujets` : `Lancer la veille (${nbVeille} sujets)`;
+    });
+    if (lancer) lancer.addEventListener("click", () => lancerVeille(el, { type: "veille", nb: nbVeille }, `Veille lancée pour ${nbVeille} sujets (recherche, puis une thématique à la fois) : comptez environ ${Math.round(nbVeille * 2 + 2)} minutes. Les propositions apparaissent au fur et à mesure, la page se met à jour toute seule.`));
     $("#veilleFiche", el).addEventListener("click", () => {
       if (!confirm("Rédiger un brouillon de fiche Rex-Rotary à partir du site public ? Vous le corrigerez ensuite dans Paramètres.")) return;
       lancerVeille(el, { type: "fiche_rex" }, "Rédaction du brouillon en cours (1 à 2 minutes).");

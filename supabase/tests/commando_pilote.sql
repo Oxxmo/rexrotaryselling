@@ -103,4 +103,31 @@ begin
 end $$;
 select pg_temp.redevenir_admin();
 
+-- Veille en erreur : le pilote la relance (3 essais au plus), avec le nombre de sujets réglé
+do $$
+declare r jsonb; v_sem uuid; g record; n int;
+begin
+  update public.commando_parametres set pilote = pilote || '{"actif": true, "nb_sujets": 8}', fiche_rex = 'Fiche', fiche_rex_validee_le = now() where id;
+  insert into public.commando_semaines (semaine) values ('2030-W40') returning id into v_sem;
+  r := public.commando_pilote_tick('2030-09-30 07:00:00 Europe/Paris');
+  assert r->>'action' = 'veille_lancee', 'T7 première veille : ' || r::text;
+  select * into g from public.commando_generations where semaine_id = v_sem;
+  assert (g.etat->>'attendu_total')::int = 8 and (g.etat->>'attendu')::int = 5 and (g.etat->>'total')::int = 10 and (g.etat->>'lots_max')::int = 3, 'T7 8 sujets en 2 lots : ' || g.etat::text;
+  update public.commando_generations set statut = 'erreur', erreur = 'Réponse tronquée' where semaine_id = v_sem;
+  r := public.commando_pilote_tick('2030-09-30 07:10:00 Europe/Paris');
+  assert r->>'action' = 'veille_relancee', 'T7 relance : ' || r::text;
+  update public.commando_generations set statut = 'erreur' where semaine_id = v_sem;
+  r := public.commando_pilote_tick('2030-09-30 07:20:00 Europe/Paris');
+  assert r->>'action' = 'veille_relancee', 'T7 troisième essai : ' || r::text;
+  update public.commando_generations set statut = 'erreur' where semaine_id = v_sem;
+  r := public.commando_pilote_tick('2030-09-30 07:30:00 Europe/Paris');
+  select count(*) into n from public.commando_generations where semaine_id = v_sem;
+  assert r->>'action' = 'aucune' and n = 3, 'T7 pas de quatrième essai : ' || r::text;
+  -- Les veilles en erreur ne comptent pas dans la limite hebdomadaire : le responsable peut relancer.
+  update public.commando_parametres set limite_generations_semaine = 2 where id;
+  assert public.commando_veille_lancer_nb(v_sem, '28f7068b-a34b-45a3-a566-96558a8bf6dd', 20) is not null, 'T7 relance manuelle';
+  assert (select (etat->>'attendu_total')::int from public.commando_generations where semaine_id = v_sem and statut = 'en_cours') = 12, 'T7 plafond de 12 sujets';
+  raise notice 'OK T7 : relance du pilote, nombre de sujets, limite';
+end $$;
+
 rollback;

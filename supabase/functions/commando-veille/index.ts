@@ -6,7 +6,8 @@
 //  les propositions de thématiques.
 //
 //  Types de génération (corps JSON : { semaine_id, type, thematique_id? }) :
-//    * "veille"       : 5 propositions pour la semaine ;
+//    * "veille"       : de 3 à 12 propositions pour la semaine (paramètre « nb », 5 par défaut),
+//                       cherchées par lots de 5 au plus, ajoutées à celles déjà présentes ;
 //    * "regeneration" : remplace une seule proposition (thematique_id) ;
 //    * "fiche_rex"    : brouillon de fiche Rex-Rotary depuis le site public ;
 //    * "resserrage"   : trames plus courtes d'une thématique (réponse immédiate).
@@ -51,7 +52,9 @@ const BOOT = Date.now();            // âge du processus : un processus réutili
 const AGE_MAX_MS = 15_000;          // au-delà, l'étape est différée (le cron la relancera sur un processus neuf)
 const BUDGET_ETAPE_MS = 115_000;    // durée maximale d'une étape (marge sous la limite de 150 s)
 const DELAI_RELANCE_S = 20;         // délai avant l'étape suivante : laisse l'ancien processus s'éteindre
-const MAX_TOKENS_RECHERCHE = 12_000;
+const MAX_TOKENS_RECHERCHE = 20_000;
+const LOT_MAX = 5;                  // thématiques cherchées par étape de recherche (au-delà : réponse trop longue)
+const NB_MIN = 3, NB_MAX = 12;      // nombre de thématiques demandées par veille
 const MAX_TOKENS_REDACTION = 10_000;
 const MAX_TOKENS_FICHE = 8_000;
 const MAX_TOURS = 4;                // reprises après « pause_turn »
@@ -141,7 +144,7 @@ Deno.serve(async (req: Request) => {
       texte += (msg.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
       if (msg.stop_reason === "pause_turn") { messages.push({ role: "assistant", content: msg.content }); continue; }
       if (msg.stop_reason === "refusal") throw new Error("Le modèle a refusé la demande (stop_reason refusal).");
-      if (msg.stop_reason === "max_tokens") throw new Error("Réponse tronquée (max_tokens).");
+      if (msg.stop_reason === "max_tokens") throw Object.assign(new Error("Réponse tronquée (max_tokens)."), { code: "tronque", usage });
       break;
     }
     return { texte, urls, usage, message: dernier };
@@ -209,16 +212,20 @@ Deno.serve(async (req: Request) => {
     const system = remplirPrompt(PROMPT_VEILLE, vars);
     const attendu: number = etat.attendu || 5;
     const tentative = Number(etat.tentatives || 0);
-    const maxUses = tentative === 0 ? 8 : 4;   // seconde tentative : moins de recherches, plus court
+    const maxUses = tentative === 0 ? Math.min(8, attendu + 3) : 4;   // nouvelle tentative : moins de recherches, plus court
     const fam = familles();
-    const anciens = (await dejaVues(semaine)).map(t => t.titre);
+    // Déjà vues : les semaines passées et tout ce qui est déjà proposé cette semaine (veilles précédentes, lots précédents).
+    const { data: cetteSemaine } = gen.type === "regeneration" ? { data: [] as any[] }
+      : await admin.from("commando_thematiques").select("titre").eq("semaine_id", semaine.id);
+    const anciens = (await dejaVues(semaine)).map(t => t.titre).concat((cetteSemaine || []).map((t: any) => t.titre));
     const consigneFamilles = (fam.privilegiees.length ? `Familles à privilégier : ${fam.texte_privilegiees} (au moins ${Math.min(attendu, Math.ceil(attendu * 0.6))} proposition(s) sur ${attendu} doivent s'y rattacher). ` : "")
       + (fam.exclues.length ? `Familles EXCLUES, aucune proposition ne doit s'y rattacher : ${fam.texte_exclues}. ` : "")
       + (anciens.length ? `Thématiques déjà vues (à ne pas reprendre, ni sous un autre titre) : ${anciens.map(t => "« " + t + " »").join(", ")}. ` : "");
     let consigne: string;
     const format = `Réponds uniquement par un objet JSON (sans texte autour) de la forme :
 {"propositions":[{"id":"identifiant-court","titre":"…","sujet":"résumé de l'actualité en 3 phrases","famille":"impression | ged | cyber | telephonie | informatique","offre_rex":"offre de la fiche Rex concernée","pourquoi_maintenant":"…","faits":[{"fait":"fait daté ou chiffre","url":"URL exacte issue de tes recherches","titre":"titre de la page","date":"AAAA-MM-JJ"}],"concurrence":{"constat":"ce que font les concurrents listés","angle_rex":"angle qui différencie Rex-Rotary","sources":[{"url":"…","titre":"…","date":"AAAA-MM-JJ"}]},"pistes_regles":"en une phrase : quels NAF, tranches, anciennetés cibler et pourquoi"}]}
-Chaque proposition doit contenir au moins 2 faits, chacun avec une URL réellement renvoyée par tes recherches. Pas d'URL inventée.`;
+Chaque proposition doit contenir 2 ou 3 faits, chacun avec une URL réellement renvoyée par tes recherches. Pas d'URL inventée.
+Sois concis : chaque champ tient en 1 à 3 phrases courtes${tentative > 0 ? " (la réponse précédente était trop longue : va à l'essentiel)" : ""}.`;
     if (gen.type === "regeneration") {
       consigne = `ÉTAPE 1 — RECHERCHE (${maxUses} recherches au plus). Ne rédige pas encore de trame. Trouve UNE nouvelle thématique d'actualité, différente de celles déjà proposées cette semaine : ${etat.autres_titres || "aucune"}. ${consigneFamilles}${format}\nLe tableau « propositions » contient exactement 1 élément.`;
     } else {
@@ -237,7 +244,7 @@ Chaque proposition doit contenir au moins 2 faits, chacun avec une URL réelleme
       r.urls.forEach(u => urls.add(u));
       brut = r.message;
       const obj = extraireJson(r.texte);
-      const v = obj === null ? { ok: false as const, erreurs: ["Aucun objet JSON trouvé dans la réponse."] } : validerPropositions(obj, attendu, attendu === 1 ? 1 : 3, { exclues: fam.exclues, anciens });
+      const v = obj === null ? { ok: false as const, erreurs: ["Aucun objet JSON trouvé dans la réponse."] } : validerPropositions(obj, attendu, Math.min(3, attendu), { exclues: fam.exclues, anciens });
       if (v.ok) { data = v.data; erreurs = []; break; }
       erreurs = v.erreurs;
       // Une seule correction, dans la même conversation, sans nouvelle recherche, si le temps le permet.
@@ -256,11 +263,11 @@ Chaque proposition doit contenir au moins 2 faits, chacun avec une URL réelleme
   async function etapeRedaction(gen: any, semaine: any, etat: any, budgetMs: number) {
     const vars = await contexte(semaine);
     const system = remplirPrompt(PROMPT_VEILLE, vars);
-    const i: number = (etat.ecrites || []).length + (etat.echecs || []).length;
+    const i: number = (etat.ecrites || []).length + (etat.echecs || []).length - Number(etat.avant_lot || 0);
     const prop: PropositionT = etat.propositions[i];
     if (!prop) throw new Error("Aucune proposition à rédiger.");
     const deja = (etat.ecrites || []).map((e: any) => "« " + e.titre + " »").join(", ") || "aucune";
-    const consigne = `ÉTAPE ${i + 2}/${etat.total} — RÉDACTION. Les recherches sont terminées (n'en fais pas d'autres). Voici les notes de veille de la thématique à rédiger, issues de l'étape 1 :
+    const consigne = `ÉTAPE ${etat.etape}/${etat.total} — RÉDACTION. Les recherches sont terminées (n'en fais pas d'autres). Voici les notes de veille de la thématique à rédiger, issues de l'étape 1 :
 ${JSON.stringify(prop)}
 
 Thématiques déjà rédigées cette semaine (ne pas les reprendre) : ${deja}.
@@ -374,11 +381,12 @@ ${FORMAT_THEMATIQUE}`;
         await admin.from("commando_generations").update({
           prompt_envoye: r.system + "\n\n=== Consigne utilisateur (étape 1) ===\n" + r.consigne,
         }).eq("id", genId);
-        const total = 1 + r.propositions.length;
+        const faites = (etat.ecrites || []).length + (etat.echecs || []).length;
+        const voulu = Number(etat.attendu_total || etat.attendu || r.propositions.length);
         await patchEtat({
-          phase: "redaction", etape: 2, total, propositions: r.propositions, urls: r.urls,
+          phase: "redaction", etape: Number(etat.etape || 1) + 1, propositions: r.propositions, avant_lot: faites, urls: r.urls,
           usage: cumulerUsage(etat.usage || {}, r.usage), tentatives: 0, en_vol: false,
-          relance_apres: dansSecondes(DELAI_RELANCE_S), libelle: `Rédaction de la thématique 1/${r.propositions.length} : ${r.propositions[0].titre}`,
+          relance_apres: dansSecondes(DELAI_RELANCE_S), libelle: `Rédaction de la thématique ${faites + 1}/${Math.max(voulu, faites + r.propositions.length)} : ${r.propositions[0].titre}`,
           duree_etapes_ms: [...(etat.duree_etapes_ms || []), Date.now() - debut], note: null,
         });
       } else if (etat.phase === "redaction") {
@@ -386,9 +394,21 @@ ${FORMAT_THEMATIQUE}`;
         const ecrites = r.ecrite ? [...(etat.ecrites || []), r.ecrite] : [...(etat.ecrites || [])];
         const echecs = r.echec ? [...(etat.echecs || []), r.echec] : [...(etat.echecs || [])];
         const traitees = ecrites.length + echecs.length;
+        const dansLot = traitees - Number(etat.avant_lot || 0);
         const usage = cumulerUsage(etat.usage || {}, r.usage);
         const durees = [...(etat.duree_etapes_ms || []), Date.now() - debut];
-        if (traitees >= (etat.propositions || []).length) {
+        const voulu = Number(etat.attendu_total || 0);
+        const lots = Number(etat.lots || 1);
+        if (dansLot >= (etat.propositions || []).length && gen.type === "veille" && ecrites.length < voulu && lots < Number(etat.lots_max || 1)) {
+          // Lot terminé, il manque des thématiques : nouvelle recherche pour le lot suivant.
+          const reste = Math.min(LOT_MAX, voulu - ecrites.length);
+          await patchEtat({
+            ecrites, echecs, usage, phase: "recherche", etape: Number(etat.etape || 1) + 1, attendu: reste, lots: lots + 1,
+            propositions: [], tentatives: 0, en_vol: false, relance_apres: dansSecondes(DELAI_RELANCE_S), duree_etapes_ms: durees,
+            note: r.echec ? "une thématique écartée (format invalide)" : null,
+            libelle: `Recherche de ${reste} autre${reste > 1 ? "s" : ""} thématique${reste > 1 ? "s" : ""} (${ecrites.length} sur ${voulu} rédigées)`,
+          });
+        } else if (dansLot >= (etat.propositions || []).length) {
           const bilan = echecs.length ? `${echecs.length} thématique(s) non rédigée(s) sur ${traitees} : ` + echecs.map((e: any) => e.raison).join(" ; ") : null;
           Object.assign(etat, { ecrites, echecs, usage, duree_etapes_ms: durees, libelle: "Terminée" });
           await finir({
@@ -400,11 +420,11 @@ ${FORMAT_THEMATIQUE}`;
             } },
           }, bilan, ecrites.length ? "terminee" : "erreur");
         } else {
-          const suivante = etat.propositions[traitees];
+          const suivante = etat.propositions[dansLot];
           await patchEtat({
-            ecrites, echecs, usage, etape: traitees + 2, tentatives: 0, en_vol: false,
+            ecrites, echecs, usage, etape: Number(etat.etape || 1) + 1, tentatives: 0, en_vol: false,
             relance_apres: dansSecondes(DELAI_RELANCE_S), duree_etapes_ms: durees, note: r.echec ? "une thématique écartée (format invalide)" : null,
-            libelle: `Rédaction de la thématique ${traitees + 1}/${etat.propositions.length} : ${suivante.titre}`,
+            libelle: `Rédaction de la thématique ${traitees + 1}/${Math.max(voulu, Number(etat.avant_lot || 0) + etat.propositions.length)} : ${suivante.titre}`,
           });
         }
       } else if (etat.phase === "fiche") {
@@ -419,9 +439,14 @@ ${FORMAT_THEMATIQUE}`;
       const message = e?.message || String(e);
       const usage = cumulerUsage(etat.usage || {}, e?.usage || {});
       const tentatives = Number(etat.tentatives || 0);
-      if (e?.code === "temps" && tentatives < 1) {
-        // Étape trop longue : une seule nouvelle tentative (recherche allégée).
-        await patchEtat({ usage, tentatives: tentatives + 1, en_vol: false, relance_apres: dansSecondes(DELAI_RELANCE_S), note: message + " — nouvelle tentative" });
+      const maxEssais = etat.phase === "recherche" ? 2 : 1;
+      if ((e?.code === "temps" || e?.code === "tronque") && tentatives < maxEssais) {
+        // Étape trop longue ou réponse tronquée : nouvelle tentative (recherche allégée, réponse plus courte).
+        await patchEtat({ usage, tentatives: tentatives + 1, en_vol: false, relance_apres: dansSecondes(DELAI_RELANCE_S), note: message + " Nouvelle tentative." });
+      } else if (gen.type === "veille" && (etat.ecrites || []).length) {
+        // Des thématiques sont déjà enregistrées : la veille se termine avec ce qu'elle a.
+        Object.assign(etat, { usage });
+        await finir({ usage, libelle: "Terminée", propositions: null }, `${etat.ecrites.length} thématique(s) rédigée(s) sur ${etat.attendu_total || "?"} demandées. Étape « ${etat.libelle || etat.phase} » : ` + message, "terminee");
       } else {
         Object.assign(etat, { usage });
         await finir({ usage, libelle: "Erreur", reponse_brute: e?.brut ? { stop_reason: e.brut.stop_reason, content: alleger(e.brut.content) } : undefined },
@@ -525,9 +550,9 @@ ${FORMAT_THEMATIQUE}`;
   if (type !== "fiche_rex") {
     if (!params.fiche_rex || !params.fiche_rex_validee_le) return json({ error: "La fiche Rex-Rotary doit être validée avant de lancer la veille." }, 400);
     const { count } = await admin.from("commando_generations").select("id", { count: "exact", head: true })
-      .eq("semaine_id", semaineId).in("type", ["veille", "regeneration"]);
+      .eq("semaine_id", semaineId).in("type", ["veille", "regeneration"]).neq("statut", "erreur");
     if ((count || 0) >= Number(params.limite_generations_semaine || 5)) {
-      return json({ error: `Limite atteinte : ${count} générations déjà lancées cette semaine (paramètre : ${params.limite_generations_semaine}).` }, 429);
+      return json({ error: `Limite atteinte : ${count} générations déjà abouties cette semaine (réglage « Limite de générations IA par semaine » : ${params.limite_generations_semaine}).` }, 429);
     }
   }
   const { data: enCours } = await admin.from("commando_generations").select("id").eq("semaine_id", semaineId).eq("statut", "en_cours").limit(1);
@@ -546,7 +571,10 @@ ${FORMAT_THEMATIQUE}`;
       libelle: "Recherche d'une nouvelle thématique",
     };
   } else {
-    etatInitial = { phase: "recherche", etape: 1, total: 6, attendu: 5, libelle: "Veille d'actualité et concurrentielle (recherche web)" };
+    const nb = Math.min(NB_MAX, Math.max(NB_MIN, Math.round(Number(body?.nb) || 5)));
+    const lots = Math.ceil(nb / LOT_MAX);
+    etatInitial = { phase: "recherche", etape: 1, total: nb + lots, attendu: Math.min(LOT_MAX, nb), attendu_total: nb, lots: 1, lots_max: lots + 1,
+      libelle: "Veille d'actualité et concurrentielle (recherche web)" };
   }
   Object.assign(etatInitial, { en_vol: true, phase_debut: new Date().toISOString(), tentatives: 0, propositions: [], ecrites: [], urls: [], usage: {} });
 

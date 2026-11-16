@@ -569,3 +569,14 @@ Retour de Scott : « un peu fouillis », « ça ressemble beaucoup à de l'IA »
 - Fiche : barre d'appel sombre pendant la session (fiche n sur N, appels, RDV, points, progression), bouton « Appeler » vert, trame lisible, 4 résultats en pied de fiche.
 - Ligue : classement en liste (points, appels, RDV, taux, badges) au lieu d'un tableau de 11 colonnes.
 - Semaine : frise horizontale sur ordinateur, verticale sur téléphone ; « Maintenant » en une phrase.
+
+## Nombre de sujets au choix et relance de la veille (migration `20261116120000`, v43)
+
+Lundi 16 novembre : la veille automatique de 7 h a échoué à la première étape (réponse du modèle tronquée) et le pilote ne l'a pas relancée. Les relances manuelles pour dépasser 5 sujets ont échoué de la même façon.
+
+- **Nombre de sujets au choix** : de 3 à 12 par veille (liste « Nombre de sujets » à côté du bouton). La recherche se fait par lots de 5 au plus, puis une rédaction par sujet ; comptez environ 2 minutes par sujet.
+- **Ajouter des sujets** : quand la semaine en a déjà, le bouton devient « Ajouter N sujets ». Les sujets déjà proposés cette semaine sont exclus de la recherche, et les nouveaux entrent dans le vote en cours.
+- **Réponse tronquée ou étape trop longue** : l'étape repart toute seule (2 nouveaux essais pour la recherche, 1 pour une rédaction), avec moins de recherches et une consigne de concision. La limite de sortie de la recherche passe de 12 000 à 20 000 jetons.
+- **Lot suivant en échec** : la veille se termine avec les sujets déjà rédigés au lieu de tout perdre.
+- **Pilote** : réglage « Sujets proposés » (6 par défaut). Une veille en erreur est relancée au passage suivant (toutes les 10 minutes, 3 essais au plus), noté « Veille relancée automatiquement » dans le journal.
+- **Limite hebdomadaire** : les générations en erreur ne comptent plus.

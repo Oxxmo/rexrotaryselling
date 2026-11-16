@@ -1,5 +1,5 @@
 /* Rex Seller — service worker (mode hors-ligne) */
-const CACHE = "rexseller-v42";
+const CACHE = "rexseller-v43";
 const ASSETS = [
   "./",
   "./index.html",
