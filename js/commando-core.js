@@ -188,6 +188,10 @@
   }
 
   /* ---------- Démarrage (appelé par app.js après connexion) ---------- */
+  // Bouton « Commando » de la barre du haut : retiré pour l'instant (demande de
+  // Scott, 23 novembre). Le commando reste accessible par lien direct
+  // (…/#commando/semaine) et par les notifications. Remettre à true pour le réafficher.
+  const BOUTON_VISIBLE = false;
   async function onBoot() {
     const me = window.RexDB && window.RexDB.me();
     const btn = $("#btnCommando");
@@ -196,7 +200,7 @@
       const { data } = await sb().from("commando_membres").select("role").eq("user_id", me.id).maybeSingle();
       membre = data || null;
     } catch (e) { membre = null; }
-    if (btn) btn.hidden = !membre;
+    if (btn) btn.hidden = !(membre && BOUTON_VISIBLE);
     if (!membre) return;
     wire();
     renderNav();
